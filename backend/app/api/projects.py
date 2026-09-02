@@ -7,10 +7,13 @@ from backend.app.auth.models import AuthUser
 from backend.app.core.database import get_db
 from backend.app.core.errors import api_error
 from backend.app.models.project import Project
-from backend.app.models.submission import (
-    SUBMISSION_STATUS_APPROVED,
-    SUBMISSION_STATUS_UNREVIEWED,
-    Submission,
+from backend.app.performance.errors import MetricUnitConflict, ProjectNotFound
+from backend.app.performance.service import (
+    LatestMetric,
+    MetricPoint,
+    get_latest_approved_metrics,
+    get_metric_history,
+    get_project_detail,
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -35,17 +38,24 @@ def list_projects(
     }
 
 
-def _serialize_point(pair) -> dict | None:
-    if pair is None:
+def _serialize_point(point: MetricPoint | None) -> dict | None:
+    if point is None:
         return None
-    submission, metric = pair
     return {
-        "submission_id": submission.id,
-        "reporting_period": submission.reporting_period,
-        "value": metric.value,
-        "unit": metric.unit,
-        "category": metric.category,
-        "status": submission.status,
+        "submission_id": point.submission_id,
+        "reporting_period": point.reporting_period,
+        "value": point.value,
+        "unit": point.unit,
+        "category": point.category,
+        "status": point.status,
+    }
+
+
+def _serialize_latest_metric(metric: LatestMetric) -> dict:
+    return {
+        "metric_name": metric.metric_name,
+        "latest": _serialize_point(metric.latest),
+        "previous": _serialize_point(metric.previous),
     }
 
 
@@ -55,43 +65,19 @@ def project_detail(
     _: AuthUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    project = db.get(Project, project_id, options=[selectinload(Project.organisation)])
-    if project is None:
-        raise api_error(status.HTTP_404_NOT_FOUND, "PROJECT_NOT_FOUND", "Project was not found.")
-
-    stmt = (
-        select(Submission)
-        .where(Submission.project_id == project_id, Submission.status == SUBMISSION_STATUS_APPROVED)
-        .options(selectinload(Submission.metrics))
-        .order_by(Submission.created_at.desc())
-    )
-    submissions = db.scalars(stmt).unique().all()
-
-    latest_by_metric: dict[str, tuple] = {}
-    previous_by_metric: dict[str, tuple] = {}
-    for submission in submissions:
-        for metric in submission.metrics:
-            if metric.metric_name not in latest_by_metric:
-                latest_by_metric[metric.metric_name] = (submission, metric)
-            elif metric.metric_name not in previous_by_metric:
-                previous_by_metric[metric.metric_name] = (submission, metric)
-
-    metrics_payload = [
-        {
-            "metric_name": metric_name,
-            "latest": _serialize_point(pair),
-            "previous": _serialize_point(previous_by_metric.get(metric_name)),
-        }
-        for metric_name, pair in latest_by_metric.items()
-    ]
+    try:
+        summary = get_project_detail(project_id, db=db)
+        metrics = get_latest_approved_metrics(project_id, db=db)
+    except ProjectNotFound as exc:
+        raise api_error(status.HTTP_404_NOT_FOUND, "PROJECT_NOT_FOUND", "Project was not found.") from exc
 
     return {
         "project": {
-            "project_id": project.id,
-            "project_name": project.name,
-            "organisation": project.organisation.name,
+            "project_id": summary.project_id,
+            "project_name": summary.project_name,
+            "organisation": summary.organisation_name,
         },
-        "metrics": metrics_payload,
+        "metrics": [_serialize_latest_metric(metric) for metric in metrics],
     }
 
 
@@ -103,29 +89,18 @@ def metric_history(
     _: AuthUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    statuses = [SUBMISSION_STATUS_APPROVED]
-    if include_unreviewed:
-        statuses.append(SUBMISSION_STATUS_UNREVIEWED)
+    try:
+        points = get_metric_history(project_id, metric_name, db=db, include_unreviewed=include_unreviewed)
+    except ProjectNotFound as exc:
+        raise api_error(status.HTTP_404_NOT_FOUND, "PROJECT_NOT_FOUND", "Project was not found.") from exc
+    except MetricUnitConflict as exc:
+        raise api_error(
+            status.HTTP_409_CONFLICT,
+            "METRIC_UNIT_CONFLICT",
+            "This metric has inconsistent units across submissions and cannot be safely charted.",
+        ) from exc
 
-    stmt = (
-        select(Submission)
-        .where(Submission.project_id == project_id, Submission.status.in_(statuses))
-        .options(selectinload(Submission.metrics))
-        .order_by(Submission.created_at.asc())
-    )
-    submissions = db.scalars(stmt).unique().all()
-
-    points = [
-        {
-            "submission_id": submission.id,
-            "reporting_period": submission.reporting_period,
-            "value": metric.value,
-            "unit": metric.unit,
-            "status": submission.status,
-        }
-        for submission in submissions
-        for metric in submission.metrics
-        if metric.metric_name == metric_name
-    ]
-
-    return {"metric_name": metric_name, "points": points}
+    return {
+        "metric_name": metric_name,
+        "points": [_serialize_point(point) for point in points],
+    }

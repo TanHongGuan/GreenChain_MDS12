@@ -20,9 +20,31 @@ async function parseProjectResponse(response) {
   return payload;
 }
 
-export async function getProjects() {
-  const response = await fetch(`${API_BASE_URL}/projects`, { credentials: "include" });
-  const payload = await parseProjectResponse(response);
+function buildProjectQuery(params = {}) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === null || value === undefined || value === "") {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      if (value.length > 0) {
+        query.set(key, value.join(","));
+      }
+      continue;
+    }
+    query.set(key, String(value));
+  }
+  const queryString = query.toString();
+  return queryString ? `?${queryString}` : "";
+}
+
+export async function getProjectCatalogue(params = {}) {
+  const response = await fetch(`${API_BASE_URL}/projects${buildProjectQuery(params)}`, { credentials: "include" });
+  return parseProjectResponse(response);
+}
+
+export async function getProjects(params = {}) {
+  const payload = await getProjectCatalogue(params);
   return payload.projects;
 }
 

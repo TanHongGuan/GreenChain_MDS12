@@ -30,6 +30,15 @@ const auditor = {
   organisation_id: null,
 };
 
+const emptyProjectCatalogue = {
+  projects: [],
+  page: 1,
+  page_size: 12,
+  total_items: 0,
+  total_pages: 0,
+  filters: { organisations: [], locations: [], statuses: [], reporting_periods: [] },
+};
+
 function jsonResponse(status, payload) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -65,7 +74,11 @@ function renderApp(route = "/") {
 }
 
 async function renderWithRestoredUser(user, route = "/") {
-  mockFetchQueue([{ response: jsonResponse(200, { user }) }]);
+  const responses = [{ response: jsonResponse(200, { user }) }];
+  if (route.startsWith("/projects")) {
+    responses.push({ response: jsonResponse(200, emptyProjectCatalogue) });
+  }
+  mockFetchQueue(responses);
   renderApp(route);
   await screen.findByText(user.name);
 }

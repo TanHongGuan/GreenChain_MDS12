@@ -230,6 +230,10 @@ async def test_unsupported_file_is_rejected(db, storage, settings) -> None:
             settings=settings,
         )
 
+    assert db.query(Submission).count() == 0
+    assert db.query(Metric).count() == 0
+    assert stored_files(storage) == []
+
 
 @pytest.mark.anyio
 async def test_malformed_csv_is_rejected(db, storage, settings) -> None:
@@ -248,6 +252,26 @@ async def test_malformed_csv_is_rejected(db, storage, settings) -> None:
         )
 
     assert db.query(Submission).count() == 0
+    assert db.query(Metric).count() == 0
+    assert stored_files(storage) == []
+
+
+@pytest.mark.anyio
+async def test_corrupted_xlsx_is_rejected_before_storage(db, storage, settings) -> None:
+    with pytest.raises(SubmissionValidationError):
+        await process_submission(
+            upload("report.xlsx", b"not-a-workbook", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            "Green Tower",
+            "Acme Corp",
+            "2026-Q1",
+            uploader_id(db),
+            db=db,
+            storage=storage,
+            settings=settings,
+        )
+
+    assert db.query(Submission).count() == 0
+    assert db.query(Metric).count() == 0
     assert stored_files(storage) == []
 
 
@@ -268,6 +292,7 @@ async def test_missing_required_columns_are_rejected(db, storage, settings) -> N
         )
 
     assert db.query(Submission).count() == 0
+    assert db.query(Metric).count() == 0
     assert stored_files(storage) == []
 
 
@@ -288,6 +313,7 @@ async def test_invalid_values_are_rejected(db, storage, settings) -> None:
         )
 
     assert db.query(Submission).count() == 0
+    assert db.query(Metric).count() == 0
     assert stored_files(storage) == []
 
 

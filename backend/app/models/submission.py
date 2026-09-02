@@ -6,6 +6,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.app.core.database import Base
 
 SUBMISSION_STATUS_UNREVIEWED = "UNREVIEWED"
+SUBMISSION_STATUS_APPROVED = "APPROVED"
+SUBMISSION_STATUS_REJECTED = "REJECTED"
 
 
 class Submission(Base):

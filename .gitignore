@@ -1,0 +1,47 @@
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Test / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# IDE / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local logs
+*.log
+
+# Local database files, if any
+*.db
+*.sqlite
+*.sqlite3
+
+# Runtime storage
+var/storage/*
+!var/storage/.gitkeep
+
+# Frontend dependencies/build output
+node_modules/
+dist/
+.vite/
+coverage/
+.env.local
+.env.*.local

@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-greenchain}
+      POSTGRES_USER: ${POSTGRES_USER:-greenchain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-local-password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - greenchain_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  greenchain_postgres_data:

@@ -90,7 +90,7 @@ POSTGRES_PASSWORD=change-this-local-password
 POSTGRES_PORT=5432
 DATABASE_URL=postgresql+psycopg://greenchain:change-this-local-password@localhost:${POSTGRES_PORT}/greenchain
 
-DEV_SEED_PASSWORD=password
+DEV_SEED_PASSWORD=change-this-local-password
 
 STORAGE_BACKEND=local
 LOCAL_STORAGE_ROOT=./var/storage
@@ -199,10 +199,10 @@ http://127.0.0.1:5173
 
 Use the password from `DEV_SEED_PASSWORD`.
 
-Default local password:
+Default local password when using `.env.example` unchanged:
 
 ```text
-password
+change-this-local-password
 ```
 
 Accounts:
@@ -239,7 +239,7 @@ Request:
 ```json
 {
   "email": "uploader@greenchain.test",
-  "password": "password"
+  "password": "change-this-local-password"
 }
 ```
 

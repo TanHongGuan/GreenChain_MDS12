@@ -22,9 +22,17 @@ class LocalStorageService:
         self._ensure_writable(self.processed_dir)
 
     def store_original(self, file_obj: BinaryIO, original_filename: str, content_type: str | None = None) -> StoredFile:
+        return self._store("original", file_obj, original_filename, content_type)
+
+    def store_processed(self, file_obj: BinaryIO, original_filename: str, content_type: str | None = None) -> StoredFile:
+        return self._store("processed", file_obj, original_filename, content_type)
+
+    def _store(
+        self, kind: str, file_obj: BinaryIO, original_filename: str, content_type: str | None = None
+    ) -> StoredFile:
         self.initialise()
         safe_name = self._safe_filename(original_filename)
-        storage_key = f"original/{uuid4()}/{safe_name}"
+        storage_key = f"{kind}/{uuid4()}/{safe_name}"
         destination = self._path_for_key(storage_key)
         destination.parent.mkdir(parents=True, exist_ok=False)
 

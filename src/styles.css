@@ -98,6 +98,14 @@ input:focus {
   background: #fbe3e3;
 }
 
+.form-success {
+  padding: 12px;
+  border: 1px solid #9fd2b5;
+  border-radius: 6px;
+  color: #176b4d;
+  background: #e8f5ed;
+}
+
 .field-error {
   color: #a84444;
   font-size: 0.9rem;
@@ -207,6 +215,50 @@ nav a.active {
 
 .page-panel {
   padding: 32px 0;
+}
+
+.page-heading {
+  margin-bottom: 24px;
+}
+
+.upload-page {
+  max-width: 720px;
+}
+
+.upload-form {
+  gap: 12px;
+}
+
+.drop-zone {
+  display: grid;
+  gap: 10px;
+  min-height: 128px;
+  padding: 18px;
+  border: 1px dashed #8fa0b2;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.drop-zone[data-has-file="true"] {
+  border-color: #23835e;
+  background: #f3f7f3;
+}
+
+.drop-zone input {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+}
+
+.drop-zone input:focus {
+  outline: 3px solid #8ac7a6;
+}
+
+.drop-zone p {
+  margin: 0;
+  color: #45586d;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .text-link {

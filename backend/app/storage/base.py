@@ -10,6 +10,9 @@ class StorageService(Protocol):
     def store_original(self, file_obj: BinaryIO, original_filename: str, content_type: str | None = None) -> StoredFile:
         ...
 
+    def store_processed(self, file_obj: BinaryIO, original_filename: str, content_type: str | None = None) -> StoredFile:
+        ...
+
     def retrieve(self, storage_key: str) -> bytes:
         ...
 

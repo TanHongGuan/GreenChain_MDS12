@@ -11,8 +11,11 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = Field(default=60, alias="JWT_EXPIRE_MINUTES")
     cookie_secure: bool = Field(default=False, alias="COOKIE_SECURE")
     frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")
-    enable_dev_users: bool = Field(default=True, alias="ENABLE_DEV_USERS")
-    dev_user_password: str = Field(default="password", alias="DEV_USER_PASSWORD")
+    database_url: str = Field(
+        default="postgresql+psycopg://greenchain:change-this-local-password@localhost:5432/greenchain",
+        alias="DATABASE_URL",
+    )
+    dev_seed_password: str | None = Field(default=None, alias="DEV_SEED_PASSWORD")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 

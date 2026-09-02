@@ -17,6 +17,7 @@ class AuthUser(BaseModel):
     role: UserRole
     organisation_id: str | None = None
     password_hash: str
+    is_active: bool = True
 
 
 class UserRepository(Protocol):

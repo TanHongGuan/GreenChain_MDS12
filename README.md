@@ -2,7 +2,10 @@
 
 ## Sprint 1 Backend Authentication
 
-This repository currently contains a minimal FastAPI backend for Sprint 1 Member 2: authentication and reusable role-based access control only.
+This repository currently contains Sprint 1 authentication work:
+
+- Member 2: FastAPI authentication and reusable role-based access control.
+- Member 3: PostgreSQL persistence for authentication users and organisations.
 
 ### Local Setup
 
@@ -31,6 +34,33 @@ Run tests:
 pytest
 ```
 
+### PostgreSQL Setup
+
+Start local PostgreSQL with Docker Compose:
+
+```bash
+docker compose up -d postgres
+```
+
+Configure `.env` from `.env.example`, then run migrations:
+
+```bash
+alembic upgrade head
+```
+
+Seed Sprint 1 development auth users:
+
+```bash
+python -m backend.app.scripts.seed_auth
+```
+
+Migration downgrade/upgrade check:
+
+```bash
+alembic downgrade -1
+alembic upgrade head
+```
+
 ### Environment
 
 Copy `.env.example` to `.env` for local development. Never commit `.env`.
@@ -42,8 +72,9 @@ Required/configurable values:
 - `JWT_EXPIRE_MINUTES`: access token lifetime.
 - `COOKIE_SECURE`: set `true` in HTTPS production environments.
 - `FRONTEND_ORIGIN`: allowed frontend origin, for example `http://localhost:5173`. Comma-separated origins are supported.
-- `ENABLE_DEV_USERS`: enables temporary in-memory users for development/testing.
-- `DEV_USER_PASSWORD`: shared password for temporary development users.
+- `DATABASE_URL`: SQLAlchemy database URL, for example `postgresql+psycopg://greenchain:change-this-local-password@localhost:5432/greenchain`.
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: used by Docker Compose for local PostgreSQL.
+- `DEV_SEED_PASSWORD`: required by the development seed script. The value is hashed before storage.
 
 ### API Contract
 
@@ -114,22 +145,30 @@ Upload and review endpoints are intentionally not implemented in Sprint 1.
 
 ### Temporary Development Users
 
-Until Member 3 connects PostgreSQL, `backend.app.repositories.users.InMemoryUserRepository` provides development/test-only users when `ENABLE_DEV_USERS=true`:
+Run `python -m backend.app.scripts.seed_auth` after migrations to create:
 
 - `viewer@greenchain.test`
 - `uploader@greenchain.test`
 - `auditor@greenchain.test`
 
-Their passwords are hashed with Argon2 before verification. The default local password is controlled by `DEV_USER_PASSWORD`.
+Their password is the value of `DEV_SEED_PASSWORD`. Only Argon2 password hashes are stored in PostgreSQL. Running the seed command repeatedly is safe and will not duplicate users or organisations.
 
 ### Member 3 Database Integration
 
-Replace `get_user_repository()` in `backend.app.repositories.users` with a PostgreSQL-backed implementation that provides:
+Authentication uses `SQLAlchemyUserRepository` in `backend.app.repositories.users`, backed by the Sprint 1 tables:
+
+- `users`
+- `organisations`
+- `organisation_members`
+
+The repository provides:
 
 - `get_user_by_email(email)`
 - `get_user_by_id(user_id)`
 
-The auth router and service depend only on the repository boundary and should not need to change when persistent users are added.
+Future database work should add Alembic migrations under `backend/app/migrations/versions`. Do not edit existing migrations after they have been shared unless the team deliberately resets local databases.
+
+Foreign keys from `organisation_members` use `ON DELETE RESTRICT`, so users and organisations cannot be silently removed while memberships reference them.
 
 ### Member 1 Frontend Integration
 

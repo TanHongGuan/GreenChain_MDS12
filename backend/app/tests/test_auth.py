@@ -11,17 +11,26 @@ from backend.app.auth.schemas import UserResponse
 from backend.app.core.config import get_settings
 from backend.app.main import create_app
 from backend.app.repositories.users import get_user_repository
+from backend.app.tests.db_fixtures import build_session_factory, install_repository_override, seed_test_auth_users
 
 
 @pytest.fixture(autouse=True)
 def clear_dependency_caches() -> None:
     get_settings.cache_clear()
-    get_user_repository.cache_clear()
 
 
 @pytest.fixture
-def client() -> TestClient:
+def session_factory(tmp_path):
+    factory = build_session_factory(tmp_path / "auth-tests.sqlite3")
+    with factory() as db:
+        seed_test_auth_users(db)
+    return factory
+
+
+@pytest.fixture
+def client(session_factory) -> TestClient:
     app = create_app()
+    install_repository_override(app, get_user_repository, session_factory)
     return TestClient(app)
 
 
@@ -148,8 +157,9 @@ def test_expired_token_returns_401(client: TestClient) -> None:
     assert response.json()["error"]["code"] == "TOKEN_EXPIRED"
 
 
-def make_rbac_client() -> TestClient:
+def make_rbac_client(session_factory) -> TestClient:
     app = create_app()
+    install_repository_override(app, get_user_repository, session_factory)
 
     @app.get("/rbac/uploader", response_model=UserResponse)
     def uploader_route(current_user: AuthUser = Depends(require_roles(UserRole.UPLOADER))) -> AuthUser:
@@ -163,8 +173,8 @@ def make_rbac_client() -> TestClient:
 
 
 @pytest.mark.parametrize("email", ["viewer@greenchain.test", "auditor@greenchain.test"])
-def test_non_uploaders_fail_uploader_only_authorization(email: str) -> None:
-    client = make_rbac_client()
+def test_non_uploaders_fail_uploader_only_authorization(email: str, session_factory) -> None:
+    client = make_rbac_client(session_factory)
     login(client, email)
 
     response = client.get("/rbac/uploader")
@@ -173,8 +183,8 @@ def test_non_uploaders_fail_uploader_only_authorization(email: str) -> None:
     assert response.json()["error"]["code"] == "FORBIDDEN"
 
 
-def test_uploader_passes_uploader_authorization() -> None:
-    client = make_rbac_client()
+def test_uploader_passes_uploader_authorization(session_factory) -> None:
+    client = make_rbac_client(session_factory)
     login(client, "uploader@greenchain.test")
 
     response = client.get("/rbac/uploader")
@@ -184,8 +194,8 @@ def test_uploader_passes_uploader_authorization() -> None:
 
 
 @pytest.mark.parametrize("email", ["viewer@greenchain.test", "uploader@greenchain.test"])
-def test_non_auditors_fail_auditor_only_authorization(email: str) -> None:
-    client = make_rbac_client()
+def test_non_auditors_fail_auditor_only_authorization(email: str, session_factory) -> None:
+    client = make_rbac_client(session_factory)
     login(client, email)
 
     response = client.get("/rbac/auditor")
@@ -194,8 +204,8 @@ def test_non_auditors_fail_auditor_only_authorization(email: str) -> None:
     assert response.json()["error"]["code"] == "FORBIDDEN"
 
 
-def test_auditor_passes_auditor_authorization() -> None:
-    client = make_rbac_client()
+def test_auditor_passes_auditor_authorization(session_factory) -> None:
+    client = make_rbac_client(session_factory)
     login(client, "auditor@greenchain.test")
 
     response = client.get("/rbac/auditor")
@@ -204,8 +214,8 @@ def test_auditor_passes_auditor_authorization() -> None:
     assert response.json()["role"] == "AUDITOR"
 
 
-def test_rbac_missing_authentication_returns_401() -> None:
-    client = make_rbac_client()
+def test_rbac_missing_authentication_returns_401(session_factory) -> None:
+    client = make_rbac_client(session_factory)
 
     response = client.get("/rbac/uploader")
 

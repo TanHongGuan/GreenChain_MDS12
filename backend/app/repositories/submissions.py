@@ -17,6 +17,7 @@ def create_submission(
     original_storage_key: str,
     processed_storage_key: str,
     original_sha256: str,
+    previous_submission_id: int | None = None,
 ) -> Submission:
     submission = Submission(
         project_id=project_id,
@@ -27,6 +28,7 @@ def create_submission(
         original_storage_key=original_storage_key,
         processed_storage_key=processed_storage_key,
         original_sha256=original_sha256,
+        previous_submission_id=previous_submission_id,
     )
     db.add(submission)
     db.flush()
@@ -43,6 +45,20 @@ def _with_review_context(stmt):
 def get_submission_by_id(db: Session, submission_id: int) -> Submission | None:
     stmt = _with_review_context(select(Submission)).where(Submission.id == submission_id)
     return db.scalars(stmt).first()
+
+
+def get_submission_trace_by_id(db: Session, submission_id: int) -> Submission | None:
+    stmt = (
+        _with_review_context(select(Submission))
+        .where(Submission.id == submission_id)
+        .options(
+            selectinload(Submission.metrics),
+            selectinload(Submission.reviews),
+            joinedload(Submission.previous_submission),
+            selectinload(Submission.corrections),
+        )
+    )
+    return db.scalars(stmt).unique().first()
 
 
 def list_unreviewed_submissions(db: Session) -> list[Submission]:
@@ -75,5 +91,20 @@ def list_submissions_for_project(db: Session, project_id: int, statuses: Iterabl
         select(Submission)
         .where(Submission.project_id == project_id, Submission.status.in_(list(statuses)))
         .options(selectinload(Submission.metrics))
+    )
+    return list(db.scalars(stmt).unique().all())
+
+
+def list_submission_history_for_project(db: Session, project_id: int) -> list[Submission]:
+    stmt = (
+        _with_review_context(select(Submission))
+        .where(Submission.project_id == project_id)
+        .options(
+            selectinload(Submission.metrics),
+            selectinload(Submission.reviews),
+            joinedload(Submission.previous_submission),
+            selectinload(Submission.corrections),
+        )
+        .order_by(Submission.created_at.desc(), Submission.id.desc())
     )
     return list(db.scalars(stmt).unique().all())

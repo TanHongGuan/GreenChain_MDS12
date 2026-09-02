@@ -51,7 +51,7 @@ async def process_submission(
     storage: StorageService,
     settings: Settings | None = None,
 ) -> SubmissionResult:
-    """Sprint 2 upload pipeline: validate, store, parse, transform, and persist."""
+    """Sprint 2 upload pipeline: validate, transform, store, and persist."""
     settings = settings or get_settings()
 
     if not file.filename:
@@ -70,20 +70,19 @@ async def process_submission(
     if len(raw_bytes) > max_bytes:
         raise SubmissionValidationError(f"File must be {settings.max_upload_size_mb}MB or smaller.")
 
-    original_sha256 = calculate_sha256(BytesIO(raw_bytes))
-
-    try:
-        original_file = storage.store_original(BytesIO(raw_bytes), file.filename, file.content_type)
-    except StorageError as exc:
-        raise SubmissionProcessingError("Original file could not be stored.") from exc
-
     try:
         headers, raw_rows = parser(raw_bytes)
         cleaned_rows = clean_rows(headers, raw_rows)
     except (ETLParseError, ETLValidationError) as exc:
         raise SubmissionValidationError(str(exc)) from exc
 
+    original_sha256 = calculate_sha256(BytesIO(raw_bytes))
     processed_bytes = build_processed_csv(cleaned_rows)
+
+    try:
+        original_file = storage.store_original(BytesIO(raw_bytes), file.filename, file.content_type)
+    except StorageError as exc:
+        raise SubmissionProcessingError("Original file could not be stored.") from exc
 
     try:
         processed_file = storage.store_processed(

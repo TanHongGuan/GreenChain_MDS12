@@ -65,6 +65,12 @@ def uploader_id(db) -> str:
     return user.id
 
 
+def stored_files(storage) -> list:
+    if not storage.root.exists():
+        return []
+    return [path for path in storage.root.rglob("*") if path.is_file()]
+
+
 @pytest.mark.anyio
 async def test_valid_csv_processes_end_to_end(db, storage, settings) -> None:
     result = await process_submission(
@@ -242,6 +248,7 @@ async def test_malformed_csv_is_rejected(db, storage, settings) -> None:
         )
 
     assert db.query(Submission).count() == 0
+    assert stored_files(storage) == []
 
 
 @pytest.mark.anyio
@@ -260,6 +267,9 @@ async def test_missing_required_columns_are_rejected(db, storage, settings) -> N
             settings=settings,
         )
 
+    assert db.query(Submission).count() == 0
+    assert stored_files(storage) == []
+
 
 @pytest.mark.anyio
 async def test_invalid_values_are_rejected(db, storage, settings) -> None:
@@ -276,6 +286,9 @@ async def test_invalid_values_are_rejected(db, storage, settings) -> None:
             storage=storage,
             settings=settings,
         )
+
+    assert db.query(Submission).count() == 0
+    assert stored_files(storage) == []
 
 
 @pytest.mark.anyio

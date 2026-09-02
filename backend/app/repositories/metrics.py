@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.app.etl.transform import CanonicalMetricRow
@@ -18,3 +19,8 @@ def bulk_create_metrics(db: Session, submission_id: int, rows: list[CanonicalMet
     db.add_all(metrics)
     db.flush()
     return metrics
+
+
+def get_metrics_for_submission(db: Session, submission_id: int) -> list[Metric]:
+    stmt = select(Metric).where(Metric.submission_id == submission_id).order_by(Metric.id.asc())
+    return list(db.scalars(stmt).all())

@@ -14,7 +14,7 @@ from backend.app.etl.writer import build_processed_csv
 from backend.app.integrity.hashing import calculate_sha256
 from backend.app.repositories.metrics import bulk_create_metrics
 from backend.app.repositories.projects import get_or_create_project
-from backend.app.repositories.submissions import create_submission
+from backend.app.repositories.submissions import create_submission, get_submission_by_id
 from backend.app.storage.base import StorageService
 from backend.app.storage.dependencies import get_storage_service
 from backend.app.storage.exceptions import StorageError
@@ -50,6 +50,7 @@ async def process_submission(
     db: Session,
     storage: StorageService,
     settings: Settings | None = None,
+    previous_submission_id: int | None = None,
 ) -> SubmissionResult:
     """Sprint 2 upload pipeline: validate, transform, store, and persist."""
     settings = settings or get_settings()
@@ -76,12 +77,30 @@ async def process_submission(
     except (ETLParseError, ETLValidationError) as exc:
         raise SubmissionValidationError(str(exc)) from exc
 
+    previous_submission = None
+    if previous_submission_id is not None:
+        previous_submission = get_submission_by_id(db, previous_submission_id)
+        if previous_submission is None:
+            raise SubmissionValidationError("Corrected submission was not found.")
+
     original_sha256 = calculate_sha256(BytesIO(raw_bytes))
     processed_bytes = build_processed_csv(cleaned_rows)
 
     try:
+        project = get_or_create_project(db, project_name, organisation)
+        if previous_submission is not None and previous_submission.project_id != project.id:
+            db.rollback()
+            raise SubmissionValidationError("Corrections must belong to the same project as the prior submission.")
+    except SubmissionValidationError:
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise SubmissionProcessingError("Submission project could not be resolved.") from exc
+
+    try:
         original_file = storage.store_original(BytesIO(raw_bytes), file.filename, file.content_type)
     except StorageError as exc:
+        db.rollback()
         raise SubmissionProcessingError("Original file could not be stored.") from exc
 
     try:
@@ -89,10 +108,10 @@ async def process_submission(
             BytesIO(processed_bytes), f"{Path(file.filename).stem}.csv", "text/csv"
         )
     except StorageError as exc:
+        db.rollback()
         raise SubmissionProcessingError("Processed file could not be stored.") from exc
 
     try:
-        project = get_or_create_project(db, project_name, organisation)
         submission = create_submission(
             db,
             project_id=project.id,
@@ -102,6 +121,7 @@ async def process_submission(
             original_storage_key=original_file.storage_key,
             processed_storage_key=processed_file.storage_key,
             original_sha256=original_sha256,
+            previous_submission_id=previous_submission_id,
         )
         bulk_create_metrics(db, submission.id, cleaned_rows)
         db.commit()
@@ -127,6 +147,7 @@ def get_submission_processor(
         organisation: str,
         reporting_period: str,
         uploader_id: str,
+        previous_submission_id: int | None = None,
     ) -> SubmissionResult:
         return await process_submission(
             file,
@@ -137,6 +158,7 @@ def get_submission_processor(
             db=db,
             storage=storage,
             settings=settings,
+            previous_submission_id=previous_submission_id,
         )
 
     return processor

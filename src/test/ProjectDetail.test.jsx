@@ -46,6 +46,48 @@ const electricityHistory = {
   ],
 };
 
+const submissionHistory = [
+  {
+    submission_id: 10,
+    project_id: 42,
+    project_name: "Green Tower",
+    organisation: "Acme Corp",
+    reporting_period: "2026-Q2",
+    status: "APPROVED",
+    submitted_by: { id: "uploader-id", name: "GreenChain Uploader", email: "uploader@greenchain.test" },
+    submitted_at: "2026-09-02T10:00:00Z",
+    review: { decision: "APPROVED", reason: "verified", reviewed_at: "2026-09-02T12:00:00Z" },
+    evidence: {
+      original: {
+        available: true,
+        filename: "report.csv",
+        size_bytes: 64,
+        sha256: "abc123",
+        integrity: { status: "MATCH", matches: true },
+      },
+      processed: { available: true, filename: "processed-10-report.csv", size_bytes: 72 },
+      audit_report: { available: true, filename: "audit-report-submission-10.txt", size_bytes: 120 },
+    },
+    previous_submission: null,
+    corrected_by: [],
+  },
+];
+
+const submissionDetail = {
+  ...submissionHistory[0],
+  metrics: [
+    {
+      metric_name: "Electricity",
+      value: 150,
+      unit: "kWh",
+      category: "Energy",
+      submission_id: 10,
+      reporting_period: "2026-Q2",
+      status: "APPROVED",
+    },
+  ],
+};
+
 function jsonResponse(status, payload) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -53,18 +95,39 @@ function jsonResponse(status, payload) {
   });
 }
 
-function mockFetchQueue(responses) {
+async function renderProjectDetail(
+  {
+    projectResponse = jsonResponse(200, projectDetail),
+    submissionsResponse = jsonResponse(200, { submissions: submissionHistory }),
+    submissionResponse = jsonResponse(200, { submission: submissionDetail }),
+    histories = { Electricity: jsonResponse(200, electricityHistory) },
+  } = {},
+  projectId = "42",
+) {
   global.fetch = vi.fn((url) => {
-    const next = responses.shift();
-    if (!next) {
-      throw new Error(`Unexpected fetch call: ${url}`);
+    const requestUrl = String(url);
+    if (requestUrl.endsWith("/auth/me")) {
+      return Promise.resolve(jsonResponse(200, { user: auditor }));
     }
-    return Promise.resolve(next);
+    if (requestUrl.includes(`/projects/${projectId}/metrics/`)) {
+      const metricName = decodeURIComponent(requestUrl.split(`/projects/${projectId}/metrics/`)[1].split("/")[0]);
+      const response = histories[metricName];
+      if (!response) {
+        throw new Error(`Unexpected metric history call: ${requestUrl}`);
+      }
+      return Promise.resolve(response.clone());
+    }
+    if (requestUrl.endsWith(`/submissions/projects/${projectId}`)) {
+      return Promise.resolve(submissionsResponse.clone());
+    }
+    if (requestUrl.endsWith(`/projects/${projectId}`)) {
+      return Promise.resolve(projectResponse.clone());
+    }
+    if (/\/submissions\/\d+$/.test(requestUrl)) {
+      return Promise.resolve(submissionResponse.clone());
+    }
+    throw new Error(`Unexpected fetch call: ${requestUrl}`);
   });
-}
-
-async function renderProjectDetail(responses, projectId = "42") {
-  mockFetchQueue([jsonResponse(200, { user: auditor }), ...responses]);
   render(
     <MemoryRouter initialEntries={[`/projects/${projectId}`]}>
       <AuthProvider>
@@ -84,7 +147,7 @@ afterEach(() => {
 
 describe("project detail page", () => {
   test("loads real project header and latest approved metric", async () => {
-    await renderProjectDetail([jsonResponse(200, projectDetail), jsonResponse(200, electricityHistory)]);
+    await renderProjectDetail();
 
     expect(await screen.findByRole("heading", { name: "Green Tower" })).toBeInTheDocument();
     expect(screen.getByText("Acme Corp")).toBeInTheDocument();
@@ -94,7 +157,7 @@ describe("project detail page", () => {
   });
 
   test("shows previous-period comparison", async () => {
-    await renderProjectDetail([jsonResponse(200, projectDetail), jsonResponse(200, electricityHistory)]);
+    await renderProjectDetail();
 
     await screen.findByRole("heading", { name: "Green Tower" });
     expect(screen.getByText(/vs 2026-Q1/)).toBeInTheDocument();
@@ -118,17 +181,25 @@ describe("project detail page", () => {
         },
       ],
     };
-    await renderProjectDetail([
-      jsonResponse(200, singlePeriod),
-      jsonResponse(200, { metric_name: "Water", points: [{ submission_id: 1, reporting_period: "2026-Q1", value: 20, unit: "kL", status: "APPROVED" }] }),
-    ]);
+    await renderProjectDetail({
+      projectResponse: jsonResponse(200, singlePeriod),
+      histories: {
+        Water: jsonResponse(200, {
+          metric_name: "Water",
+          points: [{ submission_id: 1, reporting_period: "2026-Q1", value: 20, unit: "kL", status: "APPROVED" }],
+        }),
+      },
+    });
 
     await screen.findByRole("heading", { name: "Green Tower" });
     expect(screen.getByText("No previous approved period")).toBeInTheDocument();
   });
 
   test("no approved data shows a safe empty state, not fabricated values", async () => {
-    await renderProjectDetail([jsonResponse(200, { project: projectDetail.project, metrics: [] })]);
+    await renderProjectDetail({
+      projectResponse: jsonResponse(200, { project: projectDetail.project, metrics: [] }),
+      submissionsResponse: jsonResponse(200, { submissions: [] }),
+    });
 
     await screen.findByRole("heading", { name: "Green Tower" });
     expect(screen.getByText("No approved sustainability data yet for this project.")).toBeInTheDocument();
@@ -158,25 +229,50 @@ describe("project detail page", () => {
       points: [{ submission_id: 11, reporting_period: "2026-Q2", value: 40, unit: "kL", status: "APPROVED" }],
     };
 
-    await renderProjectDetail([
-      jsonResponse(200, twoMetricDetail),
-      jsonResponse(200, electricityHistory),
-      jsonResponse(200, waterHistory),
-    ]);
+    await renderProjectDetail({
+      projectResponse: jsonResponse(200, twoMetricDetail),
+      histories: {
+        Electricity: jsonResponse(200, electricityHistory),
+        Water: jsonResponse(200, waterHistory),
+      },
+    });
 
     await screen.findByRole("heading", { name: "Green Tower" });
     const { default: userEvent } = await import("@testing-library/user-event");
     await userEvent.click(screen.getByRole("tab", { name: "Water" }));
 
-    const table = await screen.findByRole("table");
-    expect(within(table).getByText("2026-Q2")).toBeInTheDocument();
+    expect(await screen.findByText("40 kL")).toBeInTheDocument();
   });
 
   test("invalid project id is handled safely", async () => {
-    await renderProjectDetail([
-      jsonResponse(404, { error: { code: "PROJECT_NOT_FOUND", message: "Project was not found." } }),
-    ]);
+    await renderProjectDetail({
+      projectResponse: jsonResponse(404, { error: { code: "PROJECT_NOT_FOUND", message: "Project was not found." } }),
+      submissionsResponse: jsonResponse(404, {
+        error: { code: "PROJECT_NOT_FOUND", message: "Project was not found." },
+      }),
+    });
 
     expect(await screen.findByText("Project was not found.")).toBeInTheDocument();
+  });
+
+  test("shows submission records, detail, evidence links, and metric trace", async () => {
+    await renderProjectDetail();
+
+    expect(await screen.findByRole("heading", { name: "Submission #10" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Submission Records" })).toBeInTheDocument();
+    expect(screen.getByText("Original MATCH / Processed Available")).toBeInTheDocument();
+    expect(screen.getByText("Submission #10, 2026-Q2, APPROVED")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Original data" })).toHaveAttribute(
+      "href",
+      "http://localhost:8000/submissions/10/evidence/original",
+    );
+    expect(screen.getByRole("link", { name: "Processed data" })).toHaveAttribute(
+      "href",
+      "http://localhost:8000/submissions/10/evidence/processed",
+    );
+    expect(screen.getByRole("link", { name: "Audit report" })).toHaveAttribute(
+      "href",
+      "http://localhost:8000/submissions/10/evidence/audit_report",
+    );
   });
 });

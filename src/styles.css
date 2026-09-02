@@ -428,6 +428,20 @@ nav a.active {
   font-size: 0.82rem;
 }
 
+.text-button {
+  padding: 0;
+  border: 0;
+  color: #176b4d;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 800;
+  text-align: left;
+}
+
+.text-button:hover {
+  text-decoration: underline;
+}
+
 .metric-card-empty p {
   color: #708095;
 }
@@ -574,6 +588,58 @@ dd {
 
 .metrics-table tr:last-child td {
   border-bottom: 0;
+}
+
+.submission-records tr[data-selected="true"] td {
+  background: #f3f7f3;
+}
+
+.traceability-section {
+  display: grid;
+  gap: 14px;
+  margin-top: 32px;
+}
+
+.section-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.section-heading h2,
+.submission-detail-panel h2 {
+  margin: 0;
+  color: #0d2744;
+  letter-spacing: 0;
+}
+
+.section-heading p {
+  margin: 0;
+}
+
+.submission-detail-panel {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #dee5eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.submission-detail-panel .metrics-table-wrap {
+  border-radius: 6px;
+}
+
+.hash-value {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.85rem;
+}
+
+.evidence-disabled {
+  display: inline-flex;
+  align-items: center;
+  color: #708095;
+  background: #edf1f4;
 }
 
 .decision-panel {

@@ -7,6 +7,7 @@ import { AccessDenied } from "./components/AccessDenied.jsx";
 import { HighlightedPage } from "./pages/HighlightedPage.jsx";
 import { HomePage } from "./pages/HomePage.jsx";
 import { LoginPage } from "./pages/LoginPage.jsx";
+import { ProjectDetailPage } from "./pages/ProjectDetailPage.jsx";
 import { ProjectsPage } from "./pages/ProjectsPage.jsx";
 import { ReviewPlaceholder } from "./pages/ReviewPlaceholder.jsx";
 import { UploadPlaceholder } from "./pages/UploadPlaceholder.jsx";
@@ -31,6 +32,7 @@ export function AppRoutes() {
           <Route index element={<HomePage />} />
           <Route path="/highlighted" element={<HighlightedPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
           <Route element={<RoleRoute allowedRoles={["UPLOADER"]} />}>
             <Route path="/upload" element={<UploadPlaceholder />} />
           </Route>

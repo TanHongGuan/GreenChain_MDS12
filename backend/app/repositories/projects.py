@@ -1,5 +1,5 @@
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from backend.app.models.project import Project
 from backend.app.repositories.organisations import get_or_create_organisation
@@ -18,3 +18,8 @@ def get_or_create_project(db: Session, project_name: str, organisation_name: str
     db.add(project)
     db.flush()
     return project
+
+
+def get_project_by_id(db: Session, project_id: int) -> Project | None:
+    stmt = select(Project).options(joinedload(Project.organisation)).where(Project.id == project_id)
+    return db.scalars(stmt).first()

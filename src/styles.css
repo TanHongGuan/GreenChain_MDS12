@@ -357,6 +357,163 @@ nav a.active {
   background: #fbe3e3;
 }
 
+.project-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.project-list-item {
+  display: block;
+  border: 1px solid #dee5eb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px 18px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.project-list-item:hover {
+  border-color: #23835e;
+}
+
+.project-list-item h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  color: #0d2744;
+}
+
+.project-list-item p {
+  margin: 0;
+  color: #45586d;
+}
+
+.metric-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.metric-card {
+  border: 1px solid #dee5eb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px 18px;
+}
+
+.metric-card h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  color: #45586d;
+  text-transform: uppercase;
+}
+
+.metric-card-value {
+  margin: 0 0 4px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0d2744;
+}
+
+.metric-card-unit {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #708095;
+}
+
+.metric-card-period {
+  margin: 0 0 10px;
+  color: #708095;
+  font-size: 0.82rem;
+}
+
+.metric-card-empty p {
+  color: #708095;
+}
+
+.comparison-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.comparison-up {
+  color: #176b4d;
+}
+
+.comparison-down {
+  color: #a84444;
+}
+
+.comparison-flat,
+.comparison-none {
+  color: #708095;
+}
+
+.metric-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.metric-tab {
+  border: 1px solid #c9d2dc;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #45586d;
+  cursor: pointer;
+}
+
+.metric-tab-active {
+  border-color: #23835e;
+  color: #176b4d;
+  background: #e8f5ed;
+}
+
+.chart-controls {
+  margin-bottom: 12px;
+  font-size: 0.88rem;
+  color: #45586d;
+}
+
+.metric-history-chart {
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  border: 1px solid #dee5eb;
+  border-radius: 8px;
+  background: #ffffff;
+  margin-bottom: 20px;
+}
+
+.chart-line {
+  stroke: #23835e;
+  stroke-width: 2;
+  fill: none;
+}
+
+.chart-line-dashed {
+  stroke-dasharray: 6 5;
+  stroke: #708095;
+}
+
+.chart-point-approved {
+  fill: #23835e;
+}
+
+.chart-point-unreviewed {
+  fill: #ffffff;
+  stroke: #708095;
+  stroke-width: 2;
+}
+
 dl {
   margin: 0;
 }
@@ -468,6 +625,11 @@ textarea:focus {
   .review-layout,
   .detail-grid,
   .review-list-item {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card-grid,
+  .project-list {
     grid-template-columns: 1fr;
   }
 

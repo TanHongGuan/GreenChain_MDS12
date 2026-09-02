@@ -1,5 +1,7 @@
+from collections.abc import Iterable
+
 from sqlalchemy import select, update
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from backend.app.models.project import Project
 from backend.app.models.submission import SUBMISSION_STATUS_UNREVIEWED, Submission
@@ -66,3 +68,12 @@ def update_submission_status_if_unreviewed(db: Session, submission_id: int, new_
     )
     result = db.execute(stmt)
     return result.rowcount > 0
+
+
+def list_submissions_for_project(db: Session, project_id: int, statuses: Iterable[str]) -> list[Submission]:
+    stmt = (
+        select(Submission)
+        .where(Submission.project_id == project_id, Submission.status.in_(list(statuses)))
+        .options(selectinload(Submission.metrics))
+    )
+    return list(db.scalars(stmt).unique().all())

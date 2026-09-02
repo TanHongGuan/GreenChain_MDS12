@@ -147,6 +147,7 @@ def get_submission_processor(
         organisation: str,
         reporting_period: str,
         uploader_id: str,
+        previous_submission_id: int | None = None,
     ) -> SubmissionResult:
         return await process_submission(
             file,
@@ -157,6 +158,7 @@ def get_submission_processor(
             db=db,
             storage=storage,
             settings=settings,
+            previous_submission_id=previous_submission_id,
         )
 
     return processor

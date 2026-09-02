@@ -87,7 +87,8 @@ VITE_API_BASE_URL=http://127.0.0.1:8000
 POSTGRES_DB=greenchain
 POSTGRES_USER=greenchain
 POSTGRES_PASSWORD=change-this-local-password
-DATABASE_URL=postgresql+psycopg://greenchain:change-this-local-password@localhost:5432/greenchain
+POSTGRES_PORT=5432
+DATABASE_URL=postgresql+psycopg://greenchain:change-this-local-password@localhost:${POSTGRES_PORT}/greenchain
 
 DEV_SEED_PASSWORD=password
 
@@ -104,6 +105,12 @@ Start PostgreSQL:
 
 ```bash
 docker compose up -d postgres
+```
+
+If port `5432` is already used by another local PostgreSQL install, set `POSTGRES_PORT=5433` in `.env` and update `DATABASE_URL` to:
+
+```env
+DATABASE_URL=postgresql+psycopg://greenchain:change-this-local-password@localhost:5433/greenchain
 ```
 
 Run migrations:

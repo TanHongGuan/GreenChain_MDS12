@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-greenchain}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-local-password}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - greenchain_postgres_data:/var/lib/postgresql/data
 

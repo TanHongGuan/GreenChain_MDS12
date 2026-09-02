@@ -22,9 +22,14 @@ class Submission(Base):
     original_storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     processed_storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     original_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    previous_submission_id: Mapped[int | None] = mapped_column(
+        ForeignKey("submissions.id", ondelete="RESTRICT"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     project = relationship("Project", back_populates="submissions")
     uploader = relationship("User")
     metrics = relationship("Metric", back_populates="submission", cascade="all, delete-orphan")
     reviews = relationship("Review", back_populates="submission")
+    previous_submission = relationship("Submission", remote_side=[id], back_populates="corrections")
+    corrections = relationship("Submission", back_populates="previous_submission")

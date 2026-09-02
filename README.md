@@ -1,14 +1,39 @@
-# GreenChain_MDS12
+# GreenChain MDS12
 
-## Sprint 1 Backend Authentication
+GreenChain Sprint 1 implements authentication and role access for the MVP.
 
-This repository currently contains Sprint 1 authentication work:
+Current Sprint 1 scope:
 
-- Member 2: FastAPI authentication and reusable role-based access control.
-- Member 3: PostgreSQL persistence for authentication users and organisations.
-- Member 4: storage/environment foundation for Sprint 2 upload and ETL work.
+- FastAPI backend authentication and RBAC
+- PostgreSQL authentication persistence
+- React/Vite frontend authentication flow
+- Local storage/environment foundation for Sprint 2 upload and ETL readiness
 
-### Local Setup
+Not included yet: upload processing, project catalogue APIs, auditor review workflow, ETL, metrics, investor dashboards, production S3/WORM storage, registration, OAuth, or MFA.
+
+## Prerequisites
+
+Install these before setup:
+
+- Git
+- Python 3.12 or newer
+- Node.js 20 or newer
+- npm
+- Docker Desktop
+
+Docker Desktop must be running before starting PostgreSQL.
+
+## Clone The Repository
+
+```bash
+git clone https://github.com/35100621/GreenChain_MDS12.git
+cd GreenChain_MDS12
+git switch codex/sprint-1-integration
+```
+
+## Backend Setup
+
+macOS/Linux:
 
 ```bash
 python -m venv .venv
@@ -16,73 +41,191 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Windows activation:
+Windows PowerShell:
 
 ```powershell
+python -m venv .venv
 .venv\Scripts\activate
 python -m pip install -r requirements.txt
 ```
 
-Start the backend:
+## Frontend Setup
 
 ```bash
-uvicorn backend.app.main:app --reload
+npm install
 ```
 
-Run tests:
+## Environment Setup
+
+Create a local `.env` file from the example.
+
+macOS/Linux:
 
 ```bash
-pytest
+cp .env.example .env
 ```
 
-### PostgreSQL Setup
+Windows PowerShell:
 
-Start local PostgreSQL with Docker Compose:
+```powershell
+Copy-Item .env.example .env
+```
+
+For local development, make sure `.env` contains:
+
+```env
+ENVIRONMENT=development
+
+JWT_SECRET=change-me-in-real-environments-local-only
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=60
+COOKIE_SECURE=false
+
+FRONTEND_ORIGIN=http://127.0.0.1:5173
+VITE_API_BASE_URL=http://127.0.0.1:8000
+
+POSTGRES_DB=greenchain
+POSTGRES_USER=greenchain
+POSTGRES_PASSWORD=change-this-local-password
+DATABASE_URL=postgresql+psycopg://greenchain:change-this-local-password@localhost:5432/greenchain
+
+DEV_SEED_PASSWORD=password
+
+STORAGE_BACKEND=local
+LOCAL_STORAGE_ROOT=./var/storage
+MAX_UPLOAD_SIZE_MB=25
+```
+
+Never commit `.env`. It is ignored by git.
+
+## Database Setup
+
+Start PostgreSQL:
 
 ```bash
 docker compose up -d postgres
 ```
 
-Configure `.env` from `.env.example`, then run migrations:
+Run migrations:
 
 ```bash
 alembic upgrade head
 ```
 
-Seed Sprint 1 development auth users:
+Seed Sprint 1 development users:
 
 ```bash
 python -m backend.app.scripts.seed_auth
 ```
 
-Migration downgrade/upgrade check:
+The seed command is idempotent. Running it multiple times will not create duplicate users.
+
+## Storage Setup
+
+Initialise local storage directories:
 
 ```bash
-alembic downgrade -1
-alembic upgrade head
+python -m backend.app.scripts.setup_storage
 ```
 
-### Environment
+This creates:
 
-Copy `.env.example` to `.env` for local development. Never commit `.env`.
+```text
+var/storage/
+  original/
+  processed/
+```
 
-Required/configurable values:
+Runtime storage contents are ignored by git. Only `var/storage/.gitkeep` is tracked.
 
-- `JWT_SECRET`: signing secret. Replace the example value outside local development.
-- `JWT_ALGORITHM`: defaults to `HS256`.
-- `JWT_EXPIRE_MINUTES`: access token lifetime.
-- `COOKIE_SECURE`: set `true` in HTTPS production environments.
-- `FRONTEND_ORIGIN`: allowed frontend origin, for example `http://localhost:5173`. Comma-separated origins are supported.
-- `DATABASE_URL`: SQLAlchemy database URL, for example `postgresql+psycopg://greenchain:change-this-local-password@localhost:5432/greenchain`.
-- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: used by Docker Compose for local PostgreSQL.
-- `DEV_SEED_PASSWORD`: required by the development seed script. The value is hashed before storage.
-- `STORAGE_BACKEND`: storage implementation selector. Sprint 1 supports `local`.
-- `LOCAL_STORAGE_ROOT`: local runtime storage directory, default `./var/storage`.
-- `MAX_UPLOAD_SIZE_MB`: future upload size limit configuration, default `25`.
+## Run The Tests
 
-### API Contract
+Backend tests:
 
-`POST /auth/login`
+```bash
+pytest
+```
+
+Frontend tests:
+
+```bash
+npm test
+```
+
+Frontend production build:
+
+```bash
+npm run build
+```
+
+## Start The Application
+
+Start the backend in terminal 1.
+
+macOS/Linux:
+
+```bash
+source .venv/bin/activate
+uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\activate
+uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Start the frontend in terminal 2:
+
+```bash
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+Open:
+
+```text
+http://127.0.0.1:5173
+```
+
+## Development Login Accounts
+
+Use the password from `DEV_SEED_PASSWORD`.
+
+Default local password:
+
+```text
+password
+```
+
+Accounts:
+
+```text
+viewer@greenchain.test
+uploader@greenchain.test
+auditor@greenchain.test
+```
+
+Expected role behavior:
+
+| Role | Navigation | Denied Routes |
+| --- | --- | --- |
+| `VIEWER` | Home, Highlighted, Projects | `/upload`, `/review` |
+| `UPLOADER` | Home, Highlighted, Projects, Upload Data | `/review` |
+| `AUDITOR` | Home, Highlighted, Projects, Review | `/upload` |
+
+Also check:
+
+- Refresh after login keeps the user authenticated.
+- Logout returns to `/login`.
+- Protected routes redirect to `/login` after logout.
+- Wrong-role routes show Access Denied.
+
+## API Contract
+
+Authentication uses an HttpOnly cookie named `greenchain_access_token`. Frontend JavaScript does not read or store the JWT.
+
+### `POST /auth/login`
 
 Request:
 
@@ -93,21 +236,21 @@ Request:
 }
 ```
 
-Success returns HTTP 200 and sets the HttpOnly `greenchain_access_token` cookie:
+Success:
 
 ```json
 {
   "user": {
-    "id": "dev-uploader",
+    "id": "...",
     "name": "GreenChain Uploader",
     "email": "uploader@greenchain.test",
     "role": "UPLOADER",
-    "organisation_id": "greenchain-demo"
+    "organisation_id": "..."
   }
 }
 ```
 
-Invalid credentials return HTTP 401:
+Invalid credentials:
 
 ```json
 {
@@ -118,138 +261,97 @@ Invalid credentials return HTTP 401:
 }
 ```
 
-`GET /auth/me`
+### `GET /auth/me`
 
-Returns HTTP 200 with the same `user` object when the auth cookie is valid. Returns HTTP 401 for missing, malformed, expired, or unknown-user tokens.
+Returns the current authenticated user:
 
-`POST /auth/logout`
+```json
+{
+  "user": {
+    "id": "...",
+    "name": "...",
+    "email": "...",
+    "role": "VIEWER",
+    "organisation_id": null
+  }
+}
+```
 
-Returns HTTP 204 and clears the `greenchain_access_token` cookie.
+Missing, malformed, expired, or invalid tokens return `401`.
 
-### Roles And RBAC
+### `POST /auth/logout`
 
-The only valid roles are:
+Returns `204 No Content` and clears the auth cookie.
 
-- `VIEWER`
-- `UPLOADER`
-- `AUDITOR`
+## Frontend API Usage
 
-Use `require_roles(...)` from `backend.app.auth.dependencies` for future protected endpoints. Missing or invalid authentication returns 401. A valid user with the wrong role returns 403.
+All auth requests must include credentials.
 
-MVP permissions:
+Fetch:
 
-| Action | VIEWER | UPLOADER | AUDITOR |
-| --- | --- | --- | --- |
-| View projects | Yes | Yes | Yes |
-| Highlight projects | Yes | Yes | Yes |
-| Upload data | No | Yes | No |
-| Review submissions | No | No | Yes |
+```ts
+fetch("http://127.0.0.1:8000/auth/me", {
+  credentials: "include",
+});
+```
 
-Upload and review endpoints are intentionally not implemented in Sprint 1.
+Axios:
 
-### Temporary Development Users
+```ts
+axios.get("http://127.0.0.1:8000/auth/me", {
+  withCredentials: true,
+});
+```
 
-Run `python -m backend.app.scripts.seed_auth` after migrations to create:
+## Backend Architecture
 
-- `viewer@greenchain.test`
-- `uploader@greenchain.test`
-- `auditor@greenchain.test`
+Authentication flow:
 
-Their password is the value of `DEV_SEED_PASSWORD`. Only Argon2 password hashes are stored in PostgreSQL. Running the seed command repeatedly is safe and will not duplicate users or organisations.
+```text
+Auth Router
+  -> Auth Service
+  -> UserRepository
+  -> SQLAlchemy
+  -> PostgreSQL
+```
 
-### Member 3 Database Integration
+Main backend pieces:
 
-Authentication uses `SQLAlchemyUserRepository` in `backend.app.repositories.users`, backed by the Sprint 1 tables:
+- `backend/app/main.py`: FastAPI app and CORS setup
+- `backend/app/api/auth.py`: `/auth/login`, `/auth/me`, `/auth/logout`
+- `backend/app/auth/security.py`: password hashing and JWT helpers
+- `backend/app/auth/dependencies.py`: `get_current_user()` and `require_roles(...)`
+- `backend/app/repositories/users.py`: SQLAlchemy user repository
+- `backend/app/models/`: Sprint 1 SQLAlchemy models
+- `backend/app/migrations/`: Alembic migrations
+- `backend/app/scripts/seed_auth.py`: development auth seed data
+
+Database tables in Sprint 1:
 
 - `users`
 - `organisations`
 - `organisation_members`
 
-The repository provides:
+Valid roles are exactly:
 
-- `get_user_by_email(email)`
-- `get_user_by_id(user_id)`
+- `VIEWER`
+- `UPLOADER`
+- `AUDITOR`
 
-Future database work should add Alembic migrations under `backend/app/migrations/versions`. Do not edit existing migrations after they have been shared unless the team deliberately resets local databases.
+## Storage Architecture
 
-Foreign keys from `organisation_members` use `ON DELETE RESTRICT`, so users and organisations cannot be silently removed while memberships reference them.
+Sprint 1 storage is a foundation only. It prepares the interface Sprint 2 will use for upload and ETL work.
 
-### Member 1 Frontend Integration
+Main storage pieces:
 
-The React/Vite frontend implements Sprint 1 authentication only:
+- `backend/app/storage/base.py`: `StorageService` protocol
+- `backend/app/storage/local.py`: local filesystem storage implementation
+- `backend/app/storage/dependencies.py`: `get_storage_service()`
+- `backend/app/storage/models.py`: `StoredFile`, accepted extensions, accepted content types
+- `backend/app/integrity/hashing.py`: standalone SHA-256 helper
+- `backend/app/scripts/setup_storage.py`: local storage setup check
 
-- `/login`
-- protected app routes
-- role-restricted `/upload` and `/review` placeholders
-- shared role-aware navbar
-- logout through `POST /auth/logout`
-
-Start the frontend:
-
-```bash
-npm install
-npm run dev
-```
-
-Build the frontend:
-
-```bash
-npm run build
-```
-
-Run frontend tests:
-
-```bash
-npm test
-```
-
-Because JWTs are stored in an HttpOnly cookie, the React frontend does not decode tokens. It uses `/auth/me` as the source of truth on app startup and refresh.
-
-Fetch example:
-
-```ts
-fetch("http://localhost:8000/auth/me", {
-  credentials: "include",
-});
-```
-
-Axios example:
-
-```ts
-axios.get("http://localhost:8000/auth/me", {
-  withCredentials: true,
-});
-```
-
-Role-aware frontend behavior:
-
-- `VIEWER`: Home, Highlighted, Projects.
-- `UPLOADER`: Home, Highlighted, Projects, Upload Data.
-- `AUDITOR`: Home, Highlighted, Projects, Review.
-
-Wrong-role access shows Access Denied. Unauthenticated protected access redirects to `/login`.
-
-### Member 4 Storage Foundation
-
-Sprint 1 prepares storage for future upload/ETL work only. It does not implement upload endpoints, CSV/XLSX parsing, submissions, S3, or WORM behavior.
-
-Initialise local storage:
-
-```bash
-python -m backend.app.scripts.setup_storage
-```
-
-Directory structure:
-
-```text
-var/storage/
-  original/
-  processed/
-```
-
-Runtime storage contents are ignored by git. Only `var/storage/.gitkeep` is tracked.
-
-Future Sprint 2 backend code should depend on `StorageService` from `backend.app.storage.base` through `get_storage_service()`:
+Future Sprint 2 upload flow should use:
 
 ```python
 storage = Depends(get_storage_service)
@@ -264,6 +366,34 @@ The `StoredFile` contract contains:
 - `content_type`
 - `storage_backend`
 
-Accepted upload extensions and content types are centralised in `backend.app.storage.models`. The standalone `calculate_sha256(...)` helper lives in `backend.app.integrity.hashing` for Sprint 2 integrity work, but it is not wired into any upload workflow yet.
+## Useful Commands
 
-Future S3/WORM work should add a new storage implementation behind `STORAGE_BACKEND=s3` without changing submission business logic.
+Stop PostgreSQL:
+
+```bash
+docker compose down
+```
+
+Reset local PostgreSQL data:
+
+```bash
+docker compose down -v
+docker compose up -d postgres
+alembic upgrade head
+python -m backend.app.scripts.seed_auth
+```
+
+Check git hygiene:
+
+```bash
+git status --short
+```
+
+Ignored local/generated paths include:
+
+- `.env`
+- `.venv/`
+- `node_modules/`
+- `dist/`
+- `var/storage/original/`
+- `var/storage/processed/`

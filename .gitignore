@@ -34,6 +34,10 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
+# Runtime storage
+var/storage/*
+!var/storage/.gitkeep
+
 # Frontend dependencies/build output
 node_modules/
 dist/

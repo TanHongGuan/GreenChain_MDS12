@@ -16,6 +16,9 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
     dev_seed_password: str | None = Field(default=None, alias="DEV_SEED_PASSWORD")
+    storage_backend: str = Field(default="local", alias="STORAGE_BACKEND")
+    local_storage_root: str = Field(default="./var/storage", alias="LOCAL_STORAGE_ROOT")
+    max_upload_size_mb: int = Field(default=25, alias="MAX_UPLOAD_SIZE_MB")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
@@ -24,6 +27,13 @@ class Settings(BaseSettings):
     def validate_expiry(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("JWT_EXPIRE_MINUTES must be greater than zero")
+        return value
+
+    @field_validator("max_upload_size_mb")
+    @classmethod
+    def validate_max_upload_size(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("MAX_UPLOAD_SIZE_MB must be greater than zero")
         return value
 
     @model_validator(mode="after")

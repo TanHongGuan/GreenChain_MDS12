@@ -6,6 +6,7 @@ This repository currently contains Sprint 1 authentication work:
 
 - Member 2: FastAPI authentication and reusable role-based access control.
 - Member 3: PostgreSQL persistence for authentication users and organisations.
+- Member 4: storage/environment foundation for Sprint 2 upload and ETL work.
 
 ### Local Setup
 
@@ -75,6 +76,9 @@ Required/configurable values:
 - `DATABASE_URL`: SQLAlchemy database URL, for example `postgresql+psycopg://greenchain:change-this-local-password@localhost:5432/greenchain`.
 - `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: used by Docker Compose for local PostgreSQL.
 - `DEV_SEED_PASSWORD`: required by the development seed script. The value is hashed before storage.
+- `STORAGE_BACKEND`: storage implementation selector. Sprint 1 supports `local`.
+- `LOCAL_STORAGE_ROOT`: local runtime storage directory, default `./var/storage`.
+- `MAX_UPLOAD_SIZE_MB`: future upload size limit configuration, default `25`.
 
 ### API Contract
 
@@ -224,3 +228,42 @@ Role-aware frontend behavior:
 - `AUDITOR`: Home, Highlighted, Projects, Review.
 
 Wrong-role access shows Access Denied. Unauthenticated protected access redirects to `/login`.
+
+### Member 4 Storage Foundation
+
+Sprint 1 prepares storage for future upload/ETL work only. It does not implement upload endpoints, CSV/XLSX parsing, submissions, S3, or WORM behavior.
+
+Initialise local storage:
+
+```bash
+python -m backend.app.scripts.setup_storage
+```
+
+Directory structure:
+
+```text
+var/storage/
+  original/
+  processed/
+```
+
+Runtime storage contents are ignored by git. Only `var/storage/.gitkeep` is tracked.
+
+Future Sprint 2 backend code should depend on `StorageService` from `backend.app.storage.base` through `get_storage_service()`:
+
+```python
+storage = Depends(get_storage_service)
+stored_file = storage.store_original(upload.file, upload.filename, upload.content_type)
+```
+
+The `StoredFile` contract contains:
+
+- `storage_key`
+- `original_filename`
+- `size_bytes`
+- `content_type`
+- `storage_backend`
+
+Accepted upload extensions and content types are centralised in `backend.app.storage.models`. The standalone `calculate_sha256(...)` helper lives in `backend.app.integrity.hashing` for Sprint 2 integrity work, but it is not wired into any upload workflow yet.
+
+Future S3/WORM work should add a new storage implementation behind `STORAGE_BACKEND=s3` without changing submission business logic.

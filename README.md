@@ -172,7 +172,34 @@ Foreign keys from `organisation_members` use `ON DELETE RESTRICT`, so users and 
 
 ### Member 1 Frontend Integration
 
-Because JWTs are stored in an HttpOnly cookie, the React frontend should not decode tokens. Use `/auth/me` as the source of truth on app startup and refresh.
+The React/Vite frontend implements Sprint 1 authentication only:
+
+- `/login`
+- protected app routes
+- role-restricted `/upload` and `/review` placeholders
+- shared role-aware navbar
+- logout through `POST /auth/logout`
+
+Start the frontend:
+
+```bash
+npm install
+npm run dev
+```
+
+Build the frontend:
+
+```bash
+npm run build
+```
+
+Run frontend tests:
+
+```bash
+npm test
+```
+
+Because JWTs are stored in an HttpOnly cookie, the React frontend does not decode tokens. It uses `/auth/me` as the source of truth on app startup and refresh.
 
 Fetch example:
 
@@ -189,3 +216,11 @@ axios.get("http://localhost:8000/auth/me", {
   withCredentials: true,
 });
 ```
+
+Role-aware frontend behavior:
+
+- `VIEWER`: Home, Highlighted, Projects.
+- `UPLOADER`: Home, Highlighted, Projects, Upload Data.
+- `AUDITOR`: Home, Highlighted, Projects, Review.
+
+Wrong-role access shows Access Denied. Unauthenticated protected access redirects to `/login`.

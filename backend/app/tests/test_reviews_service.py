@@ -119,7 +119,8 @@ def test_pending_summary_reflects_real_submission_data(db, storage) -> None:
     assert summary.project_name == "Green Tower"
     assert summary.organisation_name == "Acme Corp"
     assert summary.reporting_period == "2026-Q1"
-    assert summary.submitted_by == "GreenChain Uploader"
+    assert summary.submitted_by.name == "GreenChain Uploader"
+    assert summary.submitted_by.email == "uploader@greenchain.test"
     assert summary.status == SUBMISSION_STATUS_UNREVIEWED
     assert summary.submission_id == submission.id
 

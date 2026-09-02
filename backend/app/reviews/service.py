@@ -32,6 +32,13 @@ VALID_DECISIONS = {SUBMISSION_STATUS_APPROVED, SUBMISSION_STATUS_REJECTED}
 
 
 @dataclass(frozen=True)
+class UploaderSummary:
+    id: str
+    name: str
+    email: str
+
+
+@dataclass(frozen=True)
 class MetricSummary:
     metric_name: str
     value: float
@@ -54,7 +61,7 @@ class PendingSubmissionSummary:
     project_name: str
     organisation_name: str
     reporting_period: str
-    submitted_by: str
+    submitted_by: UploaderSummary
     created_at: datetime
     status: str
 
@@ -65,7 +72,7 @@ class ReviewDetail:
     project_name: str
     organisation_name: str
     reporting_period: str
-    submitted_by: str
+    submitted_by: UploaderSummary
     created_at: datetime
     status: str
     metrics: list[MetricSummary]
@@ -101,13 +108,21 @@ def _require_submission(db: Session, submission_id: int) -> Submission:
     return submission
 
 
+def _to_uploader_summary(submission: Submission) -> UploaderSummary:
+    return UploaderSummary(
+        id=submission.uploader.id,
+        name=submission.uploader.name,
+        email=submission.uploader.email,
+    )
+
+
 def _to_pending_summary(submission: Submission) -> PendingSubmissionSummary:
     return PendingSubmissionSummary(
         submission_id=submission.id,
         project_name=submission.project.name,
         organisation_name=submission.project.organisation.name,
         reporting_period=submission.reporting_period,
-        submitted_by=submission.uploader.name,
+        submitted_by=_to_uploader_summary(submission),
         created_at=submission.created_at,
         status=submission.status,
     )
@@ -138,7 +153,7 @@ def get_review_detail(submission_id: int, *, db: Session) -> ReviewDetail:
         project_name=submission.project.name,
         organisation_name=submission.project.organisation.name,
         reporting_period=submission.reporting_period,
-        submitted_by=submission.uploader.name,
+        submitted_by=_to_uploader_summary(submission),
         created_at=submission.created_at,
         status=submission.status,
         metrics=[

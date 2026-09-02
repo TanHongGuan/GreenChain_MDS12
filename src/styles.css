@@ -19,7 +19,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -112,11 +113,13 @@ input:focus {
 }
 
 .primary-button,
-.secondary-button {
+.secondary-button,
+.danger-button {
   border: 0;
   border-radius: 6px;
   cursor: pointer;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .primary-button {
@@ -135,7 +138,8 @@ input:focus {
 }
 
 .primary-button:disabled,
-.secondary-button:disabled {
+.secondary-button:disabled,
+.danger-button:disabled {
   cursor: not-allowed;
   opacity: 0.68;
 }
@@ -207,6 +211,18 @@ nav a.active {
   background: #e6efe8;
 }
 
+.danger-button {
+  min-height: 46px;
+  margin-top: 12px;
+  padding: 0 18px;
+  color: #ffffff;
+  background: #a84444;
+}
+
+.danger-button:hover {
+  background: #843535;
+}
+
 .app-shell {
   width: min(100%, 980px);
   margin: 0 auto;
@@ -261,6 +277,169 @@ nav a.active {
   overflow-wrap: anywhere;
 }
 
+.review-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.2fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.review-queue,
+.review-detail {
+  display: grid;
+  gap: 16px;
+}
+
+.review-queue h2,
+.review-detail h2,
+.review-detail h3,
+.review-list-item h3 {
+  margin: 0;
+  color: #0d2744;
+  letter-spacing: 0;
+}
+
+.review-list {
+  display: grid;
+  gap: 12px;
+}
+
+.review-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #dee5eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.review-list-item p,
+.review-detail p {
+  margin: 4px 0 0;
+}
+
+.review-list-actions,
+.decision-actions,
+.evidence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.review-list-actions {
+  justify-content: flex-end;
+}
+
+.status-pill {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.status-unreviewed {
+  color: #755a00;
+  background: #fff2bd;
+}
+
+.status-approved {
+  color: #176b4d;
+  background: #e8f5ed;
+}
+
+.status-rejected {
+  color: #a84444;
+  background: #fbe3e3;
+}
+
+dl {
+  margin: 0;
+}
+
+.review-list-item dl,
+.detail-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+dt {
+  color: #708095;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+dd {
+  margin: 2px 0 0;
+  color: #172437;
+}
+
+.detail-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.metrics-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #dee5eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 520px;
+}
+
+.metrics-table th,
+.metrics-table td {
+  padding: 12px;
+  border-bottom: 1px solid #edf1f4;
+  text-align: left;
+}
+
+.metrics-table th {
+  color: #45586d;
+  font-size: 0.82rem;
+}
+
+.metrics-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.decision-panel {
+  display: grid;
+  gap: 10px;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #c9d2dc;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #172437;
+  background: #ffffff;
+}
+
+textarea:focus {
+  border-color: #23835e;
+  outline: 3px solid #8ac7a6;
+  outline-offset: 1px;
+}
+
 .text-link {
   color: #176b4d;
   font-weight: 700;
@@ -284,5 +463,15 @@ nav a.active {
 
   .login-card {
     padding: 28px;
+  }
+
+  .review-layout,
+  .detail-grid,
+  .review-list-item {
+    grid-template-columns: 1fr;
+  }
+
+  .review-list-actions {
+    justify-content: flex-start;
   }
 }

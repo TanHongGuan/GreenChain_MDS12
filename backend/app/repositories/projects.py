@@ -5,7 +5,13 @@ from backend.app.models.project import Project
 from backend.app.repositories.organisations import get_or_create_organisation
 
 
-def get_or_create_project(db: Session, project_name: str, organisation_name: str) -> Project:
+def get_or_create_project(
+    db: Session,
+    project_name: str,
+    organisation_name: str,
+    *,
+    location: str | None = None,
+) -> Project:
     organisation = get_or_create_organisation(db, organisation_name)
 
     clean_name = project_name.strip()
@@ -14,7 +20,8 @@ def get_or_create_project(db: Session, project_name: str, organisation_name: str
     if project is not None:
         return project
 
-    project = Project(name=clean_name, organisation_id=organisation.id)
+    clean_location = location.strip() if location else None
+    project = Project(name=clean_name, organisation_id=organisation.id, location=clean_location or None)
     db.add(project)
     db.flush()
     return project

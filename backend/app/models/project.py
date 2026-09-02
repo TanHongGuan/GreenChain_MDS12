@@ -14,6 +14,7 @@ class Project(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     organisation_id: Mapped[str] = mapped_column(
         ForeignKey("organisations.id", ondelete="RESTRICT"), nullable=False
     )

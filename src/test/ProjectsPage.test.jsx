@@ -116,6 +116,11 @@ describe("projects catalogue", () => {
       expect(String(projectCall[0])).toContain("sort=project_name_asc");
       expect(String(projectCall[0])).toContain("page=2");
     });
+    expect(await screen.findByRole("link", { name: /alpha solar/i })).toHaveAttribute(
+      "href",
+      "/projects/1?search=solar&location=Johor&organisation=Acme+Renewables"
+        + "&reporting_period=2026-Q1&status=APPROVED%2CUNREVIEWED&sort=project_name_asc&page=2",
+    );
   });
 
   test("filter changes request page one with updated query", async () => {

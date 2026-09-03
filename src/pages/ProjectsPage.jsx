@@ -147,6 +147,7 @@ export function ProjectsPage() {
   const projects = catalogue.projects || [];
   const filters = catalogue.filters || {};
   const totalPages = catalogue.total_pages || 0;
+  const detailQuery = searchParams.toString();
 
   return (
     <section className="page-panel project-catalogue">
@@ -247,7 +248,11 @@ export function ProjectsPage() {
       {status === "success" && projects.length > 0 && (
         <div className="project-list">
           {projects.map((project) => (
-            <Link key={project.project_id} to={`/projects/${project.project_id}`} className="project-list-item">
+            <Link
+              key={project.project_id}
+              to={`/projects/${project.project_id}${detailQuery ? `?${detailQuery}` : ""}`}
+              className="project-list-item"
+            >
               <div className="project-card-header">
                 <h2>{project.project_name}</h2>
                 <span className={statusClass(project.status)}>{project.status}</span>

@@ -103,6 +103,7 @@ async function renderProjectDetail(
     histories = { Electricity: jsonResponse(200, electricityHistory) },
   } = {},
   projectId = "42",
+  route = `/projects/${projectId}`,
 ) {
   global.fetch = vi.fn((url) => {
     const requestUrl = String(url);
@@ -129,7 +130,7 @@ async function renderProjectDetail(
     throw new Error(`Unexpected fetch call: ${requestUrl}`);
   });
   render(
-    <MemoryRouter initialEntries={[`/projects/${projectId}`]}>
+    <MemoryRouter initialEntries={[route]}>
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
@@ -154,6 +155,16 @@ describe("project detail page", () => {
     expect(screen.getByText("150")).toBeInTheDocument();
     expect(screen.getByText("kWh")).toBeInTheDocument();
     expect(screen.getByText("Approved period: 2026-Q2")).toBeInTheDocument();
+  });
+
+  test("back link preserves catalogue query string", async () => {
+    await renderProjectDetail({}, "42", "/projects/42?search=solar&location=Johor&page=2");
+
+    await screen.findByRole("heading", { name: "Green Tower" });
+    expect(screen.getByRole("link", { name: /back to projects/i })).toHaveAttribute(
+      "href",
+      "/projects?search=solar&location=Johor&page=2",
+    );
   });
 
   test("shows previous-period comparison", async () => {

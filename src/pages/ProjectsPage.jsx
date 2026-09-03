@@ -11,6 +11,8 @@ const SORT_OPTIONS = [
   { value: "project_name_desc", label: "Project Z-A" },
   { value: "organisation_asc", label: "Organisation A-Z" },
   { value: "organisation_desc", label: "Organisation Z-A" },
+  { value: "created_desc", label: "Newest project" },
+  { value: "created_asc", label: "Oldest project" },
   { value: "period_desc", label: "Latest period" },
   { value: "period_asc", label: "Earliest period" },
 ];

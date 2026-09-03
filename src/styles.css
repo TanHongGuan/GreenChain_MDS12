@@ -20,6 +20,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -85,7 +86,18 @@ input {
   background: #ffffff;
 }
 
-input:focus {
+select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #c9d2dc;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #172437;
+  background: #ffffff;
+}
+
+input:focus,
+select:focus {
   border-color: #23835e;
   outline: 3px solid #8ac7a6;
   outline-offset: 1px;
@@ -237,6 +249,13 @@ nav a.active {
   margin-bottom: 24px;
 }
 
+.detail-back-link {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 14px;
+}
+
 .upload-page {
   max-width: 720px;
 }
@@ -359,7 +378,7 @@ nav a.active {
 
 .project-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 14px;
 }
 
@@ -378,14 +397,104 @@ nav a.active {
 }
 
 .project-list-item h2 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 1.05rem;
   color: #0d2744;
+  overflow-wrap: anywhere;
 }
 
 .project-list-item p {
   margin: 0;
   color: #45586d;
+}
+
+.project-catalogue {
+  display: grid;
+  gap: 18px;
+}
+
+.catalogue-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) repeat(4, minmax(150px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.catalogue-field {
+  display: grid;
+  gap: 6px;
+  color: #172437;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.catalogue-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.status-toggle {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 34px;
+  font-weight: 800;
+}
+
+.status-toggle input {
+  width: 16px;
+  min-height: 16px;
+}
+
+.catalogue-reset {
+  margin-left: auto;
+}
+
+.catalogue-summary {
+  color: #45586d;
+  font-weight: 800;
+}
+
+.project-card-header {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.project-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.project-card-meta dt {
+  margin-bottom: 3px;
+  color: #708095;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.project-card-meta dd {
+  margin: 0;
+  color: #172437;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.pagination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  color: #45586d;
+  font-weight: 800;
 }
 
 .metric-card-grid {
@@ -690,6 +799,7 @@ textarea:focus {
 
   .review-layout,
   .detail-grid,
+  .catalogue-toolbar,
   .review-list-item {
     grid-template-columns: 1fr;
   }
@@ -701,5 +811,9 @@ textarea:focus {
 
   .review-list-actions {
     justify-content: flex-start;
+  }
+
+  .catalogue-reset {
+    margin-left: 0;
   }
 }

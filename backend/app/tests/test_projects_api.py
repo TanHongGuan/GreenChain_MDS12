@@ -73,13 +73,14 @@ def seed_submission(
     metric_name: str = "Electricity",
     value: float = 100.0,
     unit: str = "kWh",
+    location: str | None = None,
 ) -> int:
     with session_factory() as db:
         user = SQLAlchemyUserRepository(db).get_user_by_email("uploader@greenchain.test")
         raw_bytes = f"metric_name,value,unit\n{metric_name},{value},{unit}\n".encode()
         original = storage.store_original(BytesIO(raw_bytes), "report.csv", "text/csv")
         processed = storage.store_processed(BytesIO(raw_bytes), "report.csv", "text/csv")
-        project = get_or_create_project(db, project_name, organisation)
+        project = get_or_create_project(db, project_name, organisation, location=location)
         submission = create_submission(
             db,
             project_id=project.id,
@@ -100,20 +101,86 @@ def seed_submission(
 
 
 def test_authenticated_user_can_list_projects(client: TestClient, session_factory, storage) -> None:
-    seed_submission(session_factory, storage)
+    seed_submission(session_factory, storage, location="Johor")
     login(client, "viewer@greenchain.test")
 
     response = client.get("/projects")
 
     assert response.status_code == 200
+    payload = response.json()
     names = [p["project_name"] for p in response.json()["projects"]]
     assert "Green Tower" in names
+    assert payload["total_items"] == 1
+    assert payload["projects"][0]["status"] == "APPROVED"
+    assert payload["projects"][0]["location"] == "Johor"
+    assert payload["filters"]["locations"] == [{"value": "Johor", "count": 1}]
 
 
 def test_unauthenticated_cannot_list_projects(client: TestClient) -> None:
     response = client.get("/projects")
 
     assert response.status_code == 401
+
+
+def test_project_catalogue_filters_unreviewed_and_rejected_only_when_requested(
+    client: TestClient, session_factory, storage
+) -> None:
+    seed_submission(session_factory, storage, project_name="Trusted Solar", status="APPROVED", location="Johor")
+    seed_submission(session_factory, storage, project_name="Pending Hydro", status="UNREVIEWED", location="Penang")
+    seed_submission(session_factory, storage, project_name="Rejected Wind", status="REJECTED", location="Johor")
+    login(client, "viewer@greenchain.test")
+
+    default_response = client.get("/projects")
+    explicit_response = client.get("/projects?status=UNREVIEWED,REJECTED&location=johor&sort=project_name_asc")
+
+    assert [p["project_name"] for p in default_response.json()["projects"]] == ["Trusted Solar"]
+    assert [p["project_name"] for p in explicit_response.json()["projects"]] == ["Rejected Wind"]
+
+
+def test_project_catalogue_search_period_sort_and_pagination(
+    client: TestClient, session_factory, storage
+) -> None:
+    seed_submission(
+        session_factory,
+        storage,
+        project_name="Alpha Solar",
+        organisation="Acme Corp",
+        reporting_period="2026-Q1",
+        status="APPROVED",
+        location="Johor",
+    )
+    seed_submission(
+        session_factory,
+        storage,
+        project_name="Beta Solar",
+        organisation="Acme Corp",
+        reporting_period="2026-Q1",
+        status="APPROVED",
+        location="Johor",
+    )
+    login(client, "viewer@greenchain.test")
+
+    response = client.get(
+        "/projects?search=solar&organisation=acme%20corp&reporting_period=2026-Q1"
+        "&sort=project_name_asc&page=2&page_size=1"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [p["project_name"] for p in payload["projects"]] == ["Beta Solar"]
+    assert payload["page"] == 2
+    assert payload["page_size"] == 1
+    assert payload["total_items"] == 2
+    assert payload["total_pages"] == 2
+
+
+def test_project_catalogue_invalid_filters_return_structured_400(client: TestClient) -> None:
+    login(client, "viewer@greenchain.test")
+
+    response = client.get("/projects?status=ARCHIVED")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_STATUS"
 
 
 def test_project_detail_shows_latest_approved_metric(client: TestClient, session_factory, storage) -> None:

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 import { getMetricHistory, getProjectDetail } from "../api/projectsApi.js";
 import {
@@ -356,6 +356,8 @@ function MetricHistoryChart({ points }) {
 
 export function ProjectDetailPage() {
   const { projectId } = useParams();
+  const location = useLocation();
+  const projectListUrl = `/projects${location.search}`;
   const [detail, setDetail] = useState(null);
   const [detailStatus, setDetailStatus] = useState("loading");
   const [detailError, setDetailError] = useState("");
@@ -507,7 +509,7 @@ export function ProjectDetailPage() {
         <div className="form-error" role="status">
           {detailError}
         </div>
-        <Link to="/projects" className="secondary-button">
+        <Link to={projectListUrl} className="secondary-button">
           Back to projects
         </Link>
       </section>
@@ -521,6 +523,9 @@ export function ProjectDetailPage() {
       <div className="page-heading">
         <p className="eyebrow">{detail.project.organisation}</p>
         <h1>{detail.project.project_name}</h1>
+        <Link to={projectListUrl} className="secondary-button detail-back-link">
+          Back to projects
+        </Link>
       </div>
 
       {orderedMetrics.length === 0 && <p>No approved sustainability data yet for this project.</p>}

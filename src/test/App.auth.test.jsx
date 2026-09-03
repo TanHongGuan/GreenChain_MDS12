@@ -39,6 +39,15 @@ const emptyProjectCatalogue = {
   filters: { organisations: [], locations: [], statuses: [], reporting_periods: [] },
 };
 
+const emptyDiscovery = {
+  recently_updated: [],
+  featured: [],
+  new_projects: [],
+  featured_rule: "No explicit featured flag exists.",
+};
+
+const emptyHighlights = { projects: [] };
+
 function jsonResponse(status, payload) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -75,8 +84,14 @@ function renderApp(route = "/") {
 
 async function renderWithRestoredUser(user, route = "/") {
   const responses = [{ response: jsonResponse(200, { user }) }];
+  if (route === "/") {
+    responses.push({ response: jsonResponse(200, emptyDiscovery) });
+  }
   if (route.startsWith("/projects")) {
     responses.push({ response: jsonResponse(200, emptyProjectCatalogue) });
+  }
+  if (route.startsWith("/highlighted")) {
+    responses.push({ response: jsonResponse(200, emptyHighlights) });
   }
   mockFetchQueue(responses);
   renderApp(route);
@@ -136,6 +151,7 @@ describe("login", () => {
         assert: (_url, options) => expect(options.credentials).toBe("include"),
         response: loginPromise,
       },
+      { response: jsonResponse(200, emptyDiscovery) },
     ]);
     renderApp("/login");
     await screen.findByRole("heading", { name: /sign in/i });
@@ -146,7 +162,7 @@ describe("login", () => {
 
     expect(screen.getByRole("button", { name: /logging in/i })).toBeDisabled();
     resolveLogin(jsonResponse(200, { user: viewer }));
-    await screen.findByText(/welcome to greenchain/i);
+    await screen.findByRole("heading", { name: "Home" });
   });
 
   test("invalid credentials display safe error", async () => {
@@ -318,6 +334,7 @@ describe("logout", () => {
   test("logout calls backend", async () => {
     mockFetchQueue([
       { response: jsonResponse(200, { user: viewer }) },
+      { response: jsonResponse(200, emptyDiscovery) },
       {
         assert: (url, options) => {
           expect(url).toContain("/auth/logout");
@@ -332,11 +349,15 @@ describe("logout", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /log out/i }));
 
-    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(global.fetch).toHaveBeenCalledTimes(3);
   });
 
   test("logout clears current user", async () => {
-    mockFetchQueue([{ response: jsonResponse(200, { user: viewer }) }, { response: noContentResponse() }]);
+    mockFetchQueue([
+      { response: jsonResponse(200, { user: viewer }) },
+      { response: jsonResponse(200, emptyDiscovery) },
+      { response: noContentResponse() },
+    ]);
     renderApp("/");
     await screen.findByText("GreenChain Viewer");
 
@@ -348,7 +369,11 @@ describe("logout", () => {
   });
 
   test("logout redirects to login", async () => {
-    mockFetchQueue([{ response: jsonResponse(200, { user: viewer }) }, { response: noContentResponse() }]);
+    mockFetchQueue([
+      { response: jsonResponse(200, { user: viewer }) },
+      { response: jsonResponse(200, emptyDiscovery) },
+      { response: noContentResponse() },
+    ]);
     renderApp("/");
     await screen.findByText("GreenChain Viewer");
 

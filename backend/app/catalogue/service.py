@@ -191,6 +191,8 @@ def _apply_sort(stmt: Select, *, latest, sort: str) -> Select:
         "organisation_desc": (func.lower(Organisation.name).desc(), func.lower(Project.name).asc(), Project.id.asc()),
         "location_asc": (func.lower(Project.location).asc(), func.lower(Project.name).asc(), Project.id.asc()),
         "location_desc": (func.lower(Project.location).desc(), func.lower(Project.name).asc(), Project.id.asc()),
+        "created_desc": (Project.created_at.desc(), Project.id.asc()),
+        "created_asc": (Project.created_at.asc(), Project.id.asc()),
         "period_asc": (latest.c.reporting_period.asc(), Project.id.asc()),
         "period_desc": (latest.c.reporting_period.desc(), Project.id.asc()),
     }

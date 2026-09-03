@@ -67,8 +67,8 @@ def get_home_discovery(*, db: Session, user_id: str, limit: int = DEFAULT_SECTIO
 
 def featured_rule() -> str:
     return (
-        "No explicit featured flag exists; featured projects are projects with approved trusted data, ordered by latest "
-        "approved reporting period descending and then project name."
+        "No explicit featured flag exists; featured projects are projects whose latest catalogue status is approved, "
+        "ordered by that trusted reporting period descending and then project name."
     )
 
 

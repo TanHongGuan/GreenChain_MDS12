@@ -202,7 +202,7 @@ Use the password from `DEV_SEED_PASSWORD`.
 Default local password when using `.env.example` unchanged:
 
 ```text
-change-this-local-password
+123
 ```
 
 Accounts:

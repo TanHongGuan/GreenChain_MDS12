@@ -249,6 +249,13 @@ nav a.active {
   margin-bottom: 24px;
 }
 
+.detail-back-link {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 14px;
+}
+
 .upload-page {
   max-width: 720px;
 }

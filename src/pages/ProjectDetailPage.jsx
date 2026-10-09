@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
-import { getMetricHistory, getProjectDetail } from "../api/projectsApi.js";
+import { getProjectDetail } from "../api/projectsApi.js";
 import {
   getProjectSubmissions,
   getSubmissionDetail,
@@ -209,7 +209,11 @@ function SubmissionDetailPanel({ detail, status, error }) {
         </div>
         <div>
           <dt>Submitted by</dt>
-          <dd>{detail.submitted_by?.name || "Not available"}</dd>
+          <dd>
+            {detail.submitted_by
+              ? `${detail.submitted_by.name} (${detail.submitted_by.email})`
+              : "Not available"}
+          </dd>
         </div>
         <div>
           <dt>Submitted at</dt>
@@ -218,6 +222,14 @@ function SubmissionDetailPanel({ detail, status, error }) {
         <div>
           <dt>Review decision</dt>
           <dd>{detail.review?.decision || "Pending"}</dd>
+        </div>
+        <div>
+          <dt>Reviewed by</dt>
+          <dd>
+            {detail.review
+              ? `${detail.review.reviewer_name} (${detail.review.reviewer_email})`
+              : "Pending"}
+          </dd>
         </div>
         <div>
           <dt>Original SHA-256</dt>
@@ -297,63 +309,6 @@ function SubmissionDetailPanel({ detail, status, error }) {
   );
 }
 
-function MetricHistoryChart({ points }) {
-  if (points.length === 0) {
-    return <p>No historical data available for the selected filters.</p>;
-  }
-
-  const width = 640;
-  const height = 220;
-  const padding = 32;
-  const values = points.map((point) => point.value);
-  const minValue = Math.min(...values, 0);
-  const maxValue = Math.max(...values, 1);
-  const valueRange = maxValue - minValue || 1;
-
-  const coords = points.map((point, index) => {
-    const x = points.length === 1 ? width / 2 : padding + (index / (points.length - 1)) * (width - padding * 2);
-    const y = height - padding - ((point.value - minValue) / valueRange) * (height - padding * 2);
-    return { ...point, x, y };
-  });
-
-  return (
-    <svg
-      className="metric-history-chart"
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label="Metric history over time"
-    >
-      {coords.slice(1).map((point, index) => {
-        const previousPoint = coords[index];
-        const isSolid = previousPoint.status === "APPROVED" && point.status === "APPROVED";
-        return (
-          <line
-            key={`${previousPoint.submission_id}-${point.submission_id}`}
-            x1={previousPoint.x}
-            y1={previousPoint.y}
-            x2={point.x}
-            y2={point.y}
-            className={isSolid ? "chart-line chart-line-solid" : "chart-line chart-line-dashed"}
-          />
-        );
-      })}
-      {coords.map((point) => (
-        <circle
-          key={point.submission_id}
-          cx={point.x}
-          cy={point.y}
-          r={5}
-          className={point.status === "APPROVED" ? "chart-point chart-point-approved" : "chart-point chart-point-unreviewed"}
-        >
-          <title>
-            {point.reporting_period}: {formatValue(point.value)} ({point.status})
-          </title>
-        </circle>
-      ))}
-    </svg>
-  );
-}
-
 export function ProjectDetailPage() {
   const { projectId } = useParams();
   const location = useLocation();
@@ -361,12 +316,6 @@ export function ProjectDetailPage() {
   const [detail, setDetail] = useState(null);
   const [detailStatus, setDetailStatus] = useState("loading");
   const [detailError, setDetailError] = useState("");
-
-  const [selectedMetric, setSelectedMetric] = useState(null);
-  const [includeUnreviewed, setIncludeUnreviewed] = useState(false);
-  const [history, setHistory] = useState([]);
-  const [historyStatus, setHistoryStatus] = useState("idle");
-  const [historyError, setHistoryError] = useState("");
 
   const [submissions, setSubmissions] = useState([]);
   const [submissionsStatus, setSubmissionsStatus] = useState("loading");
@@ -387,8 +336,6 @@ export function ProjectDetailPage() {
           return;
         }
         setDetail(payload);
-        const orderedMetrics = orderMetrics(payload.metrics);
-        setSelectedMetric(orderedMetrics.length > 0 ? orderedMetrics[0].metric_name : null);
         setDetailStatus("success");
       })
       .catch((error) => {
@@ -466,35 +413,6 @@ export function ProjectDetailPage() {
     };
   }, [selectedSubmissionId]);
 
-  useEffect(() => {
-    if (!selectedMetric) {
-      return undefined;
-    }
-    let isMounted = true;
-    setHistoryStatus("loading");
-    setHistoryError("");
-
-    getMetricHistory(projectId, selectedMetric, includeUnreviewed)
-      .then((payload) => {
-        if (!isMounted) {
-          return;
-        }
-        setHistory(payload.points);
-        setHistoryStatus("success");
-      })
-      .catch((error) => {
-        if (!isMounted) {
-          return;
-        }
-        setHistoryError(error.message || "Unable to load metric history.");
-        setHistoryStatus("error");
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [projectId, selectedMetric, includeUnreviewed]);
-
   if (detailStatus === "loading") {
     return (
       <section className="page-panel project-detail-page">
@@ -531,74 +449,13 @@ export function ProjectDetailPage() {
       {orderedMetrics.length === 0 && <p>No approved sustainability data yet for this project.</p>}
 
       {orderedMetrics.length > 0 && (
-        <>
+        <div className="metric-summary-section">
           <div className="metric-card-grid">
             {orderedMetrics.map((metric) => (
               <MetricCard key={metric.metric_name} metric={metric} onSelectSubmission={setSelectedSubmissionId} />
             ))}
           </div>
-
-          <div className="metric-tabs" role="tablist" aria-label="Metric history selector">
-            {orderedMetrics.map((metric) => (
-              <button
-                key={metric.metric_name}
-                type="button"
-                role="tab"
-                aria-selected={selectedMetric === metric.metric_name}
-                className={selectedMetric === metric.metric_name ? "metric-tab metric-tab-active" : "metric-tab"}
-                onClick={() => setSelectedMetric(metric.metric_name)}
-              >
-                {metric.metric_name}
-              </button>
-            ))}
-          </div>
-
-          <div className="chart-controls">
-            <label>
-              <input
-                type="checkbox"
-                checked={includeUnreviewed}
-                onChange={(event) => setIncludeUnreviewed(event.target.checked)}
-              />
-              Show unreviewed submissions (dashed)
-            </label>
-          </div>
-
-          {historyStatus === "loading" && <p>Loading history...</p>}
-          {historyStatus === "error" && (
-            <div className="form-error" role="status">
-              {historyError}
-            </div>
-          )}
-          {historyStatus === "success" && <MetricHistoryChart points={history} />}
-
-          {historyStatus === "success" && history.length > 0 && (
-            <div className="metrics-table-wrap">
-              <table className="metrics-table">
-                <thead>
-                  <tr>
-                    <th>Period</th>
-                    <th>Value</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((point) => (
-                    <tr key={point.submission_id}>
-                      <td>{point.reporting_period}</td>
-                      <td>
-                        {formatValue(point.value)} {point.unit}
-                      </td>
-                      <td>
-                        <span className={statusClass(point.status)}>{point.status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
+        </div>
       )}
 
       <section className="traceability-section" aria-labelledby="submission-records-heading">

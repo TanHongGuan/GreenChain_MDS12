@@ -129,6 +129,8 @@ def _serialize_review(review: ReviewSummary | None) -> dict | None:
     return {
         "review_id": review.review_id,
         "reviewer_id": review.reviewer_id,
+        "reviewer_name": review.reviewer_name,
+        "reviewer_email": review.reviewer_email,
         "decision": review.decision,
         "reason": review.reason,
         "reviewed_at": review.reviewed_at.isoformat(),

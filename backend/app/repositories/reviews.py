@@ -1,5 +1,5 @@
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from backend.app.models.review import Review
 
@@ -24,5 +24,5 @@ def create_review(
 
 
 def get_review_for_submission(db: Session, submission_id: int) -> Review | None:
-    stmt = select(Review).where(Review.submission_id == submission_id)
+    stmt = select(Review).where(Review.submission_id == submission_id).options(joinedload(Review.reviewer))
     return db.scalars(stmt).first()

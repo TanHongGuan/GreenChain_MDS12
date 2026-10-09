@@ -139,6 +139,10 @@ def test_audit_report_resolves_from_persisted_review(db, storage) -> None:
 
     assert report.content_type.startswith("text/plain")
     assert b"Decision: APPROVED" in report.content
+    assert b"Uploaded By: GreenChain Uploader" in report.content
+    assert b"Uploader Email: uploader@greenchain.test" in report.content
+    assert b"Reviewed By: GreenChain Auditor" in report.content
+    assert b"Reviewer Email: auditor@greenchain.test" in report.content
     assert b"Reason: verified" in report.content
 
 

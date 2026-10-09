@@ -38,6 +38,8 @@ class UploaderSummary:
 class ReviewSummary:
     review_id: int
     reviewer_id: str
+    reviewer_name: str
+    reviewer_email: str
     decision: str
     reason: str | None
     reviewed_at: datetime
@@ -143,6 +145,8 @@ def _review_summary(review: Review | None) -> ReviewSummary | None:
     return ReviewSummary(
         review_id=review.id,
         reviewer_id=review.reviewer_id,
+        reviewer_name=review.reviewer.name,
+        reviewer_email=review.reviewer.email,
         decision=review.decision,
         reason=review.reason,
         reviewed_at=review.reviewed_at,
@@ -225,7 +229,12 @@ def _audit_report_content(submission: Submission, review: Review) -> bytes:
         f"Project: {submission.project.name}",
         f"Organisation: {submission.project.organisation.name}",
         f"Reporting Period: {submission.reporting_period}",
+        f"Uploaded By: {submission.uploader.name}",
+        f"Uploader Email: {submission.uploader.email}",
+        f"Submitted At: {submission.created_at.isoformat()}",
         f"Decision: {review.decision}",
+        f"Reviewed By: {review.reviewer.name}",
+        f"Reviewer Email: {review.reviewer.email}",
         f"Reviewer ID: {review.reviewer_id}",
         f"Reviewed At: {review.reviewed_at.isoformat()}",
         f"Reason: {reason}",

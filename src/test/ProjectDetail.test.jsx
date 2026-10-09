@@ -56,7 +56,13 @@ const submissionHistory = [
     status: "APPROVED",
     submitted_by: { id: "uploader-id", name: "GreenChain Uploader", email: "uploader@greenchain.test" },
     submitted_at: "2026-09-02T10:00:00Z",
-    review: { decision: "APPROVED", reason: "verified", reviewed_at: "2026-09-02T12:00:00Z" },
+    review: {
+      decision: "APPROVED",
+      reason: "verified",
+      reviewer_name: "GreenChain Auditor",
+      reviewer_email: "auditor@greenchain.test",
+      reviewed_at: "2026-09-02T12:00:00Z",
+    },
     evidence: {
       original: {
         available: true,
@@ -216,7 +222,7 @@ describe("project detail page", () => {
     expect(screen.getByText("No approved sustainability data yet for this project.")).toBeInTheDocument();
   });
 
-  test("switching metric tabs loads that metric's own history", async () => {
+  test("renders multiple metric cards without visualization tabs", async () => {
     const twoMetricDetail = {
       project: projectDetail.project,
       metrics: [
@@ -235,24 +241,16 @@ describe("project detail page", () => {
         },
       ],
     };
-    const waterHistory = {
-      metric_name: "Water",
-      points: [{ submission_id: 11, reporting_period: "2026-Q2", value: 40, unit: "kL", status: "APPROVED" }],
-    };
 
     await renderProjectDetail({
       projectResponse: jsonResponse(200, twoMetricDetail),
-      histories: {
-        Electricity: jsonResponse(200, electricityHistory),
-        Water: jsonResponse(200, waterHistory),
-      },
     });
 
     await screen.findByRole("heading", { name: "Green Tower" });
-    const { default: userEvent } = await import("@testing-library/user-event");
-    await userEvent.click(screen.getByRole("tab", { name: "Water" }));
-
-    expect(await screen.findByText("40 kL")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Water" })).toBeInTheDocument();
+    expect(screen.getByText("40")).toBeInTheDocument();
+    expect(screen.getByText("kL")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Water" })).not.toBeInTheDocument();
   });
 
   test("invalid project id is handled safely", async () => {
@@ -273,6 +271,10 @@ describe("project detail page", () => {
     expect(screen.getByRole("heading", { name: "Submission Records" })).toBeInTheDocument();
     expect(screen.getByText("Original MATCH / Processed Available")).toBeInTheDocument();
     expect(screen.getByText("Submission #10, 2026-Q2, APPROVED")).toBeInTheDocument();
+    expect(screen.getByText("GreenChain Uploader (uploader@greenchain.test)")).toBeInTheDocument();
+    expect(screen.getByText("GreenChain Auditor (auditor@greenchain.test)")).toBeInTheDocument();
+    expect(screen.queryByText("Show unreviewed submissions (dashed)")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Metric history over time" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Original data" })).toHaveAttribute(
       "href",
       "http://localhost:8000/submissions/10/evidence/original",

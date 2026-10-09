@@ -213,6 +213,9 @@ nav a.active {
 }
 
 .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 38px;
   padding: 0 14px;
   color: #176b4d;
@@ -345,6 +348,14 @@ nav a.active {
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+.evidence-actions {
+  align-items: stretch;
+}
+
+.evidence-actions .secondary-button {
+  min-width: 150px;
 }
 
 .review-list-actions {
@@ -499,12 +510,13 @@ nav a.active {
 
 .metric-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
   margin-bottom: 20px;
 }
 
 .metric-card {
+  min-width: 0;
   border: 1px solid #dee5eb;
   border-radius: 8px;
   background: #ffffff;
@@ -513,9 +525,11 @@ nav a.active {
 
 .metric-card h3 {
   margin: 0 0 8px;
-  font-size: 0.95rem;
+  font-size: 0.86rem;
+  line-height: 1.25;
   color: #45586d;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .metric-card-value {
@@ -545,6 +559,7 @@ nav a.active {
   cursor: pointer;
   font-weight: 800;
   text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .text-button:hover {

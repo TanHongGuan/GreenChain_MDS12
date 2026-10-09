@@ -1,0 +1,6 @@
+metric_name,value,unit,category
+electricity_consumption,366301,kWh,Energy
+water_consumption,5415,m3,Water
+waste_generated,27000,kg,Waste
+recycled_waste,18086,kg,Waste
+carbon_emissions,142780,kgCO2e,Emissions

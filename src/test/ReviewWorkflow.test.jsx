@@ -116,11 +116,11 @@ describe("auditor review workflow", () => {
     expect(within(detail).getByText("MATCH")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /original evidence/i })).toHaveAttribute(
       "href",
-      "http://localhost:8000/reviews/submissions/7/evidence/original",
+      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/reviews/submissions/7/evidence/original`,
     );
     expect(screen.getByRole("link", { name: /processed evidence/i })).toHaveAttribute(
       "href",
-      "http://localhost:8000/reviews/submissions/7/evidence/processed",
+      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/reviews/submissions/7/evidence/processed`,
     );
   });
 

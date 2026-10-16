@@ -277,15 +277,15 @@ describe("project detail page", () => {
     expect(screen.queryByRole("img", { name: "Metric history over time" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Original data" })).toHaveAttribute(
       "href",
-      "http://localhost:8000/submissions/10/evidence/original",
+      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/submissions/10/evidence/original`,
     );
     expect(screen.getByRole("link", { name: "Processed data" })).toHaveAttribute(
       "href",
-      "http://localhost:8000/submissions/10/evidence/processed",
+      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/submissions/10/evidence/processed`,
     );
     expect(screen.getByRole("link", { name: "Audit report" })).toHaveAttribute(
       "href",
-      "http://localhost:8000/submissions/10/evidence/audit_report",
+      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/submissions/10/evidence/audit_report`,
     );
   });
 });

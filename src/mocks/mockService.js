@@ -28,8 +28,8 @@ function withProject(submission) {
     decision: submission.status, reason: submission.reason || null, reviewed_at: submission.reviewed_at || submission.submitted_at,
   };
   const evidence = Object.fromEntries(["original", "processed", "audit_report"].map((type) => [type, {
-    artifact_type: type, available: type !== "audit_report" || Boolean(review),
-    filename: `${type}-${submission.submission_id}.csv`, content_type: "text/csv", size_bytes: submission.file_size || 160,
+    artifact_type: type, available: false,
+    filename: type === "original" ? submission.source_filename || `demo-${submission.submission_id}.csv` : `${type}-${submission.submission_id}.csv`, content_type: "text/csv", size_bytes: type === "original" ? submission.file_size || null : null,
     storage_backend: "DEMO_SESSION", sha256: submission.sha256 || null,
     integrity: { status: submission.sha256 ? "MATCH" : "UNAVAILABLE", matches: submission.sha256 ? true : null },
   }]));

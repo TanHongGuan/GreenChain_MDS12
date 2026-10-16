@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail, isMockMode } from "../services/dataService.js";
+import { metricDefinition } from "../utils/metrics.js";
 
 function formatDate(value) {
   if (!value) {
@@ -210,7 +211,7 @@ export function ReviewPlaceholder() {
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.metrics.map((metric) => (
+                    {detail.metrics.filter((metric) => metricDefinition(metric.metric_name)).map((metric) => (
                       <tr key={`${metric.metric_name}-${metric.unit}`}>
                         <td>{metric.metric_name}</td>
                         <td>{metric.value}</td>

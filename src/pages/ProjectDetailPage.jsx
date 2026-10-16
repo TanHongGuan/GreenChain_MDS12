@@ -245,6 +245,10 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
           <dd className="hash-value">{original?.sha256 || "Not available"}</dd>
         </div>
         <div>
+          <dt>Source file</dt>
+          <dd>{original?.filename || "Not available"}</dd>
+        </div>
+        <div>
           <dt>Integrity</dt>
           <dd>{evidenceStatus(original)}</dd>
         </div>
@@ -289,7 +293,7 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
         />
       </div>
 
-      {detail.metrics.length === 0 ? (
+      {detail.metrics.filter((metric) => metricDefinition(metric.metric_name)).length === 0 ? (
         <p>No processed metrics are available for this submission.</p>
       ) : (
         <div className="metrics-table-wrap">
@@ -302,7 +306,7 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
               </tr>
             </thead>
             <tbody>
-              {detail.metrics.map((metric) => (
+              {detail.metrics.filter((metric) => metricDefinition(metric.metric_name)).map((metric) => (
                 <tr key={`${metric.metric_name}-${metric.submission_id}`}>
                   <td>{metric.metric_name}</td>
                   <td>

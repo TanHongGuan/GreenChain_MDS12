@@ -145,7 +145,7 @@ describe("Sprint 7 discovery and highlighted workflow", () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        "http://localhost:8000/highlighted/projects/7",
+        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/highlighted/projects/7`,
         expect.objectContaining({ method: "POST", credentials: "include" }),
       );
     });

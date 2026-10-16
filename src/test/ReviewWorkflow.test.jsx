@@ -81,7 +81,7 @@ async function renderReview(responses) {
 async function openDetail() {
   await userEvent.click(await screen.findByRole("button", { name: /open review/i }));
   const detail = screen.getByLabelText("Submission review detail");
-  await within(detail).findByRole("heading", { name: "Green Tower" });
+  await within(detail).findByRole("heading", { name: /Green Tower.*Submission #7/ });
   return detail;
 }
 
@@ -94,12 +94,37 @@ afterEach(() => {
 });
 
 describe("auditor review workflow", () => {
+  test("queue filters authorised results without hiding the total", async () => {
+    await renderReview([{ response: jsonResponse(200, { submissions: [pendingSubmission, { ...pendingSubmission, submission_id: 8, project_name: "Water Works", organisation: "Beta Corp" }] }) }]);
+    expect(await screen.findAllByRole("button", { name: /open review/i })).toHaveLength(2);
+    await userEvent.selectOptions(screen.getByLabelText("Project"), "Green Tower");
+    expect(screen.getAllByRole("button", { name: /open review/i })).toHaveLength(1);
+    expect(screen.getByText(/1 of 2/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Search"), "not found");
+    expect(screen.getByText("No submissions match these filters.")).toBeInTheDocument();
+  });
+
+  test("unavailable integrity requires acknowledgement before approval", async () => {
+    await renderReview([
+      { response: jsonResponse(200, { submissions: [pendingSubmission] }) },
+      { response: jsonResponse(200, { submission: { ...detailSubmission, integrity: { status: "UNAVAILABLE" } } }) },
+    ]);
+    await openDetail();
+    expect(screen.getByText(/Integrity is UNAVAILABLE/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^approve$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /confirm approval/i }));
+    expect(screen.getByText("Acknowledge the integrity warning before approving.")).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+  });
+
   test("auditor can load pending review queue", async () => {
     await renderReview([{ response: jsonResponse(200, { submissions: [pendingSubmission] }) }]);
 
-    expect(await screen.findByText("Green Tower")).toBeInTheDocument();
-    expect(screen.getByText("Acme Corp")).toBeInTheDocument();
-    expect(screen.getByText("2026-Q1")).toBeInTheDocument();
+    const queue = screen.getByLabelText("Pending review queue");
+    expect(await within(queue).findByRole("heading", { name: /Green Tower/ })).toBeInTheDocument();
+    const row = within(queue).getByRole("article");
+    expect(within(row).getByText("Acme Corp")).toBeInTheDocument();
+    expect(within(row).getByText("2026-Q1")).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
@@ -114,14 +139,8 @@ describe("auditor review workflow", () => {
     expect(within(detail).getByText("Electricity")).toBeInTheDocument();
     expect(within(detail).getByText("120.5")).toBeInTheDocument();
     expect(within(detail).getByText("MATCH")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /original evidence/i })).toHaveAttribute(
-      "href",
-      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/reviews/submissions/7/evidence/original`,
-    );
-    expect(screen.getByRole("link", { name: /processed evidence/i })).toHaveAttribute(
-      "href",
-      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/reviews/submissions/7/evidence/processed`,
-    );
+    expect(screen.getByRole("button", { name: /download original/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /download processed/i })).toBeInTheDocument();
   });
 
   test("approve updates the UI from the server response", async () => {

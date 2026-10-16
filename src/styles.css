@@ -394,7 +394,10 @@ nav a.active {
 }
 
 .project-list-item {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(90px, 1fr) minmax(110px, 1fr) minmax(105px, 1fr) minmax(95px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
   border: 1px solid #dee5eb;
   border-radius: 0;
   border-width: 0 0 1px;
@@ -403,6 +406,13 @@ nav a.active {
   text-decoration: none;
   color: inherit;
 }
+.project-list-head { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(90px, 1fr) minmax(110px, 1fr) minmax(105px, 1fr) minmax(95px, 1fr) auto; gap: 14px; padding: 9px 18px; border-bottom: 1px solid #dee5eb; color: #627588; font-size: .8rem; font-weight: 700; }
+.project-list-identity { display: grid; gap: 3px; min-width: 0; }
+.project-list-identity strong { color: #0d2744; overflow-wrap: anywhere; }
+.project-list-identity small { color: #627588; }
+.project-view-link { color: #176c51; white-space: nowrap; font-weight: 700; }
+.project-list-item > span { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 820px) { .project-list-head { display: none; } .project-list-item { grid-template-columns: minmax(0, 1fr) auto; } .project-list-item > span:nth-child(2), .project-list-item > span:nth-child(3), .project-list-item > span:nth-child(5) { display: none; } }
 
 .home-intro, .section-title-row { display: flex; align-items: end; justify-content: space-between; gap: 18px; }
 .home-intro { padding: 12px 0 26px; border-bottom: 1px solid #dee5eb; }
@@ -416,6 +426,32 @@ nav a.active {
 .activity-list { border-top: 1px solid #dee5eb; }
 .activity-row { display: grid; grid-template-columns: 1.4fr 1fr .6fr .75fr .7fr; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid #e7ecee; text-decoration: none; color: #45586d; font-size: .9rem; }
 .activity-row strong { color: #0d2744; }
+.activity-header { font-weight: 700; color: #627588; border-top: 1px solid #dee5eb; }
+.home-metric-preview { padding: 22px 0; border-bottom: 1px solid #dee5eb; }
+.home-metric-preview p { color: #627588; margin: 6px 0 16px; }
+.home-metric-preview dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 0; }
+.home-metric-preview dt { color: #627588; font-size: .9rem; }
+.home-metric-preview dd { margin: 4px 0 0; font-weight: 700; font-size: 1.15rem; overflow-wrap: anywhere; }
+.period-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.period-fields label { display: grid; gap: 6px; }
+.upload-requirements { padding: 18px 0; border-top: 1px solid #dee5eb; border-bottom: 1px solid #dee5eb; }
+.upload-requirements h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.upload-requirements p { max-width: 75ch; }
+.form-warning { color: #815c0b; }
+.review-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0 16px; }
+.review-filters label { display: grid; gap: 4px; font-size: .85rem; }
+.review-filters input, .review-filters select { min-width: 0; width: 100%; }
+.review-queue h2 small, .review-detail h2 small { font-size: .75em; color: #627588; }
+.review-ack { display: flex; align-items: start; gap: 8px; margin: 14px 0; }
+.review-ack input { flex: 0 0 auto; }
+.integrity-note { color: #627588; font-size: .88rem; }
+.simulated-evidence { border-top: 1px solid #dee5eb; margin-top: 16px; padding-top: 12px; }
+.simulated-evidence > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.simulated-evidence pre { overflow: auto; padding: 10px; background: #f4f7f5; font-size: .78rem; }
+.review-history { border-top: 1px solid #dee5eb; margin-top: 24px; padding-top: 18px; }
+.review-history h2 { font-size: 1.1rem; }
+.review-history-list > div { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 10px 0; border-bottom: 1px solid #e7ecee; }
+@media (max-width: 760px) { .review-filters, .simulated-evidence > div, .period-fields { grid-template-columns: 1fr; } }
 .performance-section { margin: 28px 0; border-top: 1px solid #dee5eb; padding-top: 20px; }
 .performance-section h2, .chart-section h2 { margin: 0 0 16px; font-size: 1.15rem; color: #0d2744; }
 .chart-section { padding: 18px 0; border-bottom: 1px solid #dee5eb; }
@@ -441,7 +477,11 @@ nav a.active {
 .discovery-card-link { padding: 10px 0; }
 .discovery-card .project-card-meta { display: flex; flex-wrap: wrap; gap: 10px 28px; }
 .discovery-card .project-card-meta div { min-width: 120px; }
+.project-latest-decision { display: grid; gap: 3px; justify-items: end; }
+.project-latest-decision small { color: #627588; font-size: .72rem; }
 @media (max-width: 760px) {
+  .activity-header { display: none; }
+  .home-metric-preview dl { grid-template-columns: 1fr; }
   .platform-summary { grid-template-columns: repeat(2, 1fr); }
   .activity-row { grid-template-columns: 1fr auto; }
   .activity-row span:nth-of-type(1), .activity-row time { display: none; }

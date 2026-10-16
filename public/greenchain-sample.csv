@@ -1,0 +1,4 @@
+metric_name,value,unit,category
+Electricity,1200,kWh,Energy
+Water,48,m3,Water
+CO2e,320,kgCO2e,Emissions

@@ -6,7 +6,7 @@ function statusClass(status) {
 
 function formatMetric(metric) {
   if (!metric) {
-    return "No trusted data yet";
+    return "No approved data yet";
   }
   return `${metric.metric_name}: ${Number(metric.value).toLocaleString(undefined, {
     maximumFractionDigits: 2,
@@ -17,7 +17,7 @@ function formatDate(value) {
   if (!value) {
     return "Not available";
   }
-  return new Date(value).toLocaleDateString();
+  return new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
 }
 
 export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = false }) {
@@ -43,7 +43,7 @@ export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = 
       <Link to={detailUrl} className="discovery-card-link">
         <div className="project-card-header">
           <h2>{project.project_name}</h2>
-          {project.status && <span className={statusClass(project.status)}>{project.status}</span>}
+          {project.status && <span className="project-latest-decision"><small>Latest submission decision</small><span className={statusClass(project.status)}>{project.status}</span></span>}
         </div>
         <dl className="project-card-meta">
           <div>
@@ -55,11 +55,11 @@ export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = 
             <dd>{project.location || "Not set"}</dd>
           </div>
           <div>
-            <dt>Trusted metric</dt>
+            <dt>Latest approved metric</dt>
             <dd>{formatMetric(project.trusted_metric)}</dd>
           </div>
           <div>
-            <dt>Trusted period</dt>
+            <dt>Latest approved period</dt>
             <dd>{project.trusted_metric?.reporting_period || "Not available"}</dd>
           </div>
           <div>

@@ -33,6 +33,7 @@ export const getProjectSubmissions = choose(mock.getProjectSubmissions, realSubm
 export const getSubmissionDetail = choose(mock.getSubmissionDetail, realSubmissions.getSubmissionDetail);
 export const createSubmission = choose(mock.createSubmission, realSubmissions.createSubmission);
 export const getPendingReviews = choose(mock.getPendingReviews, realReviews.getPendingReviews);
+export const getReviewHistory = choose(mock.getReviewHistory, async () => null);
 export const getReviewDetail = choose(mock.getReviewDetail, realReviews.getReviewDetail);
 export const decideSubmission = choose(mock.decideSubmission, realReviews.decideSubmission);
 export const getHighlightedProjects = choose(mock.getHighlightedProjects, realDiscovery.getHighlightedProjects);

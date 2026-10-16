@@ -92,10 +92,12 @@ export async function getProjectSubmissions(id) { if (!projectById(id)) throw fa
 export async function getSubmissionDetail(id) { const item = submissionById(id); if (!item) throw fail("Submission was not found."); return withProject(item); }
 export function getSubmissionEvidenceUrl() { return null; }
 export async function getPendingReviews() { return state().submissions.filter((item) => item.status === "UNREVIEWED").map(withProject); }
+export async function getReviewHistory() { return state().submissions.filter((item) => item.status !== "UNREVIEWED").map(withProject).sort((a, b) => String(b.reviewed_at || "").localeCompare(String(a.reviewed_at || ""))); }
 export async function getReviewDetail(id) {
   const detail = await getSubmissionDetail(id);
   return { ...detail, original_sha256: detail.evidence.original.sha256, integrity: detail.evidence.original.integrity,
-    evidence: { original: { label: detail.evidence.original.filename, url: null }, processed: { label: detail.evidence.processed.filename, url: null } } };
+    evidence: { original: { label: detail.evidence.original.filename, url: null }, processed: { label: detail.evidence.processed.filename, url: null } },
+    simulated_evidence: { original: detail.metrics.map((metric) => `${metric.metric_name},${metric.value},${metric.unit}`).join("\n"), processed: detail.metrics.map((metric) => `${metric.metric_name}: ${metric.value} ${metric.unit}`).join("\n") } };
 }
 export async function decideSubmission(id, decision, reason) {
   const item = submissionById(id);

@@ -98,7 +98,7 @@ describe("projects catalogue", () => {
     expect(screen.getByText("Acme Renewables")).toBeInTheDocument();
     expect(screen.getByText("Johor")).toBeInTheDocument();
     expect(screen.getAllByText("APPROVED").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("1 project")).toBeInTheDocument();
+    expect(screen.getByText(/Showing 1 of 1 project/)).toBeInTheDocument();
   });
 
   test("loads from URL-backed filters", async () => {

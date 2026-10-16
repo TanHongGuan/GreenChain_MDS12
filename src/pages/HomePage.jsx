@@ -1,40 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { addHighlightedProject, getHomeDiscovery, removeHighlightedProject } from "../services/dataService.js";
+import { addHighlightedProject, getHomeDiscovery, getProjectDetail, removeHighlightedProject } from "../services/dataService.js";
 import { DiscoveryProjectCard } from "../components/DiscoveryProjectCard.jsx";
 
-const SECTION_LINKS = {
-  recently_updated: "/projects?sort=updated_desc",
-  featured: "/projects?status=APPROVED&sort=period_desc",
-  new_projects: "/projects?sort=created_desc",
-};
+const METRICS = [
+  ["Electricity", "Electricity"],
+  ["Water", "Water"],
+  ["CO2e", "CO2 emissions"],
+];
 
-function DiscoverySection({ title, projects, viewAllUrl, updatingProjectId, onToggleHighlight }) {
-  return (
-    <section className="discovery-section" aria-labelledby={`${title.toLowerCase().replaceAll(" ", "-")}-heading`}>
-      <div className="section-title-row">
-        <h2 id={`${title.toLowerCase().replaceAll(" ", "-")}-heading`}>{title}</h2>
-        <Link to={viewAllUrl} className="text-link">
-          View All
-        </Link>
-      </div>
-      {projects.length === 0 ? (
-        <p>No projects to show.</p>
-      ) : (
-        <div className="discovery-card-grid">
-          {projects.map((project) => (
-            <DiscoveryProjectCard
-              key={project.project_id}
-              project={project}
-              isUpdating={updatingProjectId === project.project_id}
-              onToggleHighlight={onToggleHighlight}
-            />
-          ))}
-        </div>
-      )}
-    </section>
-  );
+function formatDate(value) {
+  return value ? new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", day: "numeric", month: "short", year: "numeric" }).format(new Date(value)) : "Not available";
+}
+
+function approvedMetric(detail, name) {
+  const record = detail?.metrics?.find((metric) => metric.metric_name === name)?.latest;
+  return record ? `${Number(record.value).toLocaleString("en-MY")} ${record.unit}` : "No approved data";
 }
 
 function updateProject(projects, updatedProject) {
@@ -51,6 +33,7 @@ export function HomePage() {
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
   const [updatingProjectId, setUpdatingProjectId] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -58,12 +41,21 @@ export function HomePage() {
     setError("");
 
     getHomeDiscovery()
-      .then((payload) => {
+      .then(async (payload) => {
         if (!isMounted) {
           return;
         }
         setDiscovery(payload);
         setStatus("success");
+        const candidate = (payload.featured || []).find((item) => item.trusted_metric);
+        if (candidate) {
+          try {
+            const detail = await getProjectDetail(candidate.project_id);
+            if (isMounted) setPreview({ project: candidate, detail });
+          } catch {
+            if (isMounted) setPreview(null);
+          }
+        }
       })
       .catch((err) => {
         if (!isMounted) {
@@ -117,9 +109,8 @@ export function HomePage() {
         <>
           <div className="home-intro">
             <div>
-              <p className="eyebrow">Project data and review</p>
-              <h2>Transparent sustainability records</h2>
-              <p>Explore submitted records and distinguish reviewed figures from data awaiting a decision.</p>
+              <p className="eyebrow">Sustainability records</p>
+              <h2>Project overview</h2>
             </div>
             <Link to="/projects" className="secondary-button">Browse projects</Link>
           </div>
@@ -129,46 +120,35 @@ export function HomePage() {
                 ["Projects", discovery.summary.total_projects],
                 ["Organisations", discovery.summary.total_organisations],
                 ["Submissions", discovery.summary.total_submissions],
-                ["Approved", discovery.summary.approved_submissions],
-                ["Awaiting review", discovery.summary.unreviewed_submissions],
+                ["Approved submissions", discovery.summary.approved_submissions],
+                ["Pending submissions", discovery.summary.unreviewed_submissions],
               ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
             </dl>
           )}
           {discovery.activity?.length > 0 && (
             <section className="activity-section" aria-labelledby="activity-heading">
-              <div className="section-title-row"><h2 id="activity-heading">Recent submissions</h2><Link to="/projects">Projects</Link></div>
+              <div className="section-title-row"><h2 id="activity-heading">Recent submissions</h2><Link to="/projects">View projects</Link></div>
+              <div className="activity-row activity-header" aria-hidden="true"><span>Project</span><span>Organisation</span><span>Period</span><span>Decision</span><span>Submitted</span></div>
               <div className="activity-list">
                 {discovery.activity.map((item) => (
                   <Link key={item.submission_id} to={`/projects/${item.project_id}`} className="activity-row">
                     <strong>{item.project_name}</strong><span>{item.organisation}</span><span>{item.reporting_period}</span>
                     <span className={`status-pill status-${item.status.toLowerCase()}`}>{item.status}</span>
-                    <time dateTime={item.submitted_at}>{new Date(item.submitted_at).toLocaleDateString()}</time>
+                    <time dateTime={item.submitted_at}>{formatDate(item.submitted_at)}</time>
                   </Link>
                 ))}
               </div>
             </section>
           )}
-          <DiscoverySection
-            title="Recently Updated"
-            projects={discovery.recently_updated || []}
-            viewAllUrl={SECTION_LINKS.recently_updated}
-            updatingProjectId={updatingProjectId}
-            onToggleHighlight={handleToggleHighlight}
-          />
-          <DiscoverySection
-            title="Featured Sustainable Projects"
-            projects={discovery.featured || []}
-            viewAllUrl={SECTION_LINKS.featured}
-            updatingProjectId={updatingProjectId}
-            onToggleHighlight={handleToggleHighlight}
-          />
-          <DiscoverySection
-            title="New Projects"
-            projects={discovery.new_projects || []}
-            viewAllUrl={SECTION_LINKS.new_projects}
-            updatingProjectId={updatingProjectId}
-            onToggleHighlight={handleToggleHighlight}
-          />
+          {preview && <section className="home-metric-preview" aria-labelledby="preview-heading">
+            <div className="section-title-row"><h2 id="preview-heading">Latest approved data</h2><Link to={`/projects/${preview.project.project_id}`}>{preview.project.project_name}</Link></div>
+            <p>Values below belong to this project only, not the whole platform.</p>
+            <dl>{METRICS.map(([name, label]) => <div key={name}><dt>{label}</dt><dd>{approvedMetric(preview.detail, name)}</dd></div>)}</dl>
+          </section>}
+          <section className="discovery-section" aria-labelledby="recent-heading">
+            <div className="section-title-row"><h2 id="recent-heading">Recently updated projects</h2><Link to="/projects?sort=updated_desc">View all</Link></div>
+            {(discovery.recently_updated || []).length === 0 ? <p>No projects to show.</p> : <div className="discovery-card-grid">{discovery.recently_updated.slice(0, 4).map((project) => <DiscoveryProjectCard key={project.project_id} project={project} isUpdating={updatingProjectId === project.project_id} onToggleHighlight={handleToggleHighlight} />)}</div>}
+          </section>
         </>
       )}
     </section>

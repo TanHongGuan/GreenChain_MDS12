@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
-import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail, isMockMode } from "../services/dataService.js";
+import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail, getReviewHistory, isMockMode } from "../services/dataService.js";
 import { metricDefinition } from "../utils/metrics.js";
 
 function formatDate(value) {
   if (!value) {
     return "Not available";
   }
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur",
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
@@ -29,6 +30,25 @@ export function ReviewPlaceholder() {
   const [decisionStatus, setDecisionStatus] = useState("idle");
   const [decisionNotice, setDecisionNotice] = useState("");
   const [pendingDecision, setPendingDecision] = useState(null);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [filters, setFilters] = useState({ project: "", organisation: "", period: "", search: "" });
+  const [history, setHistory] = useState(null);
+
+  const filteredQueue = useMemo(() => queue.filter((item) =>
+    (!filters.project || item.project_name === filters.project) &&
+    (!filters.organisation || item.organisation === filters.organisation) &&
+    (!filters.period || item.reporting_period === filters.period) &&
+    (!filters.search || `${item.project_name} ${item.organisation} ${item.submission_id}`.toLowerCase().includes(filters.search.toLowerCase()))
+  ), [queue, filters]);
+  const needsAcknowledgement = detail && detail.integrity?.status !== "MATCH";
+
+  useEffect(() => {
+    if (detail?.status === "UNREVIEWED" && selectedId && !filteredQueue.some((item) => item.submission_id === selectedId)) {
+      setSelectedId(null);
+      setDetail(null);
+      setDetailStatus("idle");
+    }
+  }, [filteredQueue, selectedId, detail]);
 
   const isDeciding = decisionStatus === "submitting";
 
@@ -50,6 +70,7 @@ export function ReviewPlaceholder() {
         setQueueError(error.message || "Unable to load review queue.");
         setQueueStatus("error");
       });
+    getReviewHistory().then((items) => { if (isMounted) setHistory(items); }).catch(() => { if (isMounted) setHistory(null); });
 
     return () => {
       isMounted = false;
@@ -63,6 +84,7 @@ export function ReviewPlaceholder() {
     setDecisionNotice("");
     setReason("");
     setPendingDecision(null);
+    setAcknowledged(false);
     setDetailStatus("loading");
 
     try {
@@ -84,6 +106,11 @@ export function ReviewPlaceholder() {
       setDecisionStatus("error");
       return;
     }
+    if (decision === "APPROVED" && needsAcknowledgement && !acknowledged) {
+      setDecisionNotice("Acknowledge the integrity warning before approving.");
+      setDecisionStatus("error");
+      return;
+    }
 
     setDecisionStatus("submitting");
     setDecisionNotice("");
@@ -95,9 +122,29 @@ export function ReviewPlaceholder() {
       setDecisionNotice(result.reason ? `${result.message} Reason: ${result.reason}` : result.message);
       setDecisionStatus("success");
       setPendingDecision(null);
+      if (isMockMode) getReviewHistory().then(setHistory);
     } catch (error) {
       setDecisionNotice(error.message || "Review decision could not be saved.");
       setDecisionStatus("error");
+    }
+  }
+
+  async function downloadEvidence(path, label) {
+    try {
+      const response = await fetch(evidenceUrl(path), { credentials: "include" });
+      if (!response.ok) throw new Error(`Evidence download failed (${response.status}).`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = label || "evidence";
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setDetailError("");
+    } catch (error) {
+      setDetailError(error.message || "Evidence could not be downloaded.");
     }
   }
 
@@ -111,7 +158,13 @@ export function ReviewPlaceholder() {
 
       <div className="review-layout">
         <section className="review-queue" aria-label="Pending review queue">
-          <h2>Pending Submissions</h2>
+          <h2>Pending submissions <small>({filteredQueue.length} of {queue.length})</small></h2>
+          <div className="review-filters" aria-label="Queue filters">
+            <label>Project<select value={filters.project} onChange={(event) => setFilters({ ...filters, project: event.target.value })}><option value="">All projects</option>{[...new Set(queue.map((item) => item.project_name))].sort().map((name) => <option key={name}>{name}</option>)}</select></label>
+            <label>Organisation<select value={filters.organisation} onChange={(event) => setFilters({ ...filters, organisation: event.target.value })}><option value="">All organisations</option>{[...new Set(queue.map((item) => item.organisation))].sort().map((name) => <option key={name}>{name}</option>)}</select></label>
+            <label>Period<select value={filters.period} onChange={(event) => setFilters({ ...filters, period: event.target.value })}><option value="">All periods</option>{[...new Set(queue.map((item) => item.reporting_period))].sort().map((period) => <option key={period}>{period}</option>)}</select></label>
+            <label>Search<input type="search" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Project or submission ID" /></label>
+          </div>
           {queueStatus === "loading" && <p>Loading submissions...</p>}
           {queueStatus === "error" && (
             <div className="form-error" role="status">
@@ -119,12 +172,13 @@ export function ReviewPlaceholder() {
             </div>
           )}
           {queueStatus === "success" && queue.length === 0 && <p>No pending submissions.</p>}
-          {queue.length > 0 && (
+          {queueStatus === "success" && queue.length > 0 && filteredQueue.length === 0 && <p>No submissions match these filters.</p>}
+          {filteredQueue.length > 0 && (
             <div className="review-list">
-              {queue.map((submission) => (
+              {filteredQueue.map((submission) => (
                 <article className="review-list-item" key={submission.submission_id}>
                   <div>
-                    <h3>{submission.project_name}</h3>
+                    <h3>{submission.project_name} <small>#{submission.submission_id}</small></h3>
                     <p>{submission.organisation}</p>
                     <dl>
                       <div>
@@ -165,8 +219,9 @@ export function ReviewPlaceholder() {
             <>
               <div className="detail-header">
                 <div>
-                  <h2>{detail.project_name}</h2>
+                  <h2>{detail.project_name} <small>Submission #{detail.submission_id}</small></h2>
                   <p>{detail.organisation}</p>
+                  {detail.project_id && <Link to={`/projects/${detail.project_id}`}>View project</Link>}
                 </div>
                 <span className={statusClass(detail.status)}>{detail.status}</span>
               </div>
@@ -186,18 +241,22 @@ export function ReviewPlaceholder() {
                 </div>
                 <div>
                   <dt>Integrity</dt>
-                  <dd>{detail.integrity?.status || "Not available"}</dd>
+                  <dd>{detail.integrity?.status || "UNAVAILABLE"}</dd>
                 </div>
               </dl>
+              <p className="integrity-note">A matching SHA-256 checks file consistency, not whether reported measurements are true.</p>
+              {needsAcknowledgement && <p className="form-warning" role="alert">Integrity is {detail.integrity?.status || "UNAVAILABLE"}. Inspect the evidence before approving.</p>}
+              {detailError && <div className="form-error" role="status">{detailError}</div>}
 
               <div className="evidence-actions">
                 {detail.evidence?.original?.url && evidenceUrl(detail.evidence.original.url)
-                  ? <a className="secondary-button" href={evidenceUrl(detail.evidence.original.url)} target="_blank" rel="noreferrer">Original Evidence</a>
-                  : <span className="secondary-button evidence-disabled" aria-disabled="true">Original demo evidence unavailable</span>}
+                  ? <button type="button" className="secondary-button" onClick={() => downloadEvidence(detail.evidence.original.url, detail.evidence.original.label)}>Download original</button>
+                  : <span>Original file unavailable</span>}
                 {detail.evidence?.processed?.url && evidenceUrl(detail.evidence.processed.url)
-                  ? <a className="secondary-button" href={evidenceUrl(detail.evidence.processed.url)} target="_blank" rel="noreferrer">Processed Evidence</a>
-                  : <span className="secondary-button evidence-disabled" aria-disabled="true">Processed demo evidence unavailable</span>}
+                  ? <button type="button" className="secondary-button" onClick={() => downloadEvidence(detail.evidence.processed.url, detail.evidence.processed.label)}>Download processed</button>
+                  : <span>Processed file unavailable</span>}
               </div>
+              {isMockMode && detail.simulated_evidence && <div className="simulated-evidence"><h3>Simulated evidence preview</h3><p>Derived from demo metrics. This is not the uploaded file or an immutable artifact.</p><div><div><h4>Original-style rows</h4><pre>{detail.simulated_evidence.original}</pre></div><div><h4>Processed-style rows</h4><pre>{detail.simulated_evidence.processed}</pre></div></div></div>}
 
               <h3>Processed Metrics</h3>
               <div className="metrics-table-wrap">
@@ -214,7 +273,7 @@ export function ReviewPlaceholder() {
                     {detail.metrics.filter((metric) => metricDefinition(metric.metric_name)).map((metric) => (
                       <tr key={`${metric.metric_name}-${metric.unit}`}>
                         <td>{metric.metric_name}</td>
-                        <td>{metric.value}</td>
+                        <td>{Number(metric.value).toLocaleString("en-MY")}</td>
                         <td>{metric.unit}</td>
                         <td>{metric.category || "Uncategorised"}</td>
                       </tr>
@@ -222,6 +281,7 @@ export function ReviewPlaceholder() {
                   </tbody>
                 </table>
               </div>
+              {detail.metrics.some((metric) => !metricDefinition(metric.metric_name)) && <p className="form-warning">Additional metrics exist in this submission but are outside the three-metric review table. Inspect the source evidence before deciding.</p>}
 
               {detail.status === "UNREVIEWED" && (
                 <div className="decision-panel">
@@ -233,6 +293,7 @@ export function ReviewPlaceholder() {
                     disabled={isDeciding}
                     rows="3"
                   />
+                  {needsAcknowledgement && <label className="review-ack"><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /> I acknowledge that integrity is not verified and have inspected the available evidence.</label>}
                   <div className="decision-actions">
                     <button className="primary-button" type="button" onClick={() => setPendingDecision("APPROVED")} disabled={isDeciding}>
                       {isDeciding ? "Saving..." : "Approve"}
@@ -254,10 +315,12 @@ export function ReviewPlaceholder() {
                   {decisionNotice}
                 </div>
               )}
+              {decisionStatus === "success" && detail.project_id && <Link to={`/projects/${detail.project_id}`}>View recorded outcome</Link>}
             </>
           )}
         </section>
       </div>
+      {isMockMode && history?.length > 0 && <section className="review-history" aria-labelledby="review-history-heading"><h2 id="review-history-heading">Demo review history</h2><div className="review-history-list">{history.map((item) => <div key={item.submission_id}><strong>#{item.submission_id} · {item.project_name}</strong><span>{item.status}</span><span>{item.review?.reviewer_email || "Demo auditor"}</span><time>{formatDate(item.reviewed_at)}</time><span>{item.reason || "No reason recorded"}</span></div>)}</div></section>}
     </section>
   );
 }

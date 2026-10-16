@@ -335,6 +335,7 @@ export function ProjectDetailPage() {
   const [detailError, setDetailError] = useState("");
 
   const [submissions, setSubmissions] = useState([]);
+  const [verificationRecords, setVerificationRecords] = useState([]);
   const [submissionsStatus, setSubmissionsStatus] = useState("loading");
   const [submissionsError, setSubmissionsError] = useState("");
   const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
@@ -397,8 +398,10 @@ export function ProjectDetailPage() {
         if (!isMounted) {
           return;
         }
-        setSubmissions(records);
-        setSelectedSubmissionId(records.length > 0 ? records[0].submission_id : null);
+        const visibleRecords = user?.role === "VIEWER" ? records.filter((record) => record.status === "APPROVED") : records;
+        setVerificationRecords(records);
+        setSubmissions(visibleRecords);
+        setSelectedSubmissionId(visibleRecords.length > 0 ? visibleRecords[0].submission_id : null);
         setSubmissionsStatus("success");
       })
       .catch((error) => {
@@ -412,7 +415,7 @@ export function ProjectDetailPage() {
     return () => {
       isMounted = false;
     };
-  }, [projectId]);
+  }, [projectId, user?.role]);
 
   useEffect(() => {
     if (!selectedSubmissionId) {
@@ -506,7 +509,7 @@ export function ProjectDetailPage() {
         </>}
       </section>
 
-      <VerificationChart submissions={submissions} />
+      <VerificationChart submissions={verificationRecords} />
 
       <section className="traceability-section" aria-labelledby="submission-records-heading">
         <div className="section-heading">

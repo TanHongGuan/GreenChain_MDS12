@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
-import { getProjectDetail } from "../api/projectsApi.js";
+import { getProjectDetail } from "../services/dataService.js";
 import {
   getProjectSubmissions,
   getSubmissionDetail,
   getSubmissionEvidenceUrl,
-} from "../api/submissionsApi.js";
+} from "../services/dataService.js";
 
 const CANONICAL_METRIC_ORDER = ["Electricity", "Water", "CO2e", "Waste"];
 

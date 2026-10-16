@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-import { createSubmission } from "../api/submissionsApi.js";
+import { createSubmission } from "../services/dataService.js";
 
 const ACCEPTED_EXTENSIONS = [".csv", ".xlsx"];
 

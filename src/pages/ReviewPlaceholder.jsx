@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail } from "../api/reviewsApi.js";
+import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail } from "../services/dataService.js";
 
 function formatDate(value) {
   if (!value) {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { addHighlightedProject, getHomeDiscovery, removeHighlightedProject } from "../api/discoveryApi.js";
+import { addHighlightedProject, getHomeDiscovery, removeHighlightedProject } from "../services/dataService.js";
 import { DiscoveryProjectCard } from "../components/DiscoveryProjectCard.jsx";
 
 const SECTION_LINKS = {

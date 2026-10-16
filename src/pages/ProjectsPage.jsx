@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
-import { getProjectCatalogue } from "../api/projectsApi.js";
+import { getProjectCatalogue } from "../services/dataService.js";
 
 const STATUS_OPTIONS = ["APPROVED", "UNREVIEWED", "REJECTED"];
 const SORT_OPTIONS = [

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { getHighlightedProjects, removeHighlightedProject } from "../api/discoveryApi.js";
+import { getHighlightedProjects, removeHighlightedProject } from "../services/dataService.js";
 import { DiscoveryProjectCard } from "../components/DiscoveryProjectCard.jsx";
 
 export function HighlightedPage() {

@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | A | Source-backed contract and gaps | Complete | Existing API/source inspection | None changed |
 | B | Mock/real service and consistent records | Complete | Mock service tests; production build | Existing endpoints preserved |
-| C | Home/discovery/highlights | Pending | — | Real home totals absent |
+| C | Home/discovery/highlights | Complete | Existing discovery tests; mock filter/highlight tests | Real home totals absent |
 | D | Three metrics, trend/comparison/verification charts | Pending | — | Approved history API |
 | E | Upload preview/confirm and submission detail | Pending | — | Existing multipart/evidence APIs |
 | F | Auditor queue and decisions | Pending | — | Existing review APIs |

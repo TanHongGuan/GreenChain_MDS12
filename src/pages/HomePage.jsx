@@ -115,6 +115,39 @@ export function HomePage() {
       )}
       {status === "success" && (
         <>
+          <div className="home-intro">
+            <div>
+              <p className="eyebrow">Project data and review</p>
+              <h2>Transparent sustainability records</h2>
+              <p>Explore submitted records and distinguish reviewed figures from data awaiting a decision.</p>
+            </div>
+            <Link to="/projects" className="secondary-button">Browse projects</Link>
+          </div>
+          {discovery.summary && (
+            <dl className="platform-summary" aria-label="Platform summary">
+              {[
+                ["Projects", discovery.summary.total_projects],
+                ["Organisations", discovery.summary.total_organisations],
+                ["Submissions", discovery.summary.total_submissions],
+                ["Approved", discovery.summary.approved_submissions],
+                ["Awaiting review", discovery.summary.unreviewed_submissions],
+              ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+            </dl>
+          )}
+          {discovery.activity?.length > 0 && (
+            <section className="activity-section" aria-labelledby="activity-heading">
+              <div className="section-title-row"><h2 id="activity-heading">Recent submissions</h2><Link to="/projects">Projects</Link></div>
+              <div className="activity-list">
+                {discovery.activity.map((item) => (
+                  <Link key={item.submission_id} to={`/projects/${item.project_id}`} className="activity-row">
+                    <strong>{item.project_name}</strong><span>{item.organisation}</span><span>{item.reporting_period}</span>
+                    <span className={`status-pill status-${item.status.toLowerCase()}`}>{item.status}</span>
+                    <time dateTime={item.submitted_at}>{new Date(item.submitted_at).toLocaleDateString()}</time>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
           <DiscoverySection
             title="Recently Updated"
             projects={discovery.recently_updated || []}

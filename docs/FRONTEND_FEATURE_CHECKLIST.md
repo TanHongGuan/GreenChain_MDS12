@@ -7,6 +7,6 @@
 | C | Home/discovery/highlights | Complete | Existing discovery tests; mock filter/highlight tests | Real home totals absent |
 | D | Three metrics, trend/comparison/verification charts | Complete | Metric transformation tests; production build | Approved history API; missing unit policy |
 | E | Upload preview/confirm and submission detail | Complete | Upload/CSV preview tests; build | XLSX local preview absent; existing multipart/evidence APIs |
-| F | Auditor queue and decisions | Pending | — | Existing review APIs |
+| F | Auditor queue and decisions | Complete | Review workflow tests; build | Existing review APIs; backend reason remains optional |
 | G | Cross-role mock lifecycle tests | Pending | — | None |
 | H | Real compatibility/build/documentation | Pending | — | Backend gaps recorded separately |

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail } from "../services/dataService.js";
+import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail, isMockMode } from "../services/dataService.js";
 
 function formatDate(value) {
   if (!value) {
@@ -27,6 +27,7 @@ export function ReviewPlaceholder() {
   const [reason, setReason] = useState("");
   const [decisionStatus, setDecisionStatus] = useState("idle");
   const [decisionNotice, setDecisionNotice] = useState("");
+  const [pendingDecision, setPendingDecision] = useState(null);
 
   const isDeciding = decisionStatus === "submitting";
 
@@ -60,6 +61,7 @@ export function ReviewPlaceholder() {
     setDetailError("");
     setDecisionNotice("");
     setReason("");
+    setPendingDecision(null);
     setDetailStatus("loading");
 
     try {
@@ -76,6 +78,11 @@ export function ReviewPlaceholder() {
     if (!detail || isDeciding) {
       return;
     }
+    if (decision === "REJECTED" && !reason.trim()) {
+      setDecisionNotice("Enter a reason before rejecting this submission.");
+      setDecisionStatus("error");
+      return;
+    }
 
     setDecisionStatus("submitting");
     setDecisionNotice("");
@@ -86,6 +93,7 @@ export function ReviewPlaceholder() {
       setQueue((currentQueue) => currentQueue.filter((item) => item.submission_id !== detail.submission_id));
       setDecisionNotice(result.reason ? `${result.message} Reason: ${result.reason}` : result.message);
       setDecisionStatus("success");
+      setPendingDecision(null);
     } catch (error) {
       setDecisionNotice(error.message || "Review decision could not be saved.");
       setDecisionStatus("error");
@@ -97,6 +105,7 @@ export function ReviewPlaceholder() {
       <div className="page-heading">
         <p className="eyebrow">Auditor Workspace</p>
         <h1>Auditor Review</h1>
+        {isMockMode && <p className="demo-label">Demo data · Browser session only</p>}
       </div>
 
       <div className="review-layout">
@@ -181,12 +190,12 @@ export function ReviewPlaceholder() {
               </dl>
 
               <div className="evidence-actions">
-                <a className="secondary-button" href={evidenceUrl(detail.evidence.original.url)} target="_blank" rel="noreferrer">
-                  Original Evidence
-                </a>
-                <a className="secondary-button" href={evidenceUrl(detail.evidence.processed.url)} target="_blank" rel="noreferrer">
-                  Processed Evidence
-                </a>
+                {detail.evidence?.original?.url && evidenceUrl(detail.evidence.original.url)
+                  ? <a className="secondary-button" href={evidenceUrl(detail.evidence.original.url)} target="_blank" rel="noreferrer">Original Evidence</a>
+                  : <span className="secondary-button evidence-disabled" aria-disabled="true">Original demo evidence unavailable</span>}
+                {detail.evidence?.processed?.url && evidenceUrl(detail.evidence.processed.url)
+                  ? <a className="secondary-button" href={evidenceUrl(detail.evidence.processed.url)} target="_blank" rel="noreferrer">Processed Evidence</a>
+                  : <span className="secondary-button evidence-disabled" aria-disabled="true">Processed demo evidence unavailable</span>}
               </div>
 
               <h3>Processed Metrics</h3>
@@ -224,13 +233,18 @@ export function ReviewPlaceholder() {
                     rows="3"
                   />
                   <div className="decision-actions">
-                    <button className="primary-button" type="button" onClick={() => submitDecision("APPROVED")} disabled={isDeciding}>
+                    <button className="primary-button" type="button" onClick={() => setPendingDecision("APPROVED")} disabled={isDeciding}>
                       {isDeciding ? "Saving..." : "Approve"}
                     </button>
-                    <button className="danger-button" type="button" onClick={() => submitDecision("REJECTED")} disabled={isDeciding}>
+                    <button className="danger-button" type="button" onClick={() => setPendingDecision("REJECTED")} disabled={isDeciding}>
                       Reject
                     </button>
                   </div>
+                  {pendingDecision && <div className="decision-confirm" role="group" aria-label={`Confirm ${pendingDecision.toLowerCase()}`}>
+                    <p>{pendingDecision === "REJECTED" ? "Reject" : "Approve"} submission #{detail.submission_id}? {pendingDecision === "REJECTED" && "A reason is required."}</p>
+                    <button type="button" className={pendingDecision === "REJECTED" ? "danger-button" : "primary-button"} onClick={() => submitDecision(pendingDecision)} disabled={isDeciding}>Confirm {pendingDecision === "REJECTED" ? "rejection" : "approval"}</button>
+                    <button type="button" className="secondary-button" onClick={() => setPendingDecision(null)} disabled={isDeciding}>Cancel</button>
+                  </div>}
                 </div>
               )}
 

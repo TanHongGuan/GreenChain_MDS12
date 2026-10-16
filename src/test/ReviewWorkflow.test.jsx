@@ -146,6 +146,7 @@ describe("auditor review workflow", () => {
     await openDetail();
 
     await userEvent.click(screen.getByRole("button", { name: /approve/i }));
+    await userEvent.click(screen.getByRole("button", { name: /confirm approval/i }));
 
     expect(await screen.findByText("Submission approved successfully.")).toBeInTheDocument();
     expect(screen.getByText("APPROVED")).toBeInTheDocument();
@@ -174,6 +175,7 @@ describe("auditor review workflow", () => {
 
     await userEvent.type(screen.getByLabelText(/decision reason/i), "Source values do not match evidence.");
     await userEvent.click(screen.getByRole("button", { name: /reject/i }));
+    await userEvent.click(screen.getByRole("button", { name: /confirm rejection/i }));
 
     expect(
       await screen.findByText("Submission rejected successfully. Reason: Source values do not match evidence."),
@@ -194,6 +196,7 @@ describe("auditor review workflow", () => {
     await openDetail();
 
     await userEvent.click(screen.getByRole("button", { name: /approve/i }));
+    await userEvent.click(screen.getByRole("button", { name: /confirm approval/i }));
 
     expect(screen.getByRole("button", { name: /saving/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /reject/i })).toBeDisabled();

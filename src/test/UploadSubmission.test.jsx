@@ -88,9 +88,10 @@ describe("upload submission", () => {
     await userEvent.type(screen.getByLabelText(/reporting period/i), "2026-Q1");
     await userEvent.upload(
       screen.getByLabelText(/submission file/i),
-      new File(["meter,kwh\nA-1,10\n"], "energy.csv", { type: "text/csv" }),
+      new File(["metric_name,value,unit\nElectricity,10,kWh\n"], "energy.csv", { type: "text/csv" }),
     );
     await userEvent.click(screen.getByRole("button", { name: /upload submission/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /confirm upload/i }));
 
     expect(await screen.findByText("Submission #123 is UNREVIEWED.")).toBeInTheDocument();
   });
@@ -142,9 +143,10 @@ describe("upload submission", () => {
     await userEvent.type(screen.getByLabelText(/reporting period/i), "2026-Q1");
     await userEvent.upload(
       screen.getByLabelText(/submission file/i),
-      new File(["meter,kwh\n"], "energy.csv", { type: "text/csv" }),
+      new File(["invalid workbook"], "energy.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
     );
     await userEvent.click(screen.getByRole("button", { name: /upload submission/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /confirm upload/i }));
 
     expect(await screen.findByText("CSV is missing required columns.")).toBeInTheDocument();
   });
@@ -168,6 +170,7 @@ describe("upload submission", () => {
       }),
     );
     await userEvent.click(screen.getByRole("button", { name: /upload submission/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /confirm upload/i }));
 
     expect(screen.getByRole("button", { name: /uploading/i })).toBeDisabled();
     resolveUpload(
@@ -178,6 +181,6 @@ describe("upload submission", () => {
       }),
     );
 
-    await waitFor(() => expect(screen.getByRole("button", { name: /upload submission/i })).not.toBeDisabled());
+    expect(await screen.findByText("Submission #124 is UNREVIEWED.")).toBeInTheDocument();
   });
 });

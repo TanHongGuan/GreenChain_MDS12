@@ -6,7 +6,7 @@
 | B | Mock/real service and consistent records | Complete | Mock service tests; production build | Existing endpoints preserved |
 | C | Home/discovery/highlights | Complete | Existing discovery tests; mock filter/highlight tests | Real home totals absent |
 | D | Three metrics, trend/comparison/verification charts | Complete | Metric transformation tests; production build | Approved history API; missing unit policy |
-| E | Upload preview/confirm and submission detail | Pending | — | Existing multipart/evidence APIs |
+| E | Upload preview/confirm and submission detail | Complete | Upload/CSV preview tests; build | XLSX local preview absent; existing multipart/evidence APIs |
 | F | Auditor queue and decisions | Pending | — | Existing review APIs |
 | G | Cross-role mock lifecycle tests | Pending | — | None |
 | H | Real compatibility/build/documentation | Pending | — | Backend gaps recorded separately |

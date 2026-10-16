@@ -931,6 +931,22 @@ textarea:focus {
   opacity: 0.68;
 }
 
+.discovery-card-grid {
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.discovery-card {
+  min-height: 0;
+  border-width: 0 0 1px;
+  border-radius: 0;
+}
+
+.discovery-card-link {
+  min-height: 0;
+  padding: 12px 0;
+}
+
 @media (max-width: 760px) {
   .navbar {
     grid-template-columns: 1fr;

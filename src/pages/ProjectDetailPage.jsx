@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
-import { getProjectDetail } from "../services/dataService.js";
+import { getProjectDetail, getMetricHistory, isMockMode } from "../services/dataService.js";
 import {
   getProjectSubmissions,
   getSubmissionDetail,
   getSubmissionEvidenceUrl,
 } from "../services/dataService.js";
 
-const CANONICAL_METRIC_ORDER = ["Electricity", "Water", "CO2e", "Waste"];
+import { CORE_METRICS, approvedSeries, metricDefinition, normalizedPoint } from "../utils/metrics.js";
+import { PeriodComparison, TrendChart, VerificationChart } from "../components/MetricCharts.jsx";
+import { useAuth } from "../auth/AuthContext.jsx";
+
+const CANONICAL_METRIC_ORDER = ["Electricity", "Water", "CO2e"];
 
 function formatValue(value) {
   if (value === null || value === undefined) {
@@ -36,7 +40,7 @@ function formatBytes(value) {
 }
 
 function orderMetrics(metrics) {
-  const byName = new Map(metrics.map((metric) => [metric.metric_name, metric]));
+  const byName = new Map(metrics.filter((metric) => metricDefinition(metric.metric_name)).map((metric) => [metric.metric_name, metric]));
   const ordered = [];
   for (const name of CANONICAL_METRIC_ORDER) {
     if (byName.has(name)) {
@@ -68,11 +72,14 @@ function ComparisonBadge({ latest, previous }) {
 
 function MetricCard({ metric, onSelectSubmission }) {
   const { metric_name: metricName, latest, previous } = metric;
+  const definition = metricDefinition(metricName);
+  const displayLatest = latest ? normalizedPoint(latest, definition) : null;
+  const displayPrevious = previous ? normalizedPoint(previous, definition) : null;
 
   if (!latest) {
     return (
       <article className="metric-card metric-card-empty">
-        <h3>{metricName}</h3>
+        <h3>{definition.label}</h3>
         <p>No approved data yet.</p>
       </article>
     );
@@ -80,15 +87,16 @@ function MetricCard({ metric, onSelectSubmission }) {
 
   return (
     <article className="metric-card">
-      <h3>{metricName}</h3>
+      <h3>{definition.label}</h3>
       <p className="metric-card-value">
-        {formatValue(latest.value)} <span className="metric-card-unit">{latest.unit}</span>
+        {formatValue(displayLatest?.value ?? latest.value)} <span className="metric-card-unit">{displayLatest?.unit || latest.unit}</span>
       </p>
       <p className="metric-card-period">Approved period: {latest.reporting_period}</p>
       <button type="button" className="text-button" onClick={() => onSelectSubmission(latest.submission_id)}>
         Source submission #{latest.submission_id}
       </button>
-      <ComparisonBadge latest={latest} previous={previous} />
+      {!displayLatest && <p>Unit is not supported for trend charts.</p>}
+      <ComparisonBadge latest={displayLatest || latest} previous={displayPrevious || previous} />
     </article>
   );
 }
@@ -104,7 +112,8 @@ function evidenceStatus(evidence) {
 }
 
 function EvidenceLink({ submissionId, type, label, evidence }) {
-  if (!evidence?.available) {
+  const href = getSubmissionEvidenceUrl(submissionId, type);
+  if (!evidence?.available || !href) {
     return (
       <span className="secondary-button evidence-disabled" aria-disabled="true">
         {label} unavailable
@@ -113,7 +122,7 @@ function EvidenceLink({ submissionId, type, label, evidence }) {
   }
 
   return (
-    <a className="secondary-button" href={getSubmissionEvidenceUrl(submissionId, type)}>
+    <a className="secondary-button" href={href}>
       {label}
     </a>
   );
@@ -169,7 +178,7 @@ function SubmissionRecords({ records, selectedSubmissionId, onSelectSubmission }
   );
 }
 
-function SubmissionDetailPanel({ detail, status, error }) {
+function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
   if (status === "idle") {
     return <p>Select a submission record to inspect its traceability.</p>;
   }
@@ -262,6 +271,8 @@ function SubmissionDetailPanel({ detail, status, error }) {
       </dl>
 
       <div className="evidence-actions">
+        {!canInspectEvidence && <p>Evidence access is restricted for this submission.</p>}
+        {canInspectEvidence && <>
         <EvidenceLink submissionId={detail.submission_id} type="original" label="Original data" evidence={original} />
         <EvidenceLink
           submissionId={detail.submission_id}
@@ -269,6 +280,7 @@ function SubmissionDetailPanel({ detail, status, error }) {
           label="Processed data"
           evidence={processed}
         />
+        </>}
         <EvidenceLink
           submissionId={detail.submission_id}
           type="audit_report"
@@ -310,6 +322,7 @@ function SubmissionDetailPanel({ detail, status, error }) {
 }
 
 export function ProjectDetailPage() {
+  const { user } = useAuth();
   const { projectId } = useParams();
   const location = useLocation();
   const projectListUrl = `/projects${location.search}`;
@@ -324,6 +337,22 @@ export function ProjectDetailPage() {
   const [submissionDetail, setSubmissionDetail] = useState(null);
   const [submissionDetailStatus, setSubmissionDetailStatus] = useState("idle");
   const [submissionDetailError, setSubmissionDetailError] = useState("");
+  const [historyByKey, setHistoryByKey] = useState({});
+  const [historyStatus, setHistoryStatus] = useState("loading");
+
+  useEffect(() => {
+    if (!detail) return undefined;
+    let active = true;
+    setHistoryStatus("loading");
+    Promise.all(CORE_METRICS.map(async (definition) => {
+      const existing = detail.metrics.find((metric) => metricDefinition(metric.metric_name)?.key === definition.key);
+      try {
+        const response = await getMetricHistory(projectId, existing?.metric_name || definition.names[0]);
+        return [definition.key, approvedSeries(response.points, definition)];
+      } catch { return [definition.key, []]; }
+    })).then((entries) => { if (active) { setHistoryByKey(Object.fromEntries(entries)); setHistoryStatus("success"); } });
+    return () => { active = false; };
+  }, [detail, projectId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -441,6 +470,9 @@ export function ProjectDetailPage() {
       <div className="page-heading">
         <p className="eyebrow">{detail.project.organisation}</p>
         <h1>{detail.project.project_name}</h1>
+        {detail.project.location && <p>{detail.project.location}</p>}
+        {detail.project.description && <p>{detail.project.description}</p>}
+        {isMockMode && <p className="demo-label">Demo data · Browser session only</p>}
         <Link to={projectListUrl} className="secondary-button detail-back-link">
           Back to projects
         </Link>
@@ -457,6 +489,20 @@ export function ProjectDetailPage() {
           </div>
         </div>
       )}
+
+      <section className="performance-section" aria-labelledby="performance-heading">
+        <h2 id="performance-heading">Approved performance by quarter</h2>
+        {historyStatus === "loading" && <p>Loading approved history...</p>}
+        {historyStatus === "success" && <>
+          {CORE_METRICS.map((definition) => <section className="chart-section" key={definition.key} aria-label={`${definition.label} trend`}>
+            <h3>{definition.label} <small>{definition.unit}</small></h3>
+            <TrendChart definition={definition} points={historyByKey[definition.key] || []} onSelectSubmission={setSelectedSubmissionId} />
+          </section>)}
+          <PeriodComparison seriesByKey={historyByKey} definitions={CORE_METRICS} />
+        </>}
+      </section>
+
+      <VerificationChart submissions={submissions} />
 
       <section className="traceability-section" aria-labelledby="submission-records-heading">
         <div className="section-heading">
@@ -487,6 +533,7 @@ export function ProjectDetailPage() {
           detail={submissionDetail}
           status={submissionDetailStatus}
           error={submissionDetailError}
+          canInspectEvidence={user?.role === "AUDITOR" || submissionDetail?.status === "APPROVED"}
         />
       </section>
     </section>

@@ -7,7 +7,7 @@ describe("mock service contract", () => {
 
   it("derives overview counts from the same projects and submissions", async () => {
     const home = await mock.getHomeDiscovery();
-    expect(home.summary).toMatchObject({ total_projects: 4, total_organisations: 2, total_submissions: 7, approved_submissions: 5, unreviewed_submissions: 1 });
+    expect(home.summary).toMatchObject({ total_projects: 8, total_organisations: 2, total_submissions: 22, approved_submissions: 19, unreviewed_submissions: 2 });
     expect(home.recently_updated.every((item) => item.project_id)).toBe(true);
   });
 

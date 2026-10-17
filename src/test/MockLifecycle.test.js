@@ -27,7 +27,7 @@ describe("mock Uploader → Auditor → Viewer lifecycle", () => {
     await mock.decideSubmission(result.submission_id, "REJECTED", "Evidence mismatch.");
     expect((await mock.getSubmissionDetail(result.submission_id)).review.reason).toBe("Evidence mismatch.");
     expect((await mock.getMetricHistory(101, "Electricity")).points.some((item) => item.submission_id === result.submission_id)).toBe(false);
-    expect((await mock.getHomeDiscovery()).summary.total_submissions).toBe(8);
+    expect((await mock.getHomeDiscovery()).summary.total_submissions).toBe(23);
   });
 
   it("handles missing projects and partial metric coverage", async () => {

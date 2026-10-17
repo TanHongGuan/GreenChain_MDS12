@@ -4,7 +4,7 @@ import { useAuth } from "./AuthContext.jsx";
 import { AccessDenied } from "../components/AccessDenied.jsx";
 import { AppLoading } from "../components/AppLoading.jsx";
 
-export function RoleRoute({ allowedRoles }) {
+export function RoleRoute({ allowedRoles, permission }) {
   const { user, isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
@@ -16,7 +16,9 @@ export function RoleRoute({ allowedRoles }) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  if (!allowedRoles.includes(user.role)) {
+  const roleAllowed = !allowedRoles || allowedRoles.includes(user.role);
+  const permissionAllowed = !permission || permission(user);
+  if (!roleAllowed || !permissionAllowed) {
     return <AccessDenied />;
   }
 

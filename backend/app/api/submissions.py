@@ -5,8 +5,9 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
-from backend.app.auth.dependencies import get_current_user, require_roles
-from backend.app.auth.models import AuthUser, UserRole
+from backend.app.auth.dependencies import get_current_user, require_permission
+from backend.app.auth.models import AuthUser
+from backend.app.auth.permissions import Permission
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.database import get_db
 from backend.app.core.errors import api_error
@@ -79,7 +80,7 @@ async def create_submission(
     organisation: str | None = Form(default=None),
     reporting_period: str | None = Form(default=None),
     previous_submission_id: int | None = Form(default=None),
-    current_user: AuthUser = Depends(require_roles(UserRole.UPLOADER)),
+    current_user: AuthUser = Depends(require_permission(Permission.UPLOAD_SUBMISSION)),
     settings: Settings = Depends(get_settings),
     processor: SubmissionProcessor = Depends(get_submission_processor),
 ) -> dict[str, int | str]:

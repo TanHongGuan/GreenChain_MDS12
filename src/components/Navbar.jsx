@@ -1,11 +1,13 @@
 import { NavLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext.jsx";
+import { canAccess, PERMISSIONS } from "../auth/permissions.js";
 
 const baseLinks = [
   { to: "/", label: "Home" },
   { to: "/highlighted", label: "Highlighted" },
   { to: "/projects", label: "Projects" },
+  { to: "/compare", label: "Compare" },
 ];
 
 export function Navbar() {
@@ -13,10 +15,10 @@ export function Navbar() {
   const navigate = useNavigate();
 
   const links = [...baseLinks];
-  if (user?.role === "UPLOADER") {
+  if (canAccess(user, PERMISSIONS.UPLOAD_SUBMISSION)) {
     links.push({ to: "/upload", label: "Upload Data" });
   }
-  if (user?.role === "AUDITOR") {
+  if (canAccess(user, PERMISSIONS.REVIEW_SUBMISSION)) {
     links.push({ to: "/review", label: "Review" });
   }
 

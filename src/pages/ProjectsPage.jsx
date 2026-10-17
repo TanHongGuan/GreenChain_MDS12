@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
-import { getProjectCatalogue } from "../api/projectsApi.js";
+import { getProjectCatalogue } from "../services/dataService.js";
+import { displayDate } from "../utils/display.js";
 
 const STATUS_OPTIONS = ["APPROVED", "UNREVIEWED", "REJECTED"];
 const SORT_OPTIONS = [
@@ -37,13 +38,6 @@ function getPositiveInt(value, fallback) {
 
 function statusClass(status) {
   return `status-pill status-${status.toLowerCase()}`;
-}
-
-function formatDate(value) {
-  if (!value) {
-    return "Not available";
-  }
-  return new Date(value).toLocaleDateString();
 }
 
 function optionLabel(option) {
@@ -193,7 +187,7 @@ export function ProjectsPage() {
         </label>
 
         <label className="catalogue-field">
-          <span>Period</span>
+          <span>Latest submitted period</span>
           <select
             value={query.reporting_period}
             onChange={(event) => updateQuery({ reporting_period: event.target.value })}
@@ -219,7 +213,8 @@ export function ProjectsPage() {
         </label>
       </div>
 
-      <div className="catalogue-status-row" aria-label="Project status filters">
+      <div className="catalogue-status-row" aria-label="Latest submission decision filters">
+        <span>Latest submission decision</span>
         {STATUS_OPTIONS.map((statusOption) => (
           <label key={statusOption} className="status-toggle">
             <input
@@ -243,40 +238,25 @@ export function ProjectsPage() {
       )}
       {status === "success" && (
         <div className="catalogue-summary" role="status">
-          {catalogue.total_items} project{catalogue.total_items === 1 ? "" : "s"}
+          Showing {projects.length} of {catalogue.total_items} project{catalogue.total_items === 1 ? "" : "s"}. Status and period filters refer to the latest submission.
         </div>
       )}
       {status === "success" && projects.length === 0 && <p>No projects match the selected filters.</p>}
       {status === "success" && projects.length > 0 && (
         <div className="project-list">
+          <div className="project-list-head" aria-hidden="true"><span>Project / organisation</span><span>Location</span><span>Latest submitted period</span><span>Latest decision</span><span>Updated</span><span></span></div>
           {projects.map((project) => (
             <Link
               key={project.project_id}
               to={`/projects/${project.project_id}${detailQuery ? `?${detailQuery}` : ""}`}
               className="project-list-item"
             >
-              <div className="project-card-header">
-                <h2>{project.project_name}</h2>
-                <span className={statusClass(project.status)}>{project.status}</span>
-              </div>
-              <dl className="project-card-meta">
-                <div>
-                  <dt>Organisation</dt>
-                  <dd>{project.organisation}</dd>
-                </div>
-                <div>
-                  <dt>Location</dt>
-                  <dd>{project.location || "Not set"}</dd>
-                </div>
-                <div>
-                  <dt>Reporting period</dt>
-                  <dd>{project.reporting_period}</dd>
-                </div>
-                <div>
-                  <dt>Updated</dt>
-                  <dd>{formatDate(project.updated_at)}</dd>
-                </div>
-              </dl>
+              <span className="project-list-identity"><strong>{project.project_name}</strong><small>{project.organisation}</small>{project.trusted_metric?.reporting_period && <small>Approved data: {project.trusted_metric.reporting_period}</small>}</span>
+              <span>{project.location || "Not set"}</span>
+              <span>{project.reporting_period || "Not available"}</span>
+              <span className={statusClass(project.status)}>{project.status}</span>
+              <span>{displayDate(project.updated_at)}</span>
+              <span className="project-view-link">View project →</span>
             </Link>
           ))}
         </div>

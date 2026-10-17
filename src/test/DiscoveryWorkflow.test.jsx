@@ -70,6 +70,13 @@ function setupFetch({ highlighted = false, highlightedProjects = [] } = {}) {
     if (requestUrl.endsWith("/discovery/home")) {
       return Promise.resolve(jsonResponse(200, discoveryPayload(isHighlighted)));
     }
+    if (requestUrl.endsWith("/projects/7") && !requestUrl.includes("/highlighted/") && method === "GET") {
+      return Promise.resolve(jsonResponse(200, { project: baseProject, metrics: [
+        { metric_name: "Electricity", latest: { value: 120, unit: "kWh" } },
+        { metric_name: "Water", latest: { value: 42, unit: "m3" } },
+        { metric_name: "CO2e", latest: { value: 18, unit: "kgCO2e" } },
+      ] }));
+    }
     if (requestUrl.endsWith("/highlighted/projects") && method === "GET") {
       const projects = highlightedProjects.length ? highlightedProjects : isHighlighted ? [{ ...baseProject, highlighted: true }] : [];
       return Promise.resolve(jsonResponse(200, { projects }));
@@ -105,30 +112,25 @@ afterEach(() => {
 });
 
 describe("Sprint 7 discovery and highlighted workflow", () => {
-  test("home sections load real data and preset links target the catalogue", async () => {
+  test("home shows one recent list and an approved project metric preview", async () => {
     setupFetch();
     renderApp("/");
 
     expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
     expect((await screen.findAllByText("Discovery Solar")).length).toBeGreaterThan(0);
-    const recently = screen.getByRole("region", { name: "Recently Updated" });
-    const featured = screen.getByRole("region", { name: "Featured Sustainable Projects" });
-    const newest = screen.getByRole("region", { name: "New Projects" });
+    const recently = screen.getByRole("region", { name: "Recently updated projects" });
+    const preview = await screen.findByRole("region", { name: "Latest approved data" });
 
     expect(within(recently).getByText("Discovery Solar")).toBeInTheDocument();
-    expect(within(featured).getByText("Electricity: 120 kWh")).toBeInTheDocument();
-    expect(within(newest).getByText("Discovery Pending")).toBeInTheDocument();
-    expect(within(recently).getByRole("link", { name: "View All" })).toHaveAttribute(
+    expect(within(preview).getByText("120 kWh")).toBeInTheDocument();
+    expect(within(preview).getByText("42 m³")).toBeInTheDocument();
+    expect(within(preview).getByText("18 kgCO₂e")).toBeInTheDocument();
+    expect(within(recently).getByText("Discovery Pending")).toBeInTheDocument();
+    expect(within(recently).queryByText("Latest submission decision")).not.toBeInTheDocument();
+    expect(within(recently).queryByText("UNREVIEWED")).not.toBeInTheDocument();
+    expect(within(recently).getByRole("link", { name: "View all" })).toHaveAttribute(
       "href",
       "/projects?sort=updated_desc",
-    );
-    expect(within(featured).getByRole("link", { name: "View All" })).toHaveAttribute(
-      "href",
-      "/projects?status=APPROVED&sort=period_desc",
-    );
-    expect(within(newest).getByRole("link", { name: "View All" })).toHaveAttribute(
-      "href",
-      "/projects?sort=created_desc",
     );
   });
 
@@ -145,13 +147,13 @@ describe("Sprint 7 discovery and highlighted workflow", () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        "http://localhost:8000/highlighted/projects/7",
+        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/highlighted/projects/7`,
         expect.objectContaining({ method: "POST", credentials: "include" }),
       );
     });
     expect(screen.getByRole("heading", { name: "Home" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Submission Records" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Remove Discovery Solar from Highlighted" }).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole("button", { name: "Remove Discovery Solar from Highlighted" })).length).toBeGreaterThan(0);
   });
 
   test("highlighted page lists saved projects and removes them", async () => {

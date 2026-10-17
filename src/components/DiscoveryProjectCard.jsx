@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { displayDate, displayUnit } from "../utils/display.js";
 
 function statusClass(status) {
   return `status-pill status-${status.toLowerCase()}`;
@@ -6,21 +7,14 @@ function statusClass(status) {
 
 function formatMetric(metric) {
   if (!metric) {
-    return "No trusted data yet";
+    return "No approved data yet";
   }
   return `${metric.metric_name}: ${Number(metric.value).toLocaleString(undefined, {
     maximumFractionDigits: 2,
-  })} ${metric.unit}`;
+  })} ${displayUnit(metric.unit)}`;
 }
 
-function formatDate(value) {
-  if (!value) {
-    return "Not available";
-  }
-  return new Date(value).toLocaleDateString();
-}
-
-export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = false }) {
+export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = false, showLatestDecision = true }) {
   const detailUrl = `/projects/${project.project_id}`;
   const starLabel = project.highlighted
     ? `Remove ${project.project_name} from Highlighted`
@@ -43,7 +37,7 @@ export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = 
       <Link to={detailUrl} className="discovery-card-link">
         <div className="project-card-header">
           <h2>{project.project_name}</h2>
-          {project.status && <span className={statusClass(project.status)}>{project.status}</span>}
+          {showLatestDecision && project.status && <span className="project-latest-decision"><small>Latest submission decision</small><span className={statusClass(project.status)}>{project.status}</span></span>}
         </div>
         <dl className="project-card-meta">
           <div>
@@ -55,16 +49,16 @@ export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = 
             <dd>{project.location || "Not set"}</dd>
           </div>
           <div>
-            <dt>Trusted metric</dt>
+            <dt>Latest approved metric</dt>
             <dd>{formatMetric(project.trusted_metric)}</dd>
           </div>
           <div>
-            <dt>Trusted period</dt>
+            <dt>Latest approved period</dt>
             <dd>{project.trusted_metric?.reporting_period || "Not available"}</dd>
           </div>
           <div>
             <dt>Updated</dt>
-            <dd>{formatDate(project.updated_at)}</dd>
+            <dd>{displayDate(project.updated_at)}</dd>
           </div>
         </dl>
       </Link>

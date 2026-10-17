@@ -82,15 +82,19 @@ describe("upload submission", () => {
     ]);
     renderUploadShell();
     await screen.findByRole("heading", { name: /upload data/i });
+    expect(screen.getByRole("link", { name: /download sample csv/i })).toHaveAttribute("href", "/greenchain-sample.csv");
 
     await userEvent.type(screen.getByLabelText(/project \/ building name/i), "Tower A");
     await userEvent.type(screen.getByLabelText(/organisation/i), "GreenChain Demo Organisation");
-    await userEvent.type(screen.getByLabelText(/reporting period/i), "2026-Q1");
+    await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
+    await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(
       screen.getByLabelText(/submission file/i),
-      new File(["meter,kwh\nA-1,10\n"], "energy.csv", { type: "text/csv" }),
+      new File(["metric_name,value,unit\nElectricity,10,kWh\n"], "energy.csv", { type: "text/csv" }),
     );
-    await userEvent.click(screen.getByRole("button", { name: /upload submission/i }));
+    await userEvent.click(screen.getByRole("button", { name: /review file/i }));
+    expect(await screen.findByText(/1 parsed row/)).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: /confirm upload/i }));
 
     expect(await screen.findByText("Submission #123 is UNREVIEWED.")).toBeInTheDocument();
   });
@@ -98,7 +102,7 @@ describe("upload submission", () => {
   test("frontend validation blocks missing fields and file", async () => {
     await renderUpload();
 
-    await userEvent.click(screen.getByRole("button", { name: /upload submission/i }));
+    await userEvent.click(screen.getByRole("button", { name: /review file/i }));
 
     expect(screen.getByText("Project / Building name is required.")).toBeInTheDocument();
     expect(screen.getByText("Organisation is required.")).toBeInTheDocument();
@@ -112,13 +116,14 @@ describe("upload submission", () => {
 
     await userEvent.type(screen.getByLabelText(/project \/ building name/i), "Tower A");
     await userEvent.type(screen.getByLabelText(/organisation/i), "GreenChain Demo Organisation");
-    await userEvent.type(screen.getByLabelText(/reporting period/i), "2026-Q1");
+    await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
+    await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(
       screen.getByLabelText(/submission file/i),
       new File(["hello"], "notes.txt", { type: "text/plain" }),
       { applyAccept: false },
     );
-    await userEvent.click(screen.getByRole("button", { name: /upload submission/i }));
+    await userEvent.click(screen.getByRole("button", { name: /review file/i }));
 
     expect(screen.getByText("Only CSV and XLSX files are supported.")).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -139,12 +144,14 @@ describe("upload submission", () => {
 
     await userEvent.type(screen.getByLabelText(/project \/ building name/i), "Tower A");
     await userEvent.type(screen.getByLabelText(/organisation/i), "GreenChain Demo Organisation");
-    await userEvent.type(screen.getByLabelText(/reporting period/i), "2026-Q1");
+    await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
+    await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(
       screen.getByLabelText(/submission file/i),
-      new File(["meter,kwh\n"], "energy.csv", { type: "text/csv" }),
+      new File(["invalid workbook"], "energy.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
     );
-    await userEvent.click(screen.getByRole("button", { name: /upload submission/i }));
+    await userEvent.click(screen.getByRole("button", { name: /review file/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /confirm upload/i }));
 
     expect(await screen.findByText("CSV is missing required columns.")).toBeInTheDocument();
   });
@@ -160,14 +167,16 @@ describe("upload submission", () => {
 
     await userEvent.type(screen.getByLabelText(/project \/ building name/i), "Tower A");
     await userEvent.type(screen.getByLabelText(/organisation/i), "GreenChain Demo Organisation");
-    await userEvent.type(screen.getByLabelText(/reporting period/i), "2026-Q1");
+    await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
+    await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(
       screen.getByLabelText(/submission file/i),
       new File(["meter,kwh\n"], "energy.xlsx", {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       }),
     );
-    await userEvent.click(screen.getByRole("button", { name: /upload submission/i }));
+    await userEvent.click(screen.getByRole("button", { name: /review file/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /confirm upload/i }));
 
     expect(screen.getByRole("button", { name: /uploading/i })).toBeDisabled();
     resolveUpload(
@@ -178,6 +187,6 @@ describe("upload submission", () => {
       }),
     );
 
-    await waitFor(() => expect(screen.getByRole("button", { name: /upload submission/i })).not.toBeDisabled());
+    expect(await screen.findByText("Submission #124 is UNREVIEWED.")).toBeInTheDocument();
   });
 });

@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -153,6 +154,16 @@ afterEach(() => {
 });
 
 describe("project detail page", () => {
+  test("metric selector shows one honest scaled chart at a time", async () => {
+    await renderProjectDetail();
+    expect(await screen.findByRole("img", { name: /Electricity approved trend.*vertical axis/ })).toBeInTheDocument();
+    expect(screen.getByText(/axis is scaled to the observed range/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Water" }));
+    expect(screen.getByRole("tab", { name: "Water" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("img", { name: /Electricity approved trend/ })).not.toBeInTheDocument();
+    expect(screen.getByText("No approved values are available for this metric.")).toBeInTheDocument();
+  });
+
   test("loads real project header and latest approved metric", async () => {
     await renderProjectDetail();
 
@@ -277,15 +288,15 @@ describe("project detail page", () => {
     expect(screen.queryByRole("img", { name: "Metric history over time" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Original data" })).toHaveAttribute(
       "href",
-      "http://localhost:8000/submissions/10/evidence/original",
+      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/submissions/10/evidence/original`,
     );
     expect(screen.getByRole("link", { name: "Processed data" })).toHaveAttribute(
       "href",
-      "http://localhost:8000/submissions/10/evidence/processed",
+      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/submissions/10/evidence/processed`,
     );
     expect(screen.getByRole("link", { name: "Audit report" })).toHaveAttribute(
       "href",
-      "http://localhost:8000/submissions/10/evidence/audit_report",
+      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/submissions/10/evidence/audit_report`,
     );
   });
 });

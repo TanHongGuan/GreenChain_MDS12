@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
-import { getHighlightedProjects, removeHighlightedProject } from "../api/discoveryApi.js";
+import { getHighlightedProjects, removeHighlightedProject } from "../services/dataService.js";
 import { DiscoveryProjectCard } from "../components/DiscoveryProjectCard.jsx";
 
 export function HighlightedPage() {
@@ -60,7 +61,7 @@ export function HighlightedPage() {
           {error}
         </div>
       )}
-      {status === "success" && projects.length === 0 && <p>No highlighted projects yet.</p>}
+      {status === "success" && projects.length === 0 && <div className="highlighted-empty"><p>No highlighted projects yet.</p><Link to="/projects" className="secondary-button">Browse projects</Link></div>}
       {status === "success" && projects.length > 0 && (
         <div className="discovery-card-grid">
           {projects.map((project) => (

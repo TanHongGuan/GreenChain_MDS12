@@ -3,6 +3,7 @@ from collections.abc import Callable
 from fastapi import Cookie, Depends, status
 
 from backend.app.auth.models import AuthUser, UserRepository, UserRole
+from backend.app.auth.permissions import Permission, role_has_permission
 from backend.app.auth.security import TokenExpired, TokenInvalid, decode_access_token
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.errors import api_error
@@ -41,6 +42,19 @@ def require_roles(*roles: UserRole | str) -> Callable[[AuthUser], AuthUser]:
 
     def dependency(current_user: AuthUser = Depends(get_current_user)) -> AuthUser:
         if current_user.role not in allowed_roles:
+            raise api_error(
+                status.HTTP_403_FORBIDDEN,
+                "FORBIDDEN",
+                "You do not have permission to perform this action.",
+            )
+        return current_user
+
+    return dependency
+
+
+def require_permission(permission: Permission) -> Callable[[AuthUser], AuthUser]:
+    def dependency(current_user: AuthUser = Depends(get_current_user)) -> AuthUser:
+        if not role_has_permission(current_user.role, permission):
             raise api_error(
                 status.HTTP_403_FORBIDDEN,
                 "FORBIDDEN",

@@ -14,7 +14,7 @@ function formatMetric(metric) {
   })} ${displayUnit(metric.unit)}`;
 }
 
-export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = false }) {
+export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = false, showLatestDecision = true }) {
   const detailUrl = `/projects/${project.project_id}`;
   const starLabel = project.highlighted
     ? `Remove ${project.project_name} from Highlighted`
@@ -37,7 +37,7 @@ export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = 
       <Link to={detailUrl} className="discovery-card-link">
         <div className="project-card-header">
           <h2>{project.project_name}</h2>
-          {project.status && <span className="project-latest-decision"><small>Latest submission decision</small><span className={statusClass(project.status)}>{project.status}</span></span>}
+          {showLatestDecision && project.status && <span className="project-latest-decision"><small>Latest submission decision</small><span className={statusClass(project.status)}>{project.status}</span></span>}
         </div>
         <dl className="project-card-meta">
           <div>

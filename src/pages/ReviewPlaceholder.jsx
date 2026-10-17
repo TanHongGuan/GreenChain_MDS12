@@ -147,15 +147,16 @@ export function ReviewPlaceholder() {
         {isMockMode && <p className="demo-label">Demo data · Browser session only</p>}
       </div>
 
+      <div className="review-filters" aria-label="Queue filters">
+        <label className="review-search-filter">Search<input type="search" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Project or submission ID" /></label>
+        <label>Project<select value={filters.project} onChange={(event) => setFilters({ ...filters, project: event.target.value })}><option value="">All projects</option>{[...new Set(queue.map((item) => item.project_name))].sort().map((name) => <option key={name}>{name}</option>)}</select></label>
+        <label>Organisation<select value={filters.organisation} onChange={(event) => setFilters({ ...filters, organisation: event.target.value })}><option value="">All organisations</option>{[...new Set(queue.map((item) => item.organisation))].sort().map((name) => <option key={name}>{name}</option>)}</select></label>
+        <label>Reporting Period<select value={filters.period} onChange={(event) => setFilters({ ...filters, period: event.target.value })}><option value="">All periods</option>{[...new Set(queue.map((item) => item.reporting_period))].sort().map((period) => <option key={period}>{period}</option>)}</select></label>
+      </div>
+
       <div className="review-layout">
         <section className="review-queue" aria-label="Pending review queue">
           <h2>Pending submissions <small>({filteredQueue.length} of {queue.length})</small></h2>
-          <div className="review-filters" aria-label="Queue filters">
-            <label>Project<select value={filters.project} onChange={(event) => setFilters({ ...filters, project: event.target.value })}><option value="">All projects</option>{[...new Set(queue.map((item) => item.project_name))].sort().map((name) => <option key={name}>{name}</option>)}</select></label>
-            <label>Organisation<select value={filters.organisation} onChange={(event) => setFilters({ ...filters, organisation: event.target.value })}><option value="">All organisations</option>{[...new Set(queue.map((item) => item.organisation))].sort().map((name) => <option key={name}>{name}</option>)}</select></label>
-            <label>Period<select value={filters.period} onChange={(event) => setFilters({ ...filters, period: event.target.value })}><option value="">All periods</option>{[...new Set(queue.map((item) => item.reporting_period))].sort().map((period) => <option key={period}>{period}</option>)}</select></label>
-            <label>Search<input type="search" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Project or submission ID" /></label>
-          </div>
           {queueStatus === "loading" && <p>Loading submissions...</p>}
           {queueStatus === "error" && (
             <div className="form-error" role="status">

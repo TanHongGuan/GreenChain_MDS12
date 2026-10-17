@@ -132,15 +132,17 @@ export function HomePage() {
           {discovery.activity?.length > 0 && (
             <section className="activity-section" aria-labelledby="activity-heading">
               <div className="section-title-row"><h2 id="activity-heading">Recent submissions</h2><Link to="/projects">View projects</Link></div>
-              <div className="activity-row activity-header" aria-hidden="true"><span>Project</span><span>Organisation</span><span>Period</span><span>Decision</span><span>Submitted</span></div>
-              <div className="activity-list">
-                {discovery.activity.map((item) => (
-                  <Link key={item.submission_id} to={`/projects/${item.project_id}`} className="activity-row">
-                    <strong>{item.project_name}</strong><span>{item.organisation}</span><span>{item.reporting_period}</span>
-                    <span className={`status-pill status-${item.status.toLowerCase()}`}>{item.status}</span>
-                    <time dateTime={item.submitted_at}>{displayDate(item.submitted_at)}</time>
-                  </Link>
-                ))}
+              <div className="activity-table-scroll">
+                <div className="activity-row activity-header" aria-hidden="true"><span>Project</span><span>Organisation</span><span>Period</span><span>Decision</span><span>Submitted</span></div>
+                <div className="activity-list">
+                  {discovery.activity.map((item) => (
+                    <Link key={item.submission_id} to={`/projects/${item.project_id}`} className="activity-row">
+                      <strong>{item.project_name}</strong><span>{item.organisation}</span><span>{item.reporting_period}</span>
+                      <span className={`status-pill status-${item.status.toLowerCase()}`}>{item.status}</span>
+                      <time dateTime={item.submitted_at}>{displayDate(item.submitted_at)}</time>
+                    </Link>
+                  ))}
+                </div>
               </div>
             </section>
           )}
@@ -154,7 +156,7 @@ export function HomePage() {
           </section>}
           <section className="discovery-section" aria-labelledby="recent-heading">
             <div className="section-title-row"><h2 id="recent-heading">Recently updated projects</h2><Link to="/projects?sort=updated_desc">View all</Link></div>
-            {(discovery.recently_updated || []).length === 0 ? <p>No projects to show.</p> : <div className="discovery-card-grid">{discovery.recently_updated.slice(0, 4).map((project) => <DiscoveryProjectCard key={project.project_id} project={project} isUpdating={updatingProjectId === project.project_id} onToggleHighlight={handleToggleHighlight} />)}</div>}
+            {(discovery.recently_updated || []).length === 0 ? <p>No projects to show.</p> : <div className="discovery-card-grid">{discovery.recently_updated.slice(0, 4).map((project) => <DiscoveryProjectCard key={project.project_id} project={project} isUpdating={updatingProjectId === project.project_id} onToggleHighlight={handleToggleHighlight} showLatestDecision={false} />)}</div>}
           </section>
         </>
       )}

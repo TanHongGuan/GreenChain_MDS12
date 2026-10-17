@@ -126,6 +126,8 @@ describe("Sprint 7 discovery and highlighted workflow", () => {
     expect(within(preview).getByText("42 m³")).toBeInTheDocument();
     expect(within(preview).getByText("18 kgCO₂e")).toBeInTheDocument();
     expect(within(recently).getByText("Discovery Pending")).toBeInTheDocument();
+    expect(within(recently).queryByText("Latest submission decision")).not.toBeInTheDocument();
+    expect(within(recently).queryByText("UNREVIEWED")).not.toBeInTheDocument();
     expect(within(recently).getByRole("link", { name: "View all" })).toHaveAttribute(
       "href",
       "/projects?sort=updated_desc",

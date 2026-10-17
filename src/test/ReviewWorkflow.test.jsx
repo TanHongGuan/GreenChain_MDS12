@@ -96,6 +96,7 @@ afterEach(() => {
 describe("auditor review workflow", () => {
   test("queue filters authorised results without hiding the total", async () => {
     await renderReview([{ response: jsonResponse(200, { submissions: [pendingSubmission, { ...pendingSubmission, submission_id: 8, project_name: "Water Works", organisation: "Beta Corp" }] }) }]);
+    expect([...document.querySelectorAll(".review-filters > label")].map((label) => label.textContent.trim().split(/All |Project or/)[0])).toEqual(["Search", "Project", "Organisation", "Reporting Period"]);
     expect(await screen.findAllByRole("button", { name: /open review/i })).toHaveLength(2);
     await userEvent.selectOptions(screen.getByLabelText("Project"), "Green Tower");
     expect(screen.getAllByRole("button", { name: /open review/i })).toHaveLength(1);

@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.app.auth.dependencies import require_roles
-from backend.app.auth.models import AuthUser, UserRole
+from backend.app.auth.dependencies import require_permission
+from backend.app.auth.models import AuthUser
+from backend.app.auth.permissions import Permission
 from backend.app.core.database import get_db
 from backend.app.core.errors import api_error
 from backend.app.reviews.errors import (
@@ -98,7 +99,7 @@ def _integrity_payload(submission_id: int, db: Session, storage: StorageService)
 
 @router.get("/submissions/pending")
 def pending_submissions(
-    _: AuthUser = Depends(require_roles(UserRole.AUDITOR)),
+    _: AuthUser = Depends(require_permission(Permission.REVIEW_SUBMISSION)),
     db: Session = Depends(get_db),
 ) -> dict:
     summaries = list_pending_reviews(db=db)
@@ -108,7 +109,7 @@ def pending_submissions(
 @router.get("/submissions/{submission_id}")
 def review_detail(
     submission_id: int,
-    _: AuthUser = Depends(require_roles(UserRole.AUDITOR)),
+    _: AuthUser = Depends(require_permission(Permission.REVIEW_SUBMISSION)),
     db: Session = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
 ) -> dict:
@@ -125,7 +126,7 @@ def review_detail(
 def review_decision(
     submission_id: int,
     payload: ReviewDecisionRequest,
-    current_user: AuthUser = Depends(require_roles(UserRole.AUDITOR)),
+    current_user: AuthUser = Depends(require_permission(Permission.REVIEW_SUBMISSION)),
     db: Session = Depends(get_db),
 ) -> dict:
     clean_decision = (payload.decision or "").strip().upper()
@@ -166,7 +167,7 @@ def review_decision(
 def review_evidence(
     submission_id: int,
     kind: str,
-    _: AuthUser = Depends(require_roles(UserRole.AUDITOR)),
+    _: AuthUser = Depends(require_permission(Permission.REVIEW_SUBMISSION)),
     db: Session = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
 ) -> Response:

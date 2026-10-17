@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { getProjectCatalogue } from "../services/dataService.js";
+import { displayDate } from "../utils/display.js";
 
 const STATUS_OPTIONS = ["APPROVED", "UNREVIEWED", "REJECTED"];
 const SORT_OPTIONS = [
@@ -37,13 +38,6 @@ function getPositiveInt(value, fallback) {
 
 function statusClass(status) {
   return `status-pill status-${status.toLowerCase()}`;
-}
-
-function formatDate(value) {
-  if (!value) {
-    return "Not available";
-  }
-  return new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
 }
 
 function optionLabel(option) {
@@ -261,7 +255,7 @@ export function ProjectsPage() {
               <span>{project.location || "Not set"}</span>
               <span>{project.reporting_period || "Not available"}</span>
               <span className={statusClass(project.status)}>{project.status}</span>
-              <span>{formatDate(project.updated_at)}</span>
+              <span>{displayDate(project.updated_at)}</span>
               <span className="project-view-link">View project →</span>
             </Link>
           ))}

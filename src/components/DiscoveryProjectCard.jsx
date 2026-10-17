@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { displayDate, displayUnit } from "../utils/display.js";
 
 function statusClass(status) {
   return `status-pill status-${status.toLowerCase()}`;
@@ -10,14 +11,7 @@ function formatMetric(metric) {
   }
   return `${metric.metric_name}: ${Number(metric.value).toLocaleString(undefined, {
     maximumFractionDigits: 2,
-  })} ${metric.unit}`;
-}
-
-function formatDate(value) {
-  if (!value) {
-    return "Not available";
-  }
-  return new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+  })} ${displayUnit(metric.unit)}`;
 }
 
 export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = false }) {
@@ -64,7 +58,7 @@ export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = 
           </div>
           <div>
             <dt>Updated</dt>
-            <dd>{formatDate(project.updated_at)}</dd>
+            <dd>{displayDate(project.updated_at)}</dd>
           </div>
         </dl>
       </Link>

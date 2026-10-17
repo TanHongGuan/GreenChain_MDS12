@@ -3,16 +3,7 @@ import { Link } from "react-router-dom";
 
 import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail, getReviewHistory, isMockMode } from "../services/dataService.js";
 import { metricDefinition } from "../utils/metrics.js";
-
-function formatDate(value) {
-  if (!value) {
-    return "Not available";
-  }
-  return new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur",
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
+import { displayDate, displayUnit } from "../utils/display.js";
 
 function statusClass(status) {
   return `status-pill status-${status.toLowerCase()}`;
@@ -176,7 +167,7 @@ export function ReviewPlaceholder() {
           {filteredQueue.length > 0 && (
             <div className="review-list">
               {filteredQueue.map((submission) => (
-                <article className="review-list-item" key={submission.submission_id}>
+                <article className="review-list-item" key={submission.submission_id} data-selected={selectedId === submission.submission_id}>
                   <div>
                     <h3>{submission.project_name} <small>#{submission.submission_id}</small></h3>
                     <p>{submission.organisation}</p>
@@ -187,7 +178,7 @@ export function ReviewPlaceholder() {
                       </div>
                       <div>
                         <dt>Submitted</dt>
-                        <dd>{formatDate(submission.submitted_at)}</dd>
+                        <dd>{displayDate(submission.submitted_at, true)}</dd>
                       </div>
                     </dl>
                   </div>
@@ -237,7 +228,7 @@ export function ReviewPlaceholder() {
                 </div>
                 <div>
                   <dt>Submitted</dt>
-                  <dd>{formatDate(detail.submitted_at)}</dd>
+                  <dd>{displayDate(detail.submitted_at, true)}</dd>
                 </div>
                 <div>
                   <dt>Integrity</dt>
@@ -274,7 +265,7 @@ export function ReviewPlaceholder() {
                       <tr key={`${metric.metric_name}-${metric.unit}`}>
                         <td>{metric.metric_name}</td>
                         <td>{Number(metric.value).toLocaleString("en-MY")}</td>
-                        <td>{metric.unit}</td>
+                        <td>{displayUnit(metric.unit)}</td>
                         <td>{metric.category || "Uncategorised"}</td>
                       </tr>
                     ))}
@@ -320,7 +311,7 @@ export function ReviewPlaceholder() {
           )}
         </section>
       </div>
-      {isMockMode && history?.length > 0 && <section className="review-history" aria-labelledby="review-history-heading"><h2 id="review-history-heading">Demo review history</h2><div className="review-history-list">{history.map((item) => <div key={item.submission_id}><strong>#{item.submission_id} · {item.project_name}</strong><span>{item.status}</span><span>{item.review?.reviewer_email || "Demo auditor"}</span><time>{formatDate(item.reviewed_at)}</time><span>{item.reason || "No reason recorded"}</span></div>)}</div></section>}
+      {isMockMode && history?.length > 0 && <section className="review-history" aria-labelledby="review-history-heading"><h2 id="review-history-heading">Demo review history</h2><div className="metrics-table-wrap"><table className="metrics-table"><thead><tr><th>Submission / project</th><th>Decision</th><th>Reviewer</th><th>Reviewed</th><th>Reason</th></tr></thead><tbody>{history.map((item) => <tr key={item.submission_id}><td>#{item.submission_id} · {item.project_name}</td><td><span className={statusClass(item.status)}>{item.status}</span></td><td>{item.review?.reviewer_email || "Demo auditor"}</td><td>{displayDate(item.reviewed_at, true)}</td><td>{item.reason || "No reason recorded"}</td></tr>)}</tbody></table></div></section>}
     </section>
   );
 }

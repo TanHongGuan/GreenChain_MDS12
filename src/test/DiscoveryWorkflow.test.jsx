@@ -123,8 +123,8 @@ describe("Sprint 7 discovery and highlighted workflow", () => {
 
     expect(within(recently).getByText("Discovery Solar")).toBeInTheDocument();
     expect(within(preview).getByText("120 kWh")).toBeInTheDocument();
-    expect(within(preview).getByText("42 m3")).toBeInTheDocument();
-    expect(within(preview).getByText("18 kgCO2e")).toBeInTheDocument();
+    expect(within(preview).getByText("42 m³")).toBeInTheDocument();
+    expect(within(preview).getByText("18 kgCO₂e")).toBeInTheDocument();
     expect(within(recently).getByText("Discovery Pending")).toBeInTheDocument();
     expect(within(recently).getByRole("link", { name: "View all" })).toHaveAttribute(
       "href",

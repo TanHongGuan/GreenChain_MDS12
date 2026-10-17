@@ -11,6 +11,7 @@ import {
 import { CORE_METRICS, approvedSeries, metricDefinition, normalizedPoint } from "../utils/metrics.js";
 import { PeriodComparison, TrendChart, VerificationChart } from "../components/MetricCharts.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
+import { displayDate, displayUnit } from "../utils/display.js";
 
 const CANONICAL_METRIC_ORDER = ["Electricity", "Water", "CO2e"];
 
@@ -29,7 +30,7 @@ function formatDate(value) {
   if (!value) {
     return "Not available";
   }
-  return new Date(value).toLocaleString();
+  return displayDate(value, true);
 }
 
 function formatBytes(value) {
@@ -89,7 +90,7 @@ function MetricCard({ metric, onSelectSubmission }) {
     <article className="metric-card">
       <h3>{definition.label}</h3>
       <p className="metric-card-value">
-        {formatValue(displayLatest?.value ?? latest.value)} <span className="metric-card-unit">{displayLatest?.unit || latest.unit}</span>
+        {formatValue(displayLatest?.value ?? latest.value)} <span className="metric-card-unit">{displayUnit(displayLatest?.unit || latest.unit)}</span>
       </p>
       <p className="metric-card-period">Approved period: {latest.reporting_period}</p>
       <button type="button" className="text-button" onClick={() => onSelectSubmission(latest.submission_id)}>
@@ -211,6 +212,7 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
         <span className={statusClass(detail.status)}>{detail.status}</span>
       </div>
 
+      <h3 className="detail-subheading">Submission information</h3>
       <dl className="detail-grid">
         <div>
           <dt>Reporting period</dt>
@@ -228,25 +230,16 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
           <dt>Submitted at</dt>
           <dd>{formatDate(detail.submitted_at)}</dd>
         </div>
-        <div>
-          <dt>Review decision</dt>
-          <dd>{detail.review?.decision || "Pending"}</dd>
-        </div>
-        <div>
-          <dt>Reviewed by</dt>
-          <dd>
-            {detail.review
-              ? `${detail.review.reviewer_name} (${detail.review.reviewer_email})`
-              : "Pending"}
-          </dd>
-        </div>
+        <div><dt>Source file</dt><dd>{original?.filename || "Not available"}</dd></div>
+      </dl>
+
+      <h3 className="detail-subheading">Review and integrity</h3>
+      <dl className="detail-grid">
+        <div><dt>Review decision</dt><dd>{detail.review?.decision || "Pending"}</dd></div>
+        <div><dt>Reviewed by</dt><dd>{detail.review ? `${detail.review.reviewer_name} (${detail.review.reviewer_email})` : "Pending"}</dd></div>
         <div>
           <dt>Original SHA-256</dt>
           <dd className="hash-value">{original?.sha256 || "Not available"}</dd>
-        </div>
-        <div>
-          <dt>Source file</dt>
-          <dd>{original?.filename || "Not available"}</dd>
         </div>
         <div>
           <dt>Integrity</dt>
@@ -260,20 +253,10 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
           <dt>Processed size</dt>
           <dd>{formatBytes(processed?.size_bytes)}</dd>
         </div>
-        <div>
-          <dt>Previous version</dt>
-          <dd>{detail.previous_submission ? `#${detail.previous_submission.submission_id}` : "None"}</dd>
-        </div>
-        <div>
-          <dt>Corrected by</dt>
-          <dd>
-            {detail.corrected_by?.length
-              ? detail.corrected_by.map((version) => `#${version.submission_id}`).join(", ")
-              : "None"}
-          </dd>
-        </div>
       </dl>
+      <p className="integrity-note">A matching SHA-256 checks file consistency, not the accuracy of its reported values. Unavailable demo evidence is not an integrity failure.</p>
 
+      <h3 className="detail-subheading">Evidence and processed metrics</h3>
       <div className="evidence-actions">
         {!canInspectEvidence && <p>Evidence access is restricted for this submission.</p>}
         {canInspectEvidence && <>
@@ -285,12 +268,12 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
           evidence={processed}
         />
         </>}
-        <EvidenceLink
+        {canInspectEvidence && <EvidenceLink
           submissionId={detail.submission_id}
           type="audit_report"
           label="Audit report"
           evidence={auditReport}
-        />
+        />}
       </div>
 
       {detail.metrics.filter((metric) => metricDefinition(metric.metric_name)).length === 0 ? (
@@ -310,7 +293,7 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
                 <tr key={`${metric.metric_name}-${metric.submission_id}`}>
                   <td>{metric.metric_name}</td>
                   <td>
-                    {formatValue(metric.value)} {metric.unit}
+                    {formatValue(metric.value)} {displayUnit(metric.unit)}
                   </td>
                   <td>
                     Submission #{metric.submission_id}, {metric.reporting_period}, {metric.status}
@@ -321,6 +304,11 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
           </table>
         </div>
       )}
+      <h3 className="detail-subheading">Version history</h3>
+      <dl className="detail-grid">
+        <div><dt>Previous version</dt><dd>{detail.previous_submission ? `#${detail.previous_submission.submission_id}` : "None"}</dd></div>
+        <div><dt>Corrected by</dt><dd>{detail.corrected_by?.length ? detail.corrected_by.map((version) => `#${version.submission_id}`).join(", ") : "None"}</dd></div>
+      </dl>
     </article>
   );
 }
@@ -344,6 +332,7 @@ export function ProjectDetailPage() {
   const [submissionDetailError, setSubmissionDetailError] = useState("");
   const [historyByKey, setHistoryByKey] = useState({});
   const [historyStatus, setHistoryStatus] = useState("loading");
+  const [chartMetricKey, setChartMetricKey] = useState(CORE_METRICS[0].key);
 
   useEffect(() => {
     if (!detail) return undefined;
@@ -498,11 +487,14 @@ export function ProjectDetailPage() {
       )}
 
       <section className="performance-section" aria-labelledby="performance-heading">
-        <h2 id="performance-heading">Approved performance by quarter</h2>
+        <div className="section-title-row"><h2 id="performance-heading">Approved performance by quarter</h2><p>Approved values only</p></div>
         {historyStatus === "loading" && <p>Loading approved history...</p>}
         {historyStatus === "success" && <>
-          {CORE_METRICS.map((definition) => <section className="chart-section" key={definition.key} aria-label={`${definition.label} trend`}>
-            <h3>{definition.label} <small>{definition.unit}</small></h3>
+          <div className="metric-tabs" role="tablist" aria-label="Performance metric">
+            {CORE_METRICS.map((definition) => <button key={definition.key} role="tab" type="button" id={`metric-tab-${definition.key}`} aria-selected={chartMetricKey === definition.key} aria-controls="metric-trend-panel" className={`metric-tab${chartMetricKey === definition.key ? " metric-tab-active" : ""}`} onClick={() => setChartMetricKey(definition.key)}>{definition.label}</button>)}
+          </div>
+          {CORE_METRICS.filter((definition) => definition.key === chartMetricKey).map((definition) => <section className="chart-section selected-trend" key={definition.key} id="metric-trend-panel" role="tabpanel" aria-labelledby={`metric-tab-${definition.key}`}>
+            <h3>{definition.label} <small>{displayUnit(definition.unit)}</small></h3>
             <TrendChart definition={definition} points={historyByKey[definition.key] || []} onSelectSubmission={setSelectedSubmissionId} />
           </section>)}
           <PeriodComparison seriesByKey={historyByKey} definitions={CORE_METRICS} />

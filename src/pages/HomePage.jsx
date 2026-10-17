@@ -3,20 +3,24 @@ import { Link } from "react-router-dom";
 
 import { addHighlightedProject, getHomeDiscovery, getProjectDetail, removeHighlightedProject } from "../services/dataService.js";
 import { DiscoveryProjectCard } from "../components/DiscoveryProjectCard.jsx";
+import { displayDate, displayUnit } from "../utils/display.js";
+import { CORE_METRICS, metricDefinition, normalizedPoint } from "../utils/metrics.js";
 
 const METRICS = [
-  ["Electricity", "Electricity"],
-  ["Water", "Water"],
-  ["CO2e", "CO2 emissions"],
+  ["electricity", "Electricity"],
+  ["water", "Water"],
+  ["co2", "CO2 emissions"],
 ];
 
-function formatDate(value) {
-  return value ? new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", day: "numeric", month: "short", year: "numeric" }).format(new Date(value)) : "Not available";
-}
-
-function approvedMetric(detail, name) {
-  const record = detail?.metrics?.find((metric) => metric.metric_name === name)?.latest;
-  return record ? `${Number(record.value).toLocaleString("en-MY")} ${record.unit}` : "No approved data";
+function approvedMetric(detail, key) {
+  const definition = CORE_METRICS.find((metric) => metric.key === key);
+  const record = detail?.metrics?.find((metric) => metricDefinition(metric.metric_name)?.key === key)?.latest;
+  if (!record) return { value: "No approved data", period: null };
+  const normalized = normalizedPoint(record, definition) || record;
+  return {
+    value: `${Number(normalized.value).toLocaleString("en-MY", { maximumFractionDigits: 2 })} ${displayUnit(normalized.unit)}`,
+    period: record.reporting_period,
+  };
 }
 
 function updateProject(projects, updatedProject) {
@@ -134,7 +138,7 @@ export function HomePage() {
                   <Link key={item.submission_id} to={`/projects/${item.project_id}`} className="activity-row">
                     <strong>{item.project_name}</strong><span>{item.organisation}</span><span>{item.reporting_period}</span>
                     <span className={`status-pill status-${item.status.toLowerCase()}`}>{item.status}</span>
-                    <time dateTime={item.submitted_at}>{formatDate(item.submitted_at)}</time>
+                    <time dateTime={item.submitted_at}>{displayDate(item.submitted_at)}</time>
                   </Link>
                 ))}
               </div>
@@ -143,7 +147,10 @@ export function HomePage() {
           {preview && <section className="home-metric-preview" aria-labelledby="preview-heading">
             <div className="section-title-row"><h2 id="preview-heading">Latest approved data</h2><Link to={`/projects/${preview.project.project_id}`}>{preview.project.project_name}</Link></div>
             <p>Values below belong to this project only, not the whole platform.</p>
-            <dl>{METRICS.map(([name, label]) => <div key={name}><dt>{label}</dt><dd>{approvedMetric(preview.detail, name)}</dd></div>)}</dl>
+            <dl>{METRICS.map(([key, label]) => {
+              const metric = approvedMetric(preview.detail, key);
+              return <div key={key}><dt>{label}</dt><dd>{metric.value}</dd>{metric.period && <small>Approved period: {metric.period}</small>}</div>;
+            })}</dl>
           </section>}
           <section className="discovery-section" aria-labelledby="recent-heading">
             <div className="section-title-row"><h2 id="recent-heading">Recently updated projects</h2><Link to="/projects?sort=updated_desc">View all</Link></div>

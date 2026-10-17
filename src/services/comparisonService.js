@@ -6,7 +6,7 @@ async function allProjects() {
   const projects = [];
   let page = 1;
   do {
-    const result = await getProjectCatalogue({ status: ["APPROVED", "UNREVIEWED", "REJECTED"], page, page_size: 50 });
+    const result = await getProjectCatalogue({ page, page_size: 50 });
     projects.push(...result.projects);
     if (page >= result.total_pages) break;
     page += 1;

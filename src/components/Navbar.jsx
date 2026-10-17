@@ -6,6 +6,7 @@ const baseLinks = [
   { to: "/", label: "Home" },
   { to: "/highlighted", label: "Highlighted" },
   { to: "/projects", label: "Projects" },
+  { to: "/compare", label: "Compare" },
 ];
 
 export function Navbar() {

@@ -17,7 +17,7 @@ async function allProjects() {
 export async function getComparisonSnapshot() {
   if (isMockMode) {
     const { projects, submissions } = getStore();
-    return { projects: [...projects], submissions: [...submissions] };
+    return { projects: structuredClone(projects), submissions: structuredClone(submissions) };
   }
 
   const projects = await allProjects();

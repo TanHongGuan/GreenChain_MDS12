@@ -3,6 +3,8 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext.jsx";
 import { AppLoading } from "../components/AppLoading.jsx";
+import { isMockMode } from "../services/dataService.js";
+import { DEMO_USERS } from "../mocks/identity.js";
 
 function isLikelyEmail(value) {
   return value.includes("@") && !value.startsWith("@") && !value.endsWith("@");
@@ -71,6 +73,15 @@ export function LoginPage() {
               {error}
             </div>
           ) : null}
+
+          {isMockMode && <>
+            <label htmlFor="demo-identity">Demo identity</label>
+            <select id="demo-identity" value={email} onChange={(event) => setEmail(event.target.value)}>
+              <option value="">Choose a demo identity</option>
+              {DEMO_USERS.map((user) => <option key={user.id} value={user.email}>{user.name} ({user.role})</option>)}
+            </select>
+            <p className="demo-label">Browser-session demo only. Any nonempty demo password works; this is not real authentication.</p>
+          </>}
 
           <label htmlFor="email">Email</label>
           <input

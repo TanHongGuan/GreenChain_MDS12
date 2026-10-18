@@ -4,26 +4,63 @@ import * as realDiscovery from "../api/discoveryApi.js";
 import * as realSubmissions from "../api/submissionsApi.js";
 import * as realReviews from "../api/reviewsApi.js";
 import * as mock from "../mocks/mockService.js";
-import { mockUser } from "../mocks/store.js";
+import { clearDemoUser, currentDemoUser, findDemoUserByEmail, setDemoUser } from "../mocks/identity.js";
 
 export const DATA_MODE = import.meta.env.VITE_DATA_MODE === "mock" ? "mock" : "real";
 export const isMockMode = DATA_MODE === "mock";
 const choose = (fake, real) => (...args) => (isMockMode ? fake(...args) : real(...args));
-const demoUserKey = "greenchain-demo-user";
-
 export async function login(email, password) {
   if (!isMockMode) return realAuth.login(email, password);
-  if (!password) throw Object.assign(new Error("Enter a demo password."), { status: 401 });
-  const role = email.toLowerCase().startsWith("auditor") ? "AUDITOR" : email.toLowerCase().startsWith("uploader") ? "UPLOADER" : "VIEWER";
-  const user = mockUser(role); sessionStorage.setItem(demoUserKey, String(user.id)); return user;
+  const user = findDemoUserByEmail(email);
+  if (!user || !password) throw Object.assign(new Error("Use a listed demo identity and enter a demo password."), { status: 401 });
+  setDemoUser(user);
+  return { ...user };
 }
 export async function getCurrentUser() {
   if (!isMockMode) return realAuth.getCurrentUser();
-  const id = Number(sessionStorage.getItem(demoUserKey));
-  if (!id) throw Object.assign(new Error("Demo sign-in required."), { status: 401 });
-  return mockUser(({ 1: "VIEWER", 2: "UPLOADER", 3: "AUDITOR" })[id] || "VIEWER");
+  const user = currentDemoUser();
+  if (!user) throw Object.assign(new Error("Demo sign-in required."), { status: 401 });
+  return { ...user };
 }
-export async function logout() { if (isMockMode) sessionStorage.removeItem(demoUserKey); else await realAuth.logout(); }
+export async function logout() { if (isMockMode) clearDemoUser(); else await realAuth.logout(); }
+
+export async function getOwnedMockBuildings() {
+  if (!isMockMode) throw Object.assign(new Error("Company buildings are available in mock mode only."), { status: 501 });
+  return mock.getOwnedBuildings();
+}
+export async function getOwnedMockBuilding(id) {
+  if (!isMockMode) throw Object.assign(new Error("Company buildings are available in mock mode only."), { status: 501 });
+  return mock.getOwnedBuilding(id);
+}
+export async function createMockBuilding(input) {
+  if (!isMockMode) throw Object.assign(new Error("Company buildings are available in mock mode only."), { status: 501 });
+  return mock.createBuilding(input);
+}
+export async function updateMockBuilding(id, input) {
+  if (!isMockMode) throw Object.assign(new Error("Company buildings are available in mock mode only."), { status: 501 });
+  return mock.updateBuilding(id, input);
+}
+const mockPreparationOnly = () => {
+  if (!isMockMode) throw Object.assign(new Error("Certification preparation is available in mock mode only."), { status: 501 });
+};
+export function getMockBuildingPreparation(id) { mockPreparationOnly(); return mock.getBuildingPreparation(id); }
+export function selectMockBuildingScheme(id, schemeId, confirmed = false) { mockPreparationOnly(); return mock.selectBuildingScheme(id, schemeId, confirmed); }
+export function saveMockCriterionPreparation(id, criterionId, input) { mockPreparationOnly(); return mock.saveCriterionPreparation(id, criterionId, input); }
+export function assignMockPreparationConsultant(id, consultantId, confirmed = false) { mockPreparationOnly(); return mock.assignPreparationConsultant(id, consultantId, confirmed); }
+export function getAssignedMockPreparations() { mockPreparationOnly(); return mock.getAssignedPreparations(); }
+export function getAssignedMockPreparation(id) { mockPreparationOnly(); return mock.getAssignedPreparation(id); }
+export function reviewMockPreparationCriterion(id, criterionId, outcome, feedback) { mockPreparationOnly(); return mock.reviewPreparationCriterion(id, criterionId, outcome, feedback); }
+export function getMockPreparationPackage(id) { mockPreparationOnly(); return mock.getPreparationPackage(id); }
+export function exportMockPreparationPackage(id, snapshot) { mockPreparationOnly(); return mock.exportPreparationPackage(id, snapshot); }
+export async function getAssignedMockSubmissions() {
+  if (!isMockMode) throw Object.assign(new Error("Consultant assignments are available in mock mode only."), { status: 501 });
+  return mock.getAssignedSubmissions();
+}
+export function resetDemoData(confirmed = false) {
+  if (!isMockMode) throw Object.assign(new Error("Demo reset is available in mock mode only."), { status: 501 });
+  if (!confirmed) throw Object.assign(new Error("Confirm demo reset first."), { status: 400 });
+  mock.resetDemoData();
+}
 
 export const getHomeDiscovery = choose(mock.getHomeDiscovery, realDiscovery.getHomeDiscovery);
 export const getProjectCatalogue = choose(mock.getProjectCatalogue, realProjects.getProjectCatalogue);

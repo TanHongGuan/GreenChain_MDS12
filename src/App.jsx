@@ -12,6 +12,12 @@ import { ProjectsPage } from "./pages/ProjectsPage.jsx";
 import { ComparePage } from "./pages/ComparePage.jsx";
 import { ReviewPlaceholder } from "./pages/ReviewPlaceholder.jsx";
 import { UploadPlaceholder } from "./pages/UploadPlaceholder.jsx";
+import { MyBuildingsPage } from "./pages/MyBuildingsPage.jsx";
+import { BuildingFormPage } from "./pages/BuildingFormPage.jsx";
+import { BuildingPreparationPage } from "./pages/BuildingPreparationPage.jsx";
+import { PreparationReviewsPage } from "./pages/PreparationReviewsPage.jsx";
+import { PreparationPackagePage } from "./pages/PreparationPackagePage.jsx";
+import { isMockMode } from "./services/dataService.js";
 import { canAccess, PERMISSIONS } from "./auth/permissions.js";
 
 function AppLayout() {
@@ -45,6 +51,13 @@ export function AppRoutes() {
           >
             <Route path="/upload" element={<UploadPlaceholder />} />
           </Route>
+          <Route element={<RoleRoute permission={(user) => isMockMode && canAccess(user, PERMISSIONS.UPLOAD_SUBMISSION)} />}>
+            <Route path="/my-buildings" element={<MyBuildingsPage />} />
+            <Route path="/my-buildings/new" element={<BuildingFormPage />} />
+            <Route path="/my-buildings/:buildingId/edit" element={<BuildingFormPage />} />
+            <Route path="/my-buildings/:buildingId/preparation" element={<BuildingPreparationPage />} />
+            <Route path="/my-buildings/:buildingId/package" element={<PreparationPackagePage />} />
+          </Route>
           <Route
             element={
               <RoleRoute
@@ -53,6 +66,10 @@ export function AppRoutes() {
             }
           >
             <Route path="/review" element={<ReviewPlaceholder />} />
+          </Route>
+          <Route element={<RoleRoute permission={(user) => isMockMode && canAccess(user, PERMISSIONS.REVIEW_SUBMISSION)} />}>
+            <Route path="/preparation-reviews" element={<PreparationReviewsPage />} />
+            <Route path="/preparation-reviews/:preparationId" element={<PreparationReviewsPage />} />
           </Route>
           <Route path="/access-denied" element={<AccessDenied />} />
         </Route>

@@ -170,7 +170,7 @@ describe("project detail page", () => {
     expect(await screen.findByRole("heading", { name: "Green Tower" })).toBeInTheDocument();
     expect(screen.getByText("Acme Corp")).toBeInTheDocument();
     expect(screen.getByText("150")).toBeInTheDocument();
-    expect(screen.getByText("kWh")).toBeInTheDocument();
+    expect(screen.getByText("kWh", { selector: ".metric-card-unit" })).toBeInTheDocument();
     expect(screen.getByText("Approved period: 2026-Q2")).toBeInTheDocument();
   });
 
@@ -233,7 +233,7 @@ describe("project detail page", () => {
     expect(screen.getByText("No approved sustainability data yet for this project.")).toBeInTheDocument();
   });
 
-  test("renders multiple metric cards without visualization tabs", async () => {
+  test("renders multiple metric cards with a selectable visualization tab", async () => {
     const twoMetricDetail = {
       project: projectDetail.project,
       metrics: [
@@ -261,7 +261,7 @@ describe("project detail page", () => {
     expect(screen.getByRole("heading", { name: "Water" })).toBeInTheDocument();
     expect(screen.getByText("40")).toBeInTheDocument();
     expect(screen.getByText("kL")).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Water" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Water" })).toBeInTheDocument();
   });
 
   test("invalid project id is handled safely", async () => {

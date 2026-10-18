@@ -1,4 +1,7 @@
-const STORAGE_KEY = "greenchain-demo-v1";
+import { DEMO_ORGANISATIONS, DEMO_USERS } from "./identity.js";
+
+export const MOCK_STORAGE_KEY = "greenchain-demo-v1";
+export const MOCK_SCHEMA_VERSION = 4;
 const comparisonProjects = [
   { project_id: 105, project_name: "Bukit Civic Annex", organisation: "Demo Civic Trust", location: "Kuala Lumpur" },
   { project_id: 106, project_name: "Taman Skills Hub", organisation: "Demo Civic Trust", location: "Selangor" },
@@ -26,6 +29,12 @@ const comparisonSubmissions = Object.entries(comparisonValues).flatMap(([project
   }),
 );
 const seed = {
+  schemaVersion: MOCK_SCHEMA_VERSION,
+  organisations: DEMO_ORGANISATIONS.map((organisation) => ({ ...organisation })),
+  users: DEMO_USERS.map((user) => ({ ...user })),
+  assignments: [
+    { id: 1, project_id: 103, consultant_id: 3, status: "ACCEPTED" },
+  ],
   projects: [
     { project_id: 101, project_name: "Riverview Learning Centre", organisation: "Demo Civic Trust", location: "Kuala Lumpur", description: "A fictional learning facility used to demonstrate quarterly resource reporting.", created_at: "2025-01-10T09:00:00Z" },
     { project_id: 102, project_name: "North Quay Offices", organisation: "Demo Civic Trust", location: "Penang", description: "Fictional office project with incomplete metric coverage.", created_at: "2025-06-03T09:00:00Z" },
@@ -44,32 +53,71 @@ const seed = {
     ...comparisonSubmissions,
   ],
   highlights: {},
+  preparations: [],
+  nextPreparationId: 1,
+  preparationAssignments: [],
+  preparationReviews: [],
+  nextPreparationReviewId: 1,
   nextProjectId: 109,
   nextSubmissionId: 1116,
 };
+seed.projects = seed.projects.map((project) => ({
+  ...project,
+  organisation_id: DEMO_ORGANISATIONS.find((organisation) => organisation.name === project.organisation)?.id || null,
+}));
 
 function copy(value) { return JSON.parse(JSON.stringify(value)); }
+
+function organisationId(name) {
+  if (!name) return null;
+  return DEMO_ORGANISATIONS.find((organisation) => organisation.name === name)?.id || `legacy-${encodeURIComponent(name)}`;
+}
+
+function migrateStore(value) {
+  if (!value || !Array.isArray(value.projects) || !Array.isArray(value.submissions)) return copy(seed);
+  // Keep every saved project, submission and highlight; only add relationships and missing seed fixtures.
+  const migrated = {
+    ...value,
+    schemaVersion: MOCK_SCHEMA_VERSION,
+    organisations: [...DEMO_ORGANISATIONS.map((organisation) => ({ ...organisation })), ...(Array.isArray(value.organisations) ? value.organisations.filter((organisation) => !DEMO_ORGANISATIONS.some((known) => known.id === organisation?.id)) : [])],
+    users: DEMO_USERS.map((user) => ({ ...user })),
+    assignments: Array.isArray(value.assignments) ? value.assignments : copy(seed.assignments),
+    highlights: value.highlights && typeof value.highlights === "object" && !Array.isArray(value.highlights) ? value.highlights : {},
+    preparations: Array.isArray(value.preparations) ? value.preparations : [],
+    preparationAssignments: Array.isArray(value.preparationAssignments) ? value.preparationAssignments : [],
+    preparationReviews: Array.isArray(value.preparationReviews) ? value.preparationReviews : [],
+  };
+  migrated.projects = value.projects.map((project) => ({ ...project, organisation_id: project.organisation_id || organisationId(project.organisation) }));
+  for (const project of migrated.projects) {
+    if (project.organisation_id && !migrated.organisations.some((item) => item.id === project.organisation_id)) {
+      migrated.organisations.push({ id: project.organisation_id, name: project.organisation });
+    }
+  }
+  if (!value.comparisonSeedVersion) {
+    const knownProjects = new Set(migrated.projects.map((item) => item.project_id));
+    const knownSubmissions = new Set(migrated.submissions.map((item) => item.submission_id));
+    migrated.projects.push(...copy(comparisonProjects.filter((item) => !knownProjects.has(item.project_id))).map((project) => ({ ...project, organisation_id: organisationId(project.organisation) })));
+    migrated.submissions.push(...copy(comparisonSubmissions.filter((item) => !knownSubmissions.has(item.submission_id))));
+    migrated.comparisonSeedVersion = 1;
+  }
+  migrated.nextProjectId = Math.max(Number(value.nextProjectId) || 0, 109, ...migrated.projects.map((item) => Number(item.project_id) + 1));
+  migrated.nextSubmissionId = Math.max(Number(value.nextSubmissionId) || 0, 1116, ...migrated.submissions.map((item) => Number(item.submission_id) + 1));
+  migrated.nextPreparationId = Math.max(Number(value.nextPreparationId) || 0, 1, ...migrated.preparations.map((item) => (Number(item.id) || 0) + 1));
+  migrated.nextPreparationReviewId = Math.max(Number(value.nextPreparationReviewId) || 0, 1, ...migrated.preparationReviews.map((item) => (Number(item.id) || 0) + 1));
+  return migrated;
+}
 
 let memory = null;
 export function getStore() {
   if (memory) return memory;
-  try { memory = JSON.parse(sessionStorage.getItem(STORAGE_KEY)) || copy(seed); }
+  try { memory = migrateStore(JSON.parse(sessionStorage.getItem(MOCK_STORAGE_KEY))); }
   catch { memory = copy(seed); }
-  if (!memory.comparisonSeedVersion) {
-    const knownProjects = new Set(memory.projects.map((item) => item.project_id));
-    const knownSubmissions = new Set(memory.submissions.map((item) => item.submission_id));
-    memory.projects.push(...copy(comparisonProjects.filter((item) => !knownProjects.has(item.project_id))));
-    memory.submissions.push(...copy(comparisonSubmissions.filter((item) => !knownSubmissions.has(item.submission_id))));
-    memory.nextProjectId = Math.max(memory.nextProjectId, 109);
-    memory.nextSubmissionId = Math.max(memory.nextSubmissionId, 1116);
-    memory.comparisonSeedVersion = 1;
-    saveStore();
-  }
+  saveStore();
   return memory;
 }
 
 export function saveStore() {
-  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(getStore())); }
+  try { sessionStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(getStore())); }
   catch { /* Private browsing can disable session storage. */ }
 }
 
@@ -78,7 +126,6 @@ export function resetMockStore() {
   saveStore();
 }
 
-export function mockUser(role) {
-  const name = role === "AUDITOR" ? "Demo Auditor" : role === "UPLOADER" ? "Demo Uploader" : "Demo Viewer";
-  return { id: { VIEWER: 1, UPLOADER: 2, AUDITOR: 3 }[role], name, email: `${role.toLowerCase()}@demo.greenchain.test`, role };
+export function clearMockStoreCache() {
+  memory = null;
 }

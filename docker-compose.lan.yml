@@ -11,3 +11,6 @@ services:
       ENVIRONMENT: development
       COOKIE_SECURE: "false"
       DEV_SEED_PASSWORD: ${DEV_SEED_PASSWORD:?set DEV_SEED_PASSWORD}
+      # Login page shows a dropdown of accounts and signs in without a password.
+      # Anyone who can reach this address can act as any account, including the auditor.
+      ACCOUNT_SELECT_LOGIN: "true"

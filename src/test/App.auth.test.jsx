@@ -98,16 +98,21 @@ async function renderWithRestoredUser(user, route = "/") {
   await screen.findByText(user.name);
 }
 
-async function renderUnauthenticated(route = "/login") {
+const accountSelectDisabled = { response: jsonResponse(404, { error: { code: "NOT_FOUND", message: "Not found." } }) };
+
+async function renderUnauthenticated(route = "/login", accountsResponse = accountSelectDisabled) {
   mockFetchQueue([
     {
       response: jsonResponse(401, {
         error: { code: "AUTHENTICATION_REQUIRED", message: "Authentication is required." },
       }),
     },
+    accountsResponse,
   ]);
   renderApp(route);
   await screen.findByRole("heading", { name: /sign in/i });
+  // The form renders once the page knows which sign-in option the backend offers.
+  await screen.findByRole("button", { name: /log in/i });
 }
 
 beforeEach(() => {
@@ -147,6 +152,7 @@ describe("login", () => {
           error: { code: "AUTHENTICATION_REQUIRED", message: "Authentication is required." },
         }),
       },
+      accountSelectDisabled,
       {
         assert: (_url, options) => expect(options.credentials).toBe("include"),
         response: loginPromise,
@@ -156,7 +162,7 @@ describe("login", () => {
     renderApp("/login");
     await screen.findByRole("heading", { name: /sign in/i });
 
-    await userEvent.type(screen.getByLabelText(/email/i), "viewer@greenchain.test");
+    await userEvent.type(await screen.findByLabelText(/email/i), "viewer@greenchain.test");
     await userEvent.type(screen.getByLabelText(/password/i), "password");
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
 
@@ -172,6 +178,7 @@ describe("login", () => {
           error: { code: "AUTHENTICATION_REQUIRED", message: "Authentication is required." },
         }),
       },
+      accountSelectDisabled,
       {
         response: jsonResponse(401, {
           error: { code: "INVALID_CREDENTIALS", message: "Email or password is incorrect." },
@@ -181,7 +188,7 @@ describe("login", () => {
     renderApp("/login");
     await screen.findByRole("heading", { name: /sign in/i });
 
-    await userEvent.type(screen.getByLabelText(/email/i), "viewer@greenchain.test");
+    await userEvent.type(await screen.findByLabelText(/email/i), "viewer@greenchain.test");
     await userEvent.type(screen.getByLabelText(/password/i), "wrong");
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
 
@@ -195,6 +202,7 @@ describe("login", () => {
           error: { code: "AUTHENTICATION_REQUIRED", message: "Authentication is required." },
         }),
       },
+      accountSelectDisabled,
       {
         assert: (url, options) => {
           expect(url).toContain("/auth/login");
@@ -206,7 +214,7 @@ describe("login", () => {
     renderApp("/login");
     await screen.findByRole("heading", { name: /sign in/i });
 
-    await userEvent.type(screen.getByLabelText(/email/i), "uploader@greenchain.test");
+    await userEvent.type(await screen.findByLabelText(/email/i), "uploader@greenchain.test");
     await userEvent.type(screen.getByLabelText(/password/i), "password");
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
 
@@ -343,13 +351,16 @@ describe("logout", () => {
         },
         response: noContentResponse(),
       },
+      accountSelectDisabled,
     ]);
     renderApp("/");
     await screen.findByText("GreenChain Viewer");
 
     await userEvent.click(screen.getByRole("button", { name: /log out/i }));
+    await screen.findByLabelText(/password/i);
 
-    expect(global.fetch).toHaveBeenCalledTimes(3);
+    // me, discovery, logout, then the login page asks which sign-in options exist.
+    expect(global.fetch).toHaveBeenCalledTimes(4);
   });
 
   test("logout clears current user", async () => {

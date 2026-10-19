@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, Response, status
 
 from backend.app.auth.dependencies import AUTH_COOKIE_NAME, get_current_user
 from backend.app.auth.models import AuthUser, UserRepository
-from backend.app.auth.schemas import LoginRequest, LoginResponse, UserResponse
+from backend.app.auth.schemas import (
+    AccountListResponse,
+    AccountSelectRequest,
+    LoginRequest,
+    LoginResponse,
+    UserResponse,
+)
 from backend.app.auth.security import create_access_token
 from backend.app.auth.service import authenticate_user
 from backend.app.core.config import Settings, get_settings
@@ -33,6 +39,11 @@ def login(
     if user is None:
         raise api_error(status.HTTP_401_UNAUTHORIZED, "INVALID_CREDENTIALS", "Email or password is incorrect.")
 
+    _issue_session(response, user, settings)
+    return LoginResponse(user=serialize_user(user))
+
+
+def _issue_session(response: Response, user: AuthUser, settings: Settings) -> None:
     token = create_access_token(user.id, settings)
     response.set_cookie(
         key=AUTH_COOKIE_NAME,
@@ -43,6 +54,37 @@ def login(
         max_age=settings.jwt_expire_minutes * 60,
         path="/",
     )
+
+
+def _require_account_select(settings: Settings) -> None:
+    # 404 rather than 403 so a normal deployment does not advertise the demo feature.
+    if not settings.account_select_login or settings.is_production:
+        raise api_error(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Not found.")
+
+
+@router.get("/accounts", response_model=AccountListResponse)
+def login_accounts(
+    settings: Settings = Depends(get_settings),
+    user_repository: UserRepository = Depends(get_user_repository),
+) -> AccountListResponse:
+    """Accounts selectable on the demo login screen (ACCOUNT_SELECT_LOGIN=true only)."""
+    _require_account_select(settings)
+    return AccountListResponse(accounts=[serialize_user(user) for user in user_repository.list_active_users()])
+
+
+@router.post("/select", response_model=LoginResponse)
+def select_account(
+    selection: AccountSelectRequest,
+    response: Response,
+    settings: Settings = Depends(get_settings),
+    user_repository: UserRepository = Depends(get_user_repository),
+) -> LoginResponse:
+    """Passwordless demo sign-in as an existing, active account (ACCOUNT_SELECT_LOGIN=true only)."""
+    _require_account_select(settings)
+    user = user_repository.get_user_by_id(selection.user_id)
+    if user is None:
+        raise api_error(status.HTTP_401_UNAUTHORIZED, "INVALID_ACCOUNT", "That account is not available.")
+    _issue_session(response, user, settings)
     return LoginResponse(user=serialize_user(user))
 
 

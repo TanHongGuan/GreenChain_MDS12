@@ -28,6 +28,9 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
     dev_seed_password: str | None = Field(default=None, alias="DEV_SEED_PASSWORD")
+    # Demo-only: lets anyone who can reach the app sign in by picking an account from a list,
+    # with no password. Off by default and refused in production (see validator below).
+    account_select_login: bool = Field(default=False, alias="ACCOUNT_SELECT_LOGIN")
     storage_backend: str = Field(default="local", alias="STORAGE_BACKEND")
     local_storage_root: str = Field(default="./var/storage", alias="LOCAL_STORAGE_ROOT")
     max_upload_size_mb: int = Field(default=25, alias="MAX_UPLOAD_SIZE_MB")
@@ -104,6 +107,8 @@ class Settings(BaseSettings):
             problems.append("COOKIE_SECURE must be true so the session cookie is not sent over plain HTTP")
         if DEFAULT_DB_PASSWORD in self.database_url:
             problems.append("DATABASE_URL still contains the development default password")
+        if self.account_select_login:
+            problems.append("ACCOUNT_SELECT_LOGIN must be false: passwordless account selection is demo-only")
 
         for origin in self.frontend_origins:
             if origin == "*":

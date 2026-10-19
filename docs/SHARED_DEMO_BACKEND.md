@@ -33,8 +33,8 @@ If the host's Wi-Fi IP changes (new network), update `FRONTEND_ORIGIN` and rerun
 
 ## Teammates
 
-Open `http://<host IP>:8080` and sign in as `viewer@`, `uploader@` or `auditor@greenchain.test`
-with the seed password the host shares privately. No setup, AWS account or repo checkout is needed.
+Open `http://<host IP>:8080`, choose an account (viewer, uploader or auditor) from the dropdown and
+press **Log In**. No password, setup, AWS account or repo checkout is needed.
 
 ## Verifying an upload is locked
 
@@ -49,6 +49,12 @@ with the seed password the host shares privately. No setup, AWS account or repo 
 * **HTTP on a LAN only.** `docker-compose.lan.yml` runs the API in development mode with non-Secure
   cookies because browsers do not send Secure cookies over `http://`. It is for a trusted network.
   A real deployment needs HTTPS and the unmodified `docker-compose.prod.yml` checks.
+* **Passwordless login.** `docker-compose.lan.yml` sets `ACCOUNT_SELECT_LOGIN=true`, so anyone who
+  can reach the address can sign in as any account, including the auditor. The backend refuses this
+  setting when `ENVIRONMENT=production`.
+* **No placeholder data.** `demo_up.sh` seeds only the three accounts. It does not run
+  `seed_benchmarks` (placeholder values), so projects, submissions and benchmarks come only from
+  real uploads.
 * **Same network required.** University and guest Wi-Fi often block device-to-device traffic
   (client isolation). If teammates cannot reach the host, use a phone hotspot or present from the
   host machine.

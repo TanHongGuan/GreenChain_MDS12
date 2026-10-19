@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
-import { getProjectBenchmarks, getProjectConsistency, getProjectDetail, getMetricHistory, isMockMode } from "../services/dataService.js";
+import { getProjectBenchmarks, getProjectConsistency, getProjectDetail, getMetricHistory } from "../services/dataService.js";
 import {
   getProjectSubmissions,
   getSubmissionDetail,
@@ -515,7 +515,6 @@ export function ProjectDetailPage() {
         <h1>{detail.project.project_name}</h1>
         {detail.project.location && <p>{detail.project.location}</p>}
         {detail.project.description && <p>{detail.project.description}</p>}
-        {isMockMode && <p className="demo-label">Demo data · Browser session only</p>}
         <Link to={projectListUrl} className="secondary-button detail-back-link">
           Back to projects
         </Link>

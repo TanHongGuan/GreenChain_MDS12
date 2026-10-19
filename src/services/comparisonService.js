@@ -1,5 +1,4 @@
-import { getProjectCatalogue, getMetricHistory, isMockMode } from "./dataService.js";
-import { getStore } from "../mocks/store.js";
+import { getProjectCatalogue, getMetricHistory } from "./dataService.js";
 import { CORE_METRICS } from "../utils/metrics.js";
 
 async function allProjects() {
@@ -15,11 +14,6 @@ async function allProjects() {
 }
 
 export async function getComparisonSnapshot() {
-  if (isMockMode) {
-    const { projects, submissions } = getStore();
-    return { projects: structuredClone(projects), submissions: structuredClone(submissions) };
-  }
-
   const projects = await allProjects();
   const histories = await Promise.all(projects.map(async (project) => {
     const responses = await Promise.all(CORE_METRICS.map((metric) => getMetricHistory(project.project_id, metric.names[0])));

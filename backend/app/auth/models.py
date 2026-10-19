@@ -26,3 +26,6 @@ class UserRepository(Protocol):
 
     def get_user_by_id(self, user_id: str) -> AuthUser | None:
         ...
+
+    def list_active_users(self) -> list[AuthUser]:
+        ...

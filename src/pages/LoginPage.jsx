@@ -1,32 +1,72 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext.jsx";
 import { AppLoading } from "../components/AppLoading.jsx";
-import { isMockMode } from "../services/dataService.js";
-import { DEMO_USERS } from "../mocks/identity.js";
+import { getLoginAccounts } from "../services/dataService.js";
+
+const ROLE_LABELS = { VIEWER: "Viewer", UPLOADER: "Uploader", AUDITOR: "Auditor" };
 
 function isLikelyEmail(value) {
   return value.includes("@") && !value.startsWith("@") && !value.endsWith("@");
 }
 
-export function LoginPage() {
-  const { login, isAuthenticated, isLoading } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+function AccountSelectForm({ accounts, onSignedIn }) {
+  const { loginAsAccount } = useAuth();
+  const [accountId, setAccountId] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (!accountId) {
+      setError("Choose an account.");
+      return;
+    }
+    setError("");
+    setIsSubmitting(true);
+    try {
+      await loginAsAccount(accountId);
+      onSignedIn();
+    } catch {
+      setError("Unable to sign in with that account. Please try again.");
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} noValidate aria-describedby={error ? "login-error" : undefined}>
+      {error ? (
+        <div className="form-error" id="login-error" role="alert">
+          {error}
+        </div>
+      ) : null}
+
+      <label htmlFor="account">Account</label>
+      <select id="account" value={accountId} onChange={(event) => setAccountId(event.target.value)} disabled={isSubmitting}>
+        <option value="">Choose an account</option>
+        {accounts.map((account) => (
+          <option key={account.id} value={account.id}>
+            {account.name} · {ROLE_LABELS[account.role] || account.role} ({account.email})
+          </option>
+        ))}
+      </select>
+      {accounts.length === 0 ? <p className="field-error">No active accounts exist yet.</p> : null}
+
+      <button className="primary-button" type="submit" disabled={isSubmitting || accounts.length === 0}>
+        {isSubmitting ? "Logging in..." : "Log In"}
+      </button>
+    </form>
+  );
+}
+
+function PasswordForm({ onSignedIn }) {
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  if (isLoading) {
-    return <AppLoading />;
-  }
-
-  if (isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -47,8 +87,7 @@ export function LoginPage() {
     setIsSubmitting(true);
     try {
       await login(email, password);
-      const destination = location.state?.from?.pathname || "/";
-      navigate(destination, { replace: true });
+      onSignedIn();
     } catch (requestError) {
       if (requestError.code === "INVALID_CREDENTIALS" || requestError.status === 401) {
         setError("Email or password is incorrect.");
@@ -61,66 +100,96 @@ export function LoginPage() {
   }
 
   return (
+    <form onSubmit={handleSubmit} noValidate aria-describedby={error ? "login-error" : undefined}>
+      {error ? (
+        <div className="form-error" id="login-error" role="alert">
+          {error}
+        </div>
+      ) : null}
+
+      <label htmlFor="email">Email</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        autoComplete="email"
+        value={email}
+        aria-invalid={Boolean(fieldErrors.email)}
+        aria-describedby={fieldErrors.email ? "email-error" : undefined}
+        onChange={(event) => setEmail(event.target.value)}
+      />
+      {fieldErrors.email ? (
+        <span className="field-error" id="email-error">
+          {fieldErrors.email}
+        </span>
+      ) : null}
+
+      <label htmlFor="password">Password</label>
+      <input
+        id="password"
+        name="password"
+        type="password"
+        autoComplete="current-password"
+        value={password}
+        aria-invalid={Boolean(fieldErrors.password)}
+        aria-describedby={fieldErrors.password ? "password-error" : undefined}
+        onChange={(event) => setPassword(event.target.value)}
+      />
+      {fieldErrors.password ? (
+        <span className="field-error" id="password-error">
+          {fieldErrors.password}
+        </span>
+      ) : null}
+
+      <button className="primary-button" type="submit" disabled={isSubmitting}>
+        {isSubmitting ? "Logging in..." : "Log In"}
+      </button>
+    </form>
+  );
+}
+
+export function LoginPage() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  // undefined = still asking the backend; null = account selection disabled (use password form).
+  const [accounts, setAccounts] = useState(undefined);
+
+  useEffect(() => {
+    if (isLoading || isAuthenticated) {
+      return undefined;
+    }
+    let active = true;
+    getLoginAccounts()
+      .then((result) => { if (active) setAccounts(result); })
+      .catch(() => { if (active) setAccounts(null); });
+    return () => { active = false; };
+  }, [isLoading, isAuthenticated]);
+
+  if (isLoading) {
+    return <AppLoading />;
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  function goToDestination() {
+    navigate(location.state?.from?.pathname || "/", { replace: true });
+  }
+
+  return (
     <main className="login-page">
       <section className="login-card" aria-labelledby="login-title">
         <p className="eyebrow">GreenChain</p>
         <h1 id="login-title">Sign in</h1>
-        <p className="login-intro">Access your GreenChain workspace.</p>
+        <p className="login-intro">
+          {accounts ? "Choose an account to open its workspace." : "Access your GreenChain workspace."}
+        </p>
 
-        <form onSubmit={handleSubmit} noValidate aria-describedby={error ? "login-error" : undefined}>
-          {error ? (
-            <div className="form-error" id="login-error" role="alert">
-              {error}
-            </div>
-          ) : null}
-
-          {isMockMode && <>
-            <label htmlFor="demo-identity">Demo identity</label>
-            <select id="demo-identity" value={email} onChange={(event) => setEmail(event.target.value)}>
-              <option value="">Choose a demo identity</option>
-              {DEMO_USERS.map((user) => <option key={user.id} value={user.email}>{user.name} ({user.role})</option>)}
-            </select>
-            <p className="demo-label">Browser-session demo only. Any nonempty demo password works; this is not real authentication.</p>
-          </>}
-
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            aria-invalid={Boolean(fieldErrors.email)}
-            aria-describedby={fieldErrors.email ? "email-error" : undefined}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-          {fieldErrors.email ? (
-            <span className="field-error" id="email-error">
-              {fieldErrors.email}
-            </span>
-          ) : null}
-
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            aria-invalid={Boolean(fieldErrors.password)}
-            aria-describedby={fieldErrors.password ? "password-error" : undefined}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          {fieldErrors.password ? (
-            <span className="field-error" id="password-error">
-              {fieldErrors.password}
-            </span>
-          ) : null}
-
-          <button className="primary-button" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Logging in..." : "Log In"}
-          </button>
-        </form>
+        {accounts === undefined ? <p>Loading sign-in options...</p> : null}
+        {Array.isArray(accounts) ? <AccountSelectForm accounts={accounts} onSignedIn={goToDestination} /> : null}
+        {accounts === null ? <PasswordForm onSignedIn={goToDestination} /> : null}
       </section>
     </main>
   );

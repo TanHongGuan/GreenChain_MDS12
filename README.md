@@ -2,7 +2,7 @@
 
 GreenChain is a sustainability evidence management and transparency platform. Organisations can submit building sustainability data, preserve evidence integrity, maintain traceable audit records, and share reviewed electricity, water and CO2 emissions information.
 
-This repository has a FastAPI/PostgreSQL backend and a React/Vite frontend. The frontend also has a **mock mode** for company building management and demo workflows; it does not write to the real backend. See [Current Implementation Status](#current-implementation-status) before using the site as more than a local demonstration.
+This repository has a FastAPI/PostgreSQL backend and a React/Vite frontend. The frontend always uses the real backend; there is no browser-side mock data. See [Current Implementation Status](#current-implementation-status) before using the site as more than a local demonstration.
 
 ## Quick Start: Run GreenChain Locally
 
@@ -27,7 +27,7 @@ cd GreenChain_MDS12
 git switch codex/building-organisation-compare
 ```
 
-Check with the team which branch you should use. **This local working tree contains uncommitted frontend mock changes**; a fresh clone will not contain those changes until they are reviewed and published. The default `main` branch may therefore differ from the later mock features described below.
+Use the `main` branch unless the team says otherwise.
 
 ### 3. Configure environment variables
 
@@ -192,13 +192,13 @@ The unchanged `.env.example` value is `change-this-local-password`; `123` is **n
 
 The original Sprint 1 foundation provided FastAPI authentication/RBAC, PostgreSQL user/organisation persistence, React/Vite login and a local-storage abstraction. The checked-out backend now also has project discovery/catalogue, submissions, sustainability metrics, evidence metadata, highlights and auditor approve/reject endpoints. The frontend supports public project detail, approved-data charts and comparison, upload and review workflows. This is broader than the old Sprint 1-only README description.
 
-The current **mock mode** (`VITE_DATA_MODE=mock`) adds deterministic demo personas, organisation-owned My Buildings, building selection at upload, sustainability submissions and auditor review. Mock records live in browser session storage and never write to the real backend. To use it, set `VITE_DATA_MODE=mock` in `.env`, restart Vite and sign in with a listed persona such as `uploader@demo.greenchain.test`, `auditor@demo.greenchain.test` or `viewer@demo.greenchain.test`; any nonempty demo password works. The frontend also seeds `future-uploader@demo.greenchain.test` and `second-auditor@demo.greenchain.test`. Mock role checks are UX simulation, not backend security.
+The former frontend **mock mode** (fictional demo personas, buildings and submissions held in browser session storage) was removed on 2026-10-19; every page now reads and writes real backend data.
 
-Sprint 7 home discovery shows Recently Updated, Featured and New Projects sections, each linking into Projects with a preset the catalogue accepts. Sprint 8 adds benchmark comparison and reporting consistency to Project Detail, in both real and mock mode.
+Sprint 7 home discovery shows Recently Updated, Featured and New Projects sections, each linking into Projects with a preset the catalogue accepts. Sprint 8 adds benchmark comparison and reporting consistency to Project Detail. Benchmarks only appear once benchmark data is loaded; `seed_benchmarks` inserts placeholder values and is not run on the shared demo stack.
 
 **Evidence storage:** `STORAGE_BACKEND=s3` stores evidence in a versioned S3 bucket with Object Lock (GOVERNANCE) retention, pins each submission to exact S3 version IDs and verifies files against an S3-recorded SHA-256. It was verified against a real AWS test bucket on 2026-10-19 (see `docs/STORAGE_S3_OBJECT_LOCK.md`). Local storage remains the development default.
 
-**Not integrated:** real-mode company building management; its mock-only service wrappers return 501. Registration, OAuth and MFA are not implemented here. Certification preparation was removed from the active product scope. Historical Batch 3-6 documents describe discontinued mock experiments and are not current integration requirements; see `docs/CERTIFICATION_PREPARATION_REMOVAL.md`.
+**Not integrated:** company building management (create/edit owned buildings); uploads name the building and organisation directly. Registration, OAuth and MFA are not implemented here. Certification preparation was removed from the active product scope. Historical Batch 3-6 documents describe discontinued mock experiments and are not current integration requirements; see `docs/CERTIFICATION_PREPARATION_REMOVAL.md`.
 
 ## Testing and Verification
 
@@ -211,17 +211,17 @@ npm run build
 git diff --check
 ```
 
-The last three commands check frontend tests, its production build and whitespace in tracked changes. Do not interpret mock-mode test coverage as proof of real backend integration.
+The last three commands check frontend tests, its production build and whitespace in tracked changes. Frontend tests use stubbed HTTP responses; they do not prove real backend integration.
 
 ## Authentication and Role Behaviour
 
 | Role | Core navigation | Restricted routes |
 |---|---|---|
-| `VIEWER` | Home, Highlighted, Projects, Compare | `/upload`, `/review`, `/my-buildings/*` |
-| `UPLOADER` | Home, Highlighted, Projects, Compare, Upload Data; My Buildings in mock mode | `/review` |
-| `AUDITOR` | Home, Highlighted, Projects, Compare, Review | `/upload`, `/my-buildings/*` |
+| `VIEWER` | Home, Highlighted, Projects, Compare | `/upload`, `/review` |
+| `UPLOADER` | Home, Highlighted, Projects, Compare, Upload Data | `/review` |
+| `AUDITOR` | Home, Highlighted, Projects, Compare, Review | `/upload` |
 
-In real mode, the backend authenticates with an HttpOnly cookie and enforces its existing API permissions. Refresh after login should retain the authenticated user; logout returns to `/login`; protected routes redirect to `/login` when signed out; wrong-role routes show Access Denied. Mock persona selection and frontend route guards do not replace backend authorisation.
+The backend authenticates with an HttpOnly cookie and enforces its existing API permissions. With `ACCOUNT_SELECT_LOGIN=true` (demo only; refused when `ENVIRONMENT=production`) the login page shows a dropdown of active accounts and signs in without a password; otherwise it shows email and password. Refresh after login should retain the authenticated user; logout returns to `/login`; protected routes redirect to `/login` when signed out; wrong-role routes show Access Denied. Frontend route guards do not replace backend authorisation.
 
 ## API Contract
 

@@ -12,7 +12,7 @@ const { project, getProjectCatalogue, getMetricHistory } = vi.hoisted(() => {
   };
 });
 
-vi.mock("../services/dataService.js", () => ({ isMockMode: false, getProjectCatalogue, getMetricHistory }));
+vi.mock("../services/dataService.js", () => ({ getProjectCatalogue, getMetricHistory }));
 
 import { getComparisonSnapshot } from "../services/comparisonService.js";
 

@@ -26,7 +26,7 @@ fi
 set -a; . "$ENV_FILE"; set +a
 
 echo "==> Building frontend (API served same-origin under /api)"
-VITE_API_BASE_URL=/api VITE_DATA_MODE=real npm run build >/dev/null
+VITE_API_BASE_URL=/api npm run build >/dev/null
 
 echo "==> Starting PostgreSQL, API (S3 evidence) and nginx"
 "${COMPOSE[@]}" up -d --build
@@ -34,7 +34,6 @@ echo "==> Starting PostgreSQL, API (S3 evidence) and nginx"
 echo "==> Migrating and seeding"
 "${COMPOSE[@]}" exec -T api alembic upgrade head
 "${COMPOSE[@]}" exec -T api python -m backend.app.scripts.seed_auth
-"${COMPOSE[@]}" exec -T api python -m backend.app.scripts.seed_benchmarks
 "${COMPOSE[@]}" exec -T api python -m backend.app.scripts.setup_storage
 
 echo "==> Readiness"
@@ -47,7 +46,7 @@ cat <<EOF
 
 GreenChain is running. Teammates on the same network open:
     $FRONTEND_ORIGIN
-Accounts: viewer@ / uploader@ / auditor@greenchain.test (password: DEV_SEED_PASSWORD in $ENV_FILE)
+Sign in by choosing an account from the dropdown (no password; demo only).
 Every upload is stored in s3://$S3_BUCKET/${S3_KEY_PREFIX:-}... with $S3_OBJECT_LOCK_MODE retention for $S3_RETENTION_DAYS day(s).
 Stop with: ./deploy/demo_up.sh down
 EOF

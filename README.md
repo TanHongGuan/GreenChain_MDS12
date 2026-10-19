@@ -451,6 +451,10 @@ docker compose -f docker-compose.prod.yml exec api alembic upgrade head
 
 `docker-compose.yml` (PostgreSQL only) is still the local development stack.
 
+### Shared demo stack with S3 Object Lock evidence
+
+To let teammates upload from their own laptops into the S3 Object Lock bucket, run one shared stack on a host machine: `./deploy/demo_up.sh` (overlays `docker-compose.s3.yml` and `docker-compose.lan.yml` on the production file; nginx serves the API same-origin under `/api`). Setup, limits and verification: `docs/SHARED_DEMO_BACKEND.md`.
+
 ### Deployment smoke test
 
 ```bash

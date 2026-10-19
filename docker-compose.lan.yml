@@ -1,0 +1,13 @@
+# Overlay: serve the stack to teammates on the same Wi-Fi over plain HTTP, for demos.
+#
+# docker-compose.prod.yml deliberately refuses non-HTTPS origins and non-Secure cookies.
+# Browsers will not send a Secure cookie over http://, so a LAN address such as
+# http://192.168.1.20:8080 cannot log in under production settings. This overlay runs the
+# API in development mode with non-Secure cookies. Use it only on a trusted network for a
+# demo; a real deployment must use HTTPS with docker-compose.prod.yml unchanged.
+services:
+  api:
+    environment:
+      ENVIRONMENT: development
+      COOKIE_SECURE: "false"
+      DEV_SEED_PASSWORD: ${DEV_SEED_PASSWORD:?set DEV_SEED_PASSWORD}

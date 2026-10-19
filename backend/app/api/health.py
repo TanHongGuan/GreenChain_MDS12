@@ -17,6 +17,7 @@ from fastapi import Depends
 
 from backend.app.core.config import get_settings
 from backend.app.core.database import get_db
+from backend.app.storage.dependencies import get_storage_service
 
 router = APIRouter(tags=["health"])
 
@@ -47,6 +48,17 @@ def readiness(response: Response, db: Session = Depends(get_db)) -> dict:
         # is deliberately not echoed to an unauthenticated caller.
         checks["database"] = "unavailable"
         ready = False
+
+    settings = get_settings()
+    if settings.storage_backend.strip().lower() == "s3":
+        # A missing bucket, versioning or Object Lock would otherwise only surface on the first
+        # upload. Like the database check, the error text (bucket, account, ARN) is not echoed.
+        try:
+            get_storage_service().initialise()
+            checks["evidence_storage"] = "ok"
+        except Exception:
+            checks["evidence_storage"] = "unavailable"
+            ready = False
 
     if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE

@@ -9,7 +9,10 @@ from backend.app.storage.local import LocalStorageService
 def build_s3_client(settings: Settings):
     import boto3
 
-    return boto3.client("s3", region_name=settings.aws_region, endpoint_url=settings.s3_endpoint_url or None)
+    # pydantic reads AWS_PROFILE from .env, but boto3 only sees the process environment, so the
+    # profile is passed explicitly rather than relying on it being exported.
+    session = boto3.Session(profile_name=settings.aws_profile or None)
+    return session.client("s3", region_name=settings.aws_region, endpoint_url=settings.s3_endpoint_url or None)
 
 
 def build_s3_storage(settings: Settings, client=None) -> StorageService:

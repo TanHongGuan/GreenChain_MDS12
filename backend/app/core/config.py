@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     # here: boto3 resolves them from the standard chain (AWS_PROFILE, ~/.aws, or an IAM role).
     s3_bucket: str | None = Field(default=None, alias="S3_BUCKET")
     aws_region: str = Field(default="ap-southeast-1", alias="AWS_REGION")
+    # Named profile from ~/.aws (credentials stay there, never in .env). Empty means boto3's default
+    # chain: environment variables, the default profile, or an attached IAM role.
+    aws_profile: str | None = Field(default=None, alias="AWS_PROFILE")
     s3_endpoint_url: str | None = Field(default=None, alias="S3_ENDPOINT_URL")
     s3_key_prefix: str = Field(default="", alias="S3_KEY_PREFIX")
     s3_object_lock_mode: str = Field(default="GOVERNANCE", alias="S3_OBJECT_LOCK_MODE")

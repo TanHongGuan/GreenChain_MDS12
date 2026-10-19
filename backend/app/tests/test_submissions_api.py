@@ -320,3 +320,41 @@ def test_missing_evidence_returns_safe_404(client: TestClient, session_factory, 
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "EVIDENCE_NOT_FOUND"
+
+
+def test_original_download_reports_verified_digest(client: TestClient, session_factory, storage) -> None:
+    original_bytes = b"metric_name,value,unit,category\nElectricity,120.5,kWh,Energy\n"
+    submission_id = seed_submission(session_factory, storage, original_bytes=original_bytes)
+    login(client, "viewer@greenchain.test")
+
+    response = client.get(f"/submissions/{submission_id}/evidence/original")
+
+    assert response.status_code == 200
+    assert response.headers["x-evidence-integrity"] == "MATCH"
+    assert response.headers["x-evidence-sha256"] == calculate_sha256(BytesIO(original_bytes))
+
+
+def test_tampered_original_is_not_served(client: TestClient, session_factory, storage) -> None:
+    submission_id = seed_submission(session_factory, storage)
+    with session_factory() as db:
+        storage._path_for_key(db.get(Submission, submission_id).original_storage_key).write_bytes(b"tampered")
+    login(client, "viewer@greenchain.test")
+
+    response = client.get(f"/submissions/{submission_id}/evidence/original")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "EVIDENCE_INTEGRITY_MISMATCH"
+
+
+def test_detail_exposes_storage_version_fields(client: TestClient, session_factory, storage) -> None:
+    submission_id = seed_submission(session_factory, storage)
+    login(client, "viewer@greenchain.test")
+
+    original = client.get(f"/submissions/{submission_id}").json()["submission"]["evidence"]["original"]
+
+    assert original["storage_backend"] == "local"
+    assert original["version_id"] is None
+    assert original["retention_mode"] is None
+    assert original["integrity"]["status"] == "MATCH"
+    assert original["integrity"]["trusted_reference"] == "DATABASE_ONLY"
+    assert original["integrity"]["algorithm"] == "SHA-256"

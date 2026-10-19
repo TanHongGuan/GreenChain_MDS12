@@ -15,6 +15,7 @@ from backend.app.storage.base import StorageService
 from backend.app.storage.dependencies import get_storage_service
 from backend.app.storage.models import ACCEPTED_UPLOAD_EXTENSIONS
 from backend.app.submissions.errors import (
+    EvidenceIntegrityMismatch,
     EvidenceNotFound,
     InvalidArtifactType,
     ProjectNotFound,
@@ -147,8 +148,14 @@ def _serialize_integrity(integrity: IntegrityResult | None) -> dict | None:
         status_label = "MATCH" if integrity.matches else "MISMATCH"
     return {
         "status": status_label,
+        "algorithm": "SHA-256",
         "expected_sha256": integrity.expected_hash,
         "actual_sha256": integrity.actual_hash,
+        "storage_sha256": integrity.storage_hash,
+        "trusted_reference": integrity.trusted_reference,
+        "version_id": integrity.version_id,
+        "checked_at": integrity.checked_at.isoformat() if integrity.checked_at else None,
+        "reason": integrity.reason,
         "matches": integrity.matches,
     }
 
@@ -162,6 +169,9 @@ def _serialize_evidence(metadata: EvidenceMetadata) -> dict:
         "size_bytes": metadata.size_bytes,
         "storage_backend": metadata.storage_backend,
         "sha256": metadata.sha256,
+        "version_id": metadata.version_id,
+        "retention_mode": metadata.retention_mode,
+        "retain_until": metadata.retain_until.isoformat() if metadata.retain_until else None,
         "integrity": _serialize_integrity(metadata.integrity),
     }
 
@@ -263,10 +273,18 @@ def submission_evidence(
         raise api_error(status.HTTP_404_NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission was not found.") from exc
     except EvidenceNotFound as exc:
         raise api_error(status.HTTP_404_NOT_FOUND, "EVIDENCE_NOT_FOUND", "Evidence file is not available.") from exc
+    except EvidenceIntegrityMismatch as exc:
+        raise api_error(
+            status.HTTP_409_CONFLICT,
+            "EVIDENCE_INTEGRITY_MISMATCH",
+            "Evidence failed SHA-256 verification and was not served.",
+        ) from exc
 
     safe_filename = quote(evidence.filename)
-    return Response(
-        content=evidence.content,
-        media_type=evidence.content_type,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}"},
-    )
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}"}
+    if evidence.integrity is not None:
+        headers["X-Evidence-Integrity"] = evidence.integrity.status or ""
+        headers["X-Evidence-SHA256"] = evidence.integrity.actual_hash or ""
+        if evidence.integrity.version_id:
+            headers["X-Evidence-Version-Id"] = evidence.integrity.version_id
+    return Response(content=evidence.content, media_type=evidence.content_type, headers=headers)

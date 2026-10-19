@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 from datetime import datetime
-from io import BytesIO
 
 from sqlalchemy.orm import Session
 
-from backend.app.integrity.hashing import calculate_sha256
+from backend.app.integrity.verification import IntegrityStatus, verify_stored_evidence
 from backend.app.models.review import Review
 from backend.app.models.submission import (
     SUBMISSION_STATUS_APPROVED,
@@ -92,6 +91,11 @@ class IntegrityResult:
     expected_hash: str
     actual_hash: str
     matches: bool
+    status: str | None = None
+    storage_hash: str | None = None
+    trusted_reference: str | None = None
+    version_id: str | None = None
+    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -201,9 +205,13 @@ def decide_submission(
     return DecisionResult(submission_id=submission.id, review_id=review.id, status=decision)
 
 
-def _retrieve_evidence(storage: StorageService, storage_key: str, filename: str) -> EvidenceFile:
+def _retrieve_evidence(
+    storage: StorageService, storage_key: str, version_id: str | None, filename: str
+) -> EvidenceFile:
+    # Auditors may download evidence that fails verification so they can inspect it; the review
+    # detail payload reports the integrity status alongside.
     try:
-        content = storage.retrieve(storage_key)
+        content = storage.retrieve(storage_key, version_id)
     except StorageError as exc:
         raise EvidenceNotFound("Evidence file was not found.") from exc
     return EvidenceFile(filename=filename, content=content)
@@ -211,27 +219,34 @@ def _retrieve_evidence(storage: StorageService, storage_key: str, filename: str)
 
 def get_original_evidence(submission_id: int, *, db: Session, storage: StorageService) -> EvidenceFile:
     submission = _require_submission(db, submission_id)
-    return _retrieve_evidence(storage, submission.original_storage_key, submission.original_filename)
+    return _retrieve_evidence(
+        storage, submission.original_storage_key, submission.original_version_id, submission.original_filename
+    )
 
 
 def get_processed_evidence(submission_id: int, *, db: Session, storage: StorageService) -> EvidenceFile:
     submission = _require_submission(db, submission_id)
     filename = f"processed-{submission.id}-{submission.original_filename}"
-    return _retrieve_evidence(storage, submission.processed_storage_key, filename)
+    return _retrieve_evidence(storage, submission.processed_storage_key, submission.processed_version_id, filename)
 
 
 def verify_original_integrity(submission_id: int, *, db: Session, storage: StorageService) -> IntegrityResult:
     submission = _require_submission(db, submission_id)
-    try:
-        content = storage.retrieve(submission.original_storage_key)
-    except StorageError as exc:
-        raise EvidenceNotFound("Original evidence file was not found.") from exc
+    check = verify_stored_evidence(
+        storage, submission.original_storage_key, submission.original_version_id, submission.original_sha256
+    )
+    if check.status == IntegrityStatus.UNAVAILABLE:
+        raise EvidenceNotFound("Original evidence file was not found.")
 
-    actual_hash = calculate_sha256(BytesIO(content))
     return IntegrityResult(
         expected_hash=submission.original_sha256,
-        actual_hash=actual_hash,
-        matches=actual_hash == submission.original_sha256,
+        actual_hash=check.actual_sha256 or "",
+        matches=check.status == IntegrityStatus.MATCH,
+        status=check.status.value,
+        storage_hash=check.storage_sha256,
+        trusted_reference=check.trusted_reference.value if check.trusted_reference else None,
+        version_id=check.version_id,
+        reason=check.reason,
     )
 
 

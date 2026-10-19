@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 from datetime import datetime
-from io import BytesIO
 
 from sqlalchemy.orm import Session
 
 from backend.app.auth.models import AuthUser
-from backend.app.integrity.hashing import calculate_sha256
+from backend.app.integrity.verification import IntegrityCheck, IntegrityStatus, verify_bytes, verify_stored_evidence
 from backend.app.models.review import Review
 from backend.app.models.submission import Submission
 from backend.app.repositories.projects import get_project_by_id
@@ -61,6 +60,12 @@ class IntegrityResult:
     expected_hash: str
     actual_hash: str | None
     matches: bool | None
+    status: str | None = None
+    storage_hash: str | None = None
+    trusted_reference: str | None = None
+    version_id: str | None = None
+    checked_at: datetime | None = None
+    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -73,6 +78,9 @@ class EvidenceMetadata:
     storage_backend: str
     sha256: str | None
     integrity: IntegrityResult | None
+    version_id: str | None = None
+    retention_mode: str | None = None
+    retain_until: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -109,6 +117,7 @@ class EvidenceFile:
     filename: str
     content: bytes
     content_type: str
+    integrity: IntegrityResult | None = None
 
 
 def _touch_authorization(current_user: AuthUser) -> None:
@@ -161,53 +170,69 @@ def _uploader_summary(submission: Submission) -> UploaderSummary:
     )
 
 
-def _safe_exists(storage: StorageService, storage_key: str) -> bool:
-    try:
-        return storage.exists(storage_key)
-    except (InvalidStorageKey, StorageError):
-        return False
+def _to_integrity_result(check: IntegrityCheck) -> IntegrityResult:
+    return IntegrityResult(
+        expected_hash=check.expected_sha256 or "",
+        actual_hash=check.actual_sha256,
+        matches=check.matches,
+        status=check.status.value,
+        storage_hash=check.storage_sha256,
+        trusted_reference=check.trusted_reference.value if check.trusted_reference else None,
+        version_id=check.version_id,
+        checked_at=check.checked_at,
+        reason=check.reason,
+    )
 
 
 def _metadata_from_storage(
     storage: StorageService,
     *,
     artifact_type: str,
+    storage_backend: str,
     storage_key: str,
+    version_id: str | None,
     filename: str,
     content_type: str,
     sha256: str | None = None,
+    retention_mode: str | None = None,
+    retain_until: datetime | None = None,
     verify_integrity: bool = False,
 ) -> EvidenceMetadata:
-    if not _safe_exists(storage, storage_key):
+    def unavailable() -> EvidenceMetadata:
         return EvidenceMetadata(
             artifact_type=artifact_type,
             available=False,
             filename=filename,
             content_type=content_type,
             size_bytes=None,
-            storage_backend="local",
+            storage_backend=storage_backend,
             sha256=sha256,
             integrity=None,
+            version_id=version_id,
+            retention_mode=retention_mode,
+            retain_until=retain_until,
         )
 
     try:
-        content = storage.retrieve(storage_key)
-    except StorageError:
-        return EvidenceMetadata(
-            artifact_type=artifact_type,
-            available=False,
-            filename=filename,
-            content_type=content_type,
-            size_bytes=None,
-            storage_backend="local",
-            sha256=sha256,
-            integrity=None,
-        )
+        content = storage.retrieve(storage_key, version_id)
+    except (InvalidStorageKey, StorageError):
+        return unavailable()
 
     integrity = None
     if verify_integrity and sha256:
-        actual_hash = calculate_sha256(BytesIO(content))
-        integrity = IntegrityResult(expected_hash=sha256, actual_hash=actual_hash, matches=actual_hash == sha256)
+        try:
+            storage_sha256 = storage.describe(storage_key, version_id).sha256
+        except StorageError:
+            storage_sha256 = None
+        integrity = _to_integrity_result(
+            verify_bytes(
+                content,
+                expected_sha256=sha256,
+                storage_sha256=storage_sha256,
+                storage_key=storage_key,
+                version_id=version_id,
+            )
+        )
 
     return EvidenceMetadata(
         artifact_type=artifact_type,
@@ -215,9 +240,12 @@ def _metadata_from_storage(
         filename=filename,
         content_type=content_type,
         size_bytes=len(content),
-        storage_backend="local",
+        storage_backend=storage_backend,
         sha256=sha256,
         integrity=integrity,
+        version_id=version_id,
+        retention_mode=retention_mode,
+        retain_until=retain_until,
     )
 
 
@@ -248,18 +276,28 @@ def _evidence_metadata(submission: Submission, db: Session, storage: StorageServ
     original = _metadata_from_storage(
         storage,
         artifact_type=ARTIFACT_ORIGINAL,
+        storage_backend=submission.storage_backend,
         storage_key=submission.original_storage_key,
+        version_id=submission.original_version_id,
         filename=submission.original_filename,
         content_type="application/octet-stream",
         sha256=submission.original_sha256,
+        retention_mode=submission.original_retention_mode,
+        retain_until=submission.original_retain_until,
         verify_integrity=True,
     )
     processed = _metadata_from_storage(
         storage,
         artifact_type=ARTIFACT_PROCESSED,
+        storage_backend=submission.storage_backend,
         storage_key=submission.processed_storage_key,
+        version_id=submission.processed_version_id,
         filename=f"processed-{submission.id}-{submission.original_filename}",
         content_type="text/csv",
+        sha256=submission.processed_sha256,
+        retention_mode=submission.processed_retention_mode,
+        retain_until=submission.processed_retain_until,
+        verify_integrity=True,
     )
     audit_available = review is not None
     audit = EvidenceMetadata(
@@ -325,17 +363,48 @@ def get_submission_detail(submission_id: int, current_user: AuthUser, *, db: Ses
 def verify_original_integrity(submission_id: int, current_user: AuthUser, *, db: Session, storage: StorageService) -> IntegrityResult:
     _touch_authorization(current_user)
     submission = _require_submission(db, submission_id)
-    try:
-        content = storage.retrieve(submission.original_storage_key)
-    except StorageError as exc:
-        raise EvidenceNotFound("Original evidence file was not found.") from exc
-
-    actual_hash = calculate_sha256(BytesIO(content))
-    return IntegrityResult(
-        expected_hash=submission.original_sha256,
-        actual_hash=actual_hash,
-        matches=actual_hash == submission.original_sha256,
+    check = verify_stored_evidence(
+        storage, submission.original_storage_key, submission.original_version_id, submission.original_sha256
     )
+    if check.status == IntegrityStatus.UNAVAILABLE:
+        raise EvidenceNotFound("Original evidence file was not found.")
+    return _to_integrity_result(check)
+
+
+def _verified_evidence_file(
+    storage: StorageService,
+    *,
+    label: str,
+    filename: str,
+    content_type: str,
+    storage_key: str,
+    version_id: str | None,
+    expected_sha256: str | None,
+) -> EvidenceFile:
+    """Retrieve one exact evidence version and refuse to serve it if it fails verification."""
+    try:
+        content = storage.retrieve(storage_key, version_id)
+    except StorageError as exc:
+        raise EvidenceNotFound(f"{label} evidence file was not found.") from exc
+
+    integrity = None
+    if expected_sha256:
+        try:
+            storage_sha256 = storage.describe(storage_key, version_id).sha256
+        except StorageError:
+            storage_sha256 = None
+        check = verify_bytes(
+            content,
+            expected_sha256=expected_sha256,
+            storage_sha256=storage_sha256,
+            storage_key=storage_key,
+            version_id=version_id,
+        )
+        if check.status == IntegrityStatus.MISMATCH:
+            raise EvidenceIntegrityMismatch(f"{label} evidence failed SHA-256 verification.")
+        integrity = _to_integrity_result(check)
+
+    return EvidenceFile(filename=filename, content=content, content_type=content_type, integrity=integrity)
 
 
 def ensure_integrity(result: IntegrityResult) -> IntegrityResult:
@@ -360,24 +429,26 @@ def get_evidence(
     submission = _require_submission(db, submission_id)
 
     if clean_type == ARTIFACT_ORIGINAL:
-        try:
-            return EvidenceFile(
-                filename=submission.original_filename,
-                content=storage.retrieve(submission.original_storage_key),
-                content_type="application/octet-stream",
-            )
-        except StorageError as exc:
-            raise EvidenceNotFound("Original evidence file was not found.") from exc
+        return _verified_evidence_file(
+            storage,
+            label="Original",
+            filename=submission.original_filename,
+            content_type="application/octet-stream",
+            storage_key=submission.original_storage_key,
+            version_id=submission.original_version_id,
+            expected_sha256=submission.original_sha256,
+        )
 
     if clean_type == ARTIFACT_PROCESSED:
-        try:
-            return EvidenceFile(
-                filename=f"processed-{submission.id}-{submission.original_filename}",
-                content=storage.retrieve(submission.processed_storage_key),
-                content_type="text/csv",
-            )
-        except StorageError as exc:
-            raise EvidenceNotFound("Processed evidence file was not found.") from exc
+        return _verified_evidence_file(
+            storage,
+            label="Processed",
+            filename=f"processed-{submission.id}-{submission.original_filename}",
+            content_type="text/csv",
+            storage_key=submission.processed_storage_key,
+            version_id=submission.processed_version_id,
+            expected_sha256=submission.processed_sha256,
+        )
 
     review = get_review_for_submission(db, submission.id)
     if review is None:

@@ -94,6 +94,11 @@ def _integrity_payload(submission_id: int, db: Session, storage: StorageService)
     return {
         "status": "MATCH" if result.matches else "MISMATCH",
         "sha256": result.expected_hash,
+        "actual_sha256": result.actual_hash,
+        "storage_sha256": result.storage_hash,
+        "trusted_reference": result.trusted_reference,
+        "version_id": result.version_id,
+        "reason": result.reason,
     }
 
 

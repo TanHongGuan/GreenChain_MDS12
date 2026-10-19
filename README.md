@@ -54,15 +54,14 @@ Edit `.env` for your machine. Keep `POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_
 ```env
 FRONTEND_ORIGIN=http://127.0.0.1:5173
 VITE_API_BASE_URL=http://127.0.0.1:8000
+ACCOUNT_SELECT_LOGIN=true
 ```
 
-Optional settings:
+`ACCOUNT_SELECT_LOGIN=true` shows every active database account in a dropdown and signs in without a password. Use it only for a trusted local demo: anyone who can reach the API can select any listed account. The checked-in `.env.example` keeps this disabled, and the backend refuses to start with it enabled in production. Set `ACCOUNT_SELECT_LOGIN=false` to require email and password again; restart the backend after changing this setting.
+
+Optional S3 storage settings:
 
 ```env
-# Login page shows a dropdown of accounts and signs in without a password (local/demo only;
-# the app refuses to start with this in production).
-ACCOUNT_SELECT_LOGIN=true
-
 # Store evidence in the S3 Object Lock bucket instead of ./var/storage (needs AWS access,
 # see step 8). Credentials stay in ~/.aws; never put access keys in .env.
 STORAGE_BACKEND=s3

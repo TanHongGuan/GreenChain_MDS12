@@ -101,6 +101,22 @@ python -m backend.app.scripts.seed_auth
 
 The seed script creates or updates the local development accounts and sets their password from `DEV_SEED_PASSWORD`. Re-running it does not create duplicate users, but it **does update their passwords** to the current setting.
 
+Load the Sprint 8 demonstration benchmark set as well:
+
+```bash
+python -m backend.app.scripts.seed_benchmarks
+```
+
+These are **placeholder figures** attributed to `GreenChain Demo Benchmark Set demo-2026.1`, not to any real standards body. The provider and version are shown beside every comparison in the UI. Replace them with licensed data and bump `SOURCE_VERSION` before showing a comparison outside the project team.
+
+Benchmarks are matched on a project's country and property type, which no earlier sprint collects. Set them explicitly for any project you want benchmarked:
+
+```bash
+python -m backend.app.scripts.set_project_scope "Your Project Name" Malaysia Office
+```
+
+A project without a scope reports `PROJECT_SCOPE_UNKNOWN` rather than being compared against a guessed target.
+
 ### 8. Initialise local storage
 
 With the Python virtual environment active:
@@ -177,6 +193,8 @@ The unchanged `.env.example` value is `change-this-local-password`; `123` is **n
 The original Sprint 1 foundation provided FastAPI authentication/RBAC, PostgreSQL user/organisation persistence, React/Vite login and a local-storage abstraction. The checked-out backend now also has project discovery/catalogue, submissions, sustainability metrics, evidence metadata, highlights and auditor approve/reject endpoints. The frontend supports public project detail, approved-data charts and comparison, upload and review workflows. This is broader than the old Sprint 1-only README description.
 
 The current **mock mode** (`VITE_DATA_MODE=mock`) adds deterministic demo personas, organisation-owned My Buildings, building selection at upload, sustainability submissions and auditor review. Mock records live in browser session storage and never write to the real backend. To use it, set `VITE_DATA_MODE=mock` in `.env`, restart Vite and sign in with a listed persona such as `uploader@demo.greenchain.test`, `auditor@demo.greenchain.test` or `viewer@demo.greenchain.test`; any nonempty demo password works. The frontend also seeds `future-uploader@demo.greenchain.test` and `second-auditor@demo.greenchain.test`. Mock role checks are UX simulation, not backend security.
+
+Sprint 7 home discovery shows Recently Updated, Featured and New Projects sections, each linking into Projects with a preset the catalogue accepts. Sprint 8 adds benchmark comparison and reporting consistency to Project Detail, in both real and mock mode.
 
 **Not integrated:** real-mode company building management; its mock-only service wrappers return 501. Production S3 Object Lock/WORM storage, registration, OAuth and MFA are not implemented here. Certification preparation was removed from the active product scope. Historical Batch 3-6 documents describe discontinued mock experiments and are not current integration requirements; see `docs/CERTIFICATION_PREPARATION_REMOVAL.md`.
 
@@ -265,6 +283,71 @@ Missing, malformed, expired or invalid tokens return `401`.
 
 Returns `204 No Content` and clears the auth cookie.
 
+### `GET /insights/projects/{project_id}/benchmarks`
+
+Sprint 8. Compares each metric's latest **APPROVED** value against the best-matching benchmark. Unreviewed and rejected data are never benchmarked. Any authenticated role may read it.
+
+```json
+{
+  "project": { "project_id": 105, "project_name": "Bukit Civic Annex", "organisation": "Demo Civic Trust",
+               "country": "Malaysia", "property_type": "Office" },
+  "tolerance_percent": 5.0,
+  "comparisons": [
+    { "metric_name": "Electricity", "reporting_period": "2026-Q2", "submission_id": 1112,
+      "value": 90000.0, "unit": "kWh", "direction": "LOWER_IS_BETTER",
+      "benchmark_value": 95000.0, "benchmark_unit": "kWh",
+      "difference_percent": -5.26, "classification": "BETTER_THAN_TARGET", "reason": null,
+      "source": { "provider": "GreenChain Demo Benchmark Set", "source_version": "demo-2026.1", "year": 2026 } }
+  ]
+}
+```
+
+`classification` is `BETTER_THAN_TARGET`, `AT_TARGET`, `WORSE_THAN_TARGET` or `NOT_COMPARABLE`. A value within `tolerance_percent` of the benchmark is `AT_TARGET`.
+
+A metric that cannot be benchmarked is still returned, with a machine-readable `reason`:
+
+| `reason` | Meaning |
+|---|---|
+| `PROJECT_SCOPE_UNKNOWN` | The project has no recorded country/property type. |
+| `NO_BENCHMARK_FOR_SCOPE` | No benchmark published for that scope/metric at or before the reporting year. |
+| `UNIT_MISMATCH` | The reported unit is not the canonical unit and has no documented conversion. |
+| `UNKNOWN_METRIC_DIRECTION` | The metric is not one of the canonical three. |
+| `BENCHMARK_NOT_USABLE` | The benchmark value is zero, so a percentage difference is undefined. |
+| `PERIOD_NOT_PARSEABLE` | The reporting period is not `YYYY-Qn`. |
+
+The UI renders these reasons rather than hiding the metric: a dropped bar and a passing bar look identical to someone scanning.
+
+### `GET /insights/projects/{project_id}/consistency`
+
+Sprint 8. Which metric x period cells have approved data.
+
+```json
+{
+  "project_id": 105,
+  "metrics": ["CO2e", "Electricity", "Water"],
+  "periods": ["2025-Q3", "2025-Q4", "2026-Q1", "2026-Q2"],
+  "cells": [
+    { "metric_name": "CO2e", "reporting_period": "2026-Q1", "state": "MISSING",
+      "value": null, "unit": null, "submission_id": null }
+  ],
+  "approved_cells": 11, "total_cells": 12, "approved_coverage_percent": 91.67
+}
+```
+
+`state` is `APPROVED`, `UNREVIEWED` or `MISSING`. `approved_coverage_percent` measures **reporting completeness, not sustainability performance** — the raw counts are returned alongside it so the UI can say so.
+
+### Canonical metrics
+
+Both insights endpoints resolve metric names and units through `backend/app/benchmarks/canonical.py`, the server-side mirror of `CORE_METRICS` in `src/utils/metrics.js`. **Change both together.**
+
+| Metric | Accepted names | Canonical unit | Accepted conversions |
+|---|---|---|---|
+| Electricity | `Electricity`, `electricity_consumption` | `kWh` | none |
+| Water | `Water`, `water_consumption` | `m3` | none |
+| CO2e | `CO2e`, `CO2 Emissions`, `carbon_emissions` | `tCO2e` | `kgCO2e` x 0.001 |
+
+No other conversion is applied. An unrecognised unit is reported as `UNIT_MISMATCH` rather than converted on an assumed factor.
+
 ## Frontend API Usage
 
 Credentialed auth requests must include browser credentials:
@@ -323,6 +406,71 @@ stored_file = storage.store_original(upload.file, upload.filename, upload.conten
 ```
 
 `StoredFile` contains `storage_key`, `original_filename`, `size_bytes`, `content_type` and `storage_backend`. Runtime contents under `var/storage/original/` and `var/storage/processed/` are ignored by Git; only `var/storage/.gitkeep` is tracked. SHA-256/evidence metadata does **not** by itself establish immutable or WORM storage. S3/Object Lock integration is future work.
+
+## Deployment and Operations (Sprint 9)
+
+### Health endpoints
+
+Both are unauthenticated: a load balancer cannot log in, and neither exposes user or project data.
+
+| Endpoint | Answers | Use it for |
+|---|---|---|
+| `GET /health` | Is the process alive? No dependencies checked. | Container restart policy |
+| `GET /health/ready` | Can it reach PostgreSQL? Returns **503** with `{"checks":{"database":"unavailable"}}` if not. | Deploy gate, rolling update readiness |
+
+Keep them separate. If a restart probe also checks the database, a database outage looks like a dead process and the orchestrator restarts a perfectly healthy container in a loop.
+
+### Production configuration is enforced at startup
+
+With `ENVIRONMENT=production`, the app **refuses to boot** on any of these, reporting all problems at once rather than one per restart:
+
+- `JWT_SECRET` left at its development default, or shorter than 32 characters
+- `COOKIE_SECURE` not `true` (the session cookie would travel over plain HTTP)
+- `FRONTEND_ORIGIN` set to `*` (invalid with credentialed CORS), using `http://`, or pointing at localhost
+- `DATABASE_URL` still containing the shipped development password
+
+These are cheap to check at boot and expensive to discover in production, where a misconfigured deploy looks healthy and is silently insecure.
+
+### Running the production-shaped stack
+
+```bash
+npm run build                      # produces dist/, which nginx serves
+export POSTGRES_DB=greenchain POSTGRES_USER=greenchain POSTGRES_PASSWORD='<strong>'
+export JWT_SECRET="$(openssl rand -hex 32)"
+export FRONTEND_ORIGIN=https://your-host
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec api alembic upgrade head
+```
+
+`docker-compose.prod.yml` defaults nothing — a missing variable fails immediately instead of deploying a development value. Evidence is stored on the `greenchain_evidence` volume; **anything written inside the container is lost on the next deploy**.
+
+`docker-compose.yml` (PostgreSQL only) is still the local development stack.
+
+### Deployment smoke test
+
+```bash
+./deploy/smoke_test.sh http://localhost:8000 "$DEV_SEED_PASSWORD"
+```
+
+22 checks covering the full acceptance journey plus the negative paths: health, anonymous access denied, role boundaries enforced, malformed and oversized uploads rejected, upload → `UNREVIEWED` → approve → approved metrics visible → insights. It exits non-zero on the first failure, so it can gate a deploy. It is safe to run repeatedly; each run creates its own submission.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs three independent jobs so a red tick names the layer that broke:
+
+| Job | What it proves |
+|---|---|
+| `backend` | `pytest` against SQLite fixtures |
+| `migrations` | The chain upgrades, downgrades one revision and re-upgrades **against real PostgreSQL**, then both seed scripts run. Migration `0004` uses ALTER-constraint operations SQLite cannot execute, so this is the only place the chain is genuinely proven. |
+| `frontend` | `vitest` and a production build |
+
+### Handover notes
+
+- **Python 3.12 or newer.** The codebase uses syntax that 3.10 (the macOS default) cannot parse. CI and the Docker image both pin 3.12.
+- **Seed scripts are idempotent.** Re-running `seed_auth` updates existing users' passwords to the current `DEV_SEED_PASSWORD`; `seed_benchmarks` reports `0 new rows` on a second run.
+- **Benchmark data is placeholder.** Attributed to `GreenChain Demo Benchmark Set demo-2026.1`, never to a real standards body. Replace before any external claim.
+- **Storage is local filesystem only.** S3 Object Lock / WORM is separate in-progress work behind the same `StorageService` protocol.
+- **Known gap — no tenant isolation.** `POST /submissions` accepts a caller-supplied organisation name with no membership check, and the auditor queue is global. Role boundaries are enforced; organisation boundaries are not. Do not run multi-organisation data on this until that is closed.
 
 ## Useful Development Commands
 

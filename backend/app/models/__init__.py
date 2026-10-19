@@ -1,3 +1,4 @@
+from backend.app.models.benchmark import Benchmark
 from backend.app.models.metric import Metric
 from backend.app.models.highlighted_project import HighlightedProject
 from backend.app.models.organisation import Organisation
@@ -8,6 +9,7 @@ from backend.app.models.submission import Submission
 from backend.app.models.user import User
 
 __all__ = [
+    "Benchmark",
     "HighlightedProject",
     "Metric",
     "Organisation",

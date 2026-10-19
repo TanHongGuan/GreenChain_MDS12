@@ -3,6 +3,7 @@ import * as realProjects from "../api/projectsApi.js";
 import * as realDiscovery from "../api/discoveryApi.js";
 import * as realSubmissions from "../api/submissionsApi.js";
 import * as realReviews from "../api/reviewsApi.js";
+import * as realInsights from "../api/insightsApi.js";
 import * as mock from "../mocks/mockService.js";
 import { clearDemoUser, currentDemoUser, findDemoUserByEmail, setDemoUser } from "../mocks/identity.js";
 
@@ -64,5 +65,7 @@ export const decideSubmission = choose(mock.decideSubmission, realReviews.decide
 export const getHighlightedProjects = choose(mock.getHighlightedProjects, realDiscovery.getHighlightedProjects);
 export const addHighlightedProject = choose(mock.addHighlightedProject, realDiscovery.addHighlightedProject);
 export const removeHighlightedProject = choose(mock.removeHighlightedProject, realDiscovery.removeHighlightedProject);
+export const getProjectBenchmarks = choose(mock.getProjectBenchmarks, realInsights.getProjectBenchmarks);
+export const getProjectConsistency = choose(mock.getProjectConsistency, realInsights.getProjectConsistency);
 export const getSubmissionEvidenceUrl = choose(mock.getSubmissionEvidenceUrl, realSubmissions.getSubmissionEvidenceUrl);
 export const evidenceUrl = (path) => isMockMode ? null : realReviews.evidenceUrl(path);

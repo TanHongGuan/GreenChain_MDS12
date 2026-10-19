@@ -1,7 +1,7 @@
 import { DEMO_ORGANISATIONS, DEMO_USERS } from "./identity.js";
 
 export const MOCK_STORAGE_KEY = "greenchain-demo-v1";
-export const MOCK_SCHEMA_VERSION = 5;
+export const MOCK_SCHEMA_VERSION = 6;
 const comparisonProjects = [
   { project_id: 105, project_name: "Bukit Civic Annex", organisation: "Demo Civic Trust", location: "Kuala Lumpur" },
   { project_id: 106, project_name: "Taman Skills Hub", organisation: "Demo Civic Trust", location: "Selangor" },
@@ -28,6 +28,26 @@ const comparisonSubmissions = Object.entries(comparisonValues).flatMap(([project
     return [{ submission_id: 1100 + buildingIndex * 4 + quarterIndex, project_id: Number(projectId), reporting_period: comparisonPeriods[quarterIndex], status, submitted_at: `${2025 + Math.floor((quarterIndex + 3) / 4)}-${String(((quarterIndex + 3) % 4) * 3 + 1).padStart(2, "0")}-15T09:00:00Z`, metrics }];
   }),
 );
+// Sprint 8 demo benchmarks. These mirror backend/app/scripts/seed_benchmarks.py:
+// clearly fictional placeholder targets attributed to an internal demo provider,
+// never to a real standards body. Values are in each metric's canonical unit.
+const DEMO_BENCHMARK_SOURCE = {
+  provider: "GreenChain Demo Benchmark Set",
+  source_name: "Illustrative placeholder targets for MVP demonstration",
+  source_version: "demo-2026.1",
+  source_url: null,
+};
+const demoBenchmarks = [
+  ["Malaysia", "Office", 2026, "Electricity", "kWh", 95000],
+  ["Malaysia", "Office", 2026, "Water", "m3", 3300],
+  ["Malaysia", "Office", 2026, "CO2e", "tCO2e", 50],
+  ["Malaysia", "Office", 2025, "Electricity", "kWh", 99000],
+  ["Malaysia", "Office", 2025, "Water", "m3", 3450],
+  ["Malaysia", "Office", 2025, "CO2e", "tCO2e", 53],
+].map(([country, property_type, year, metric_name, unit, value]) => ({
+  ...DEMO_BENCHMARK_SOURCE, country, property_type, year, metric_name, unit, value,
+}));
+
 const seed = {
   schemaVersion: MOCK_SCHEMA_VERSION,
   organisations: DEMO_ORGANISATIONS.map((organisation) => ({ ...organisation })),
@@ -52,6 +72,7 @@ const seed = {
     { submission_id: 1007, project_id: 104, reporting_period: "2026-Q1", status: "APPROVED", submitted_at: "2026-04-15T09:00:00Z", metrics: [{ metric_name: "Electricity", value: 54200, unit: "kWh" }, { metric_name: "Water", value: 1880, unit: "m3" }, { metric_name: "CO2e", value: 27, unit: "tCO2e" }] },
     ...comparisonSubmissions,
   ],
+  benchmarks: demoBenchmarks,
   highlights: {},
   nextProjectId: 109,
   nextSubmissionId: 1116,
@@ -59,6 +80,10 @@ const seed = {
 seed.projects = seed.projects.map((project) => ({
   ...project,
   organisation_id: DEMO_ORGANISATIONS.find((organisation) => organisation.name === project.organisation)?.id || null,
+  // Project 104 deliberately has no scope, so the "no benchmark can be matched"
+  // path is visible in the demo rather than only in tests.
+  country: project.project_id === 104 ? null : "Malaysia",
+  property_type: project.project_id === 104 ? null : "Office",
 }));
 
 function copy(value) { return JSON.parse(JSON.stringify(value)); }
@@ -78,13 +103,19 @@ function migrateStore(value) {
     users: DEMO_USERS.map((user) => ({ ...user })),
     assignments: Array.isArray(value.assignments) ? value.assignments : copy(seed.assignments),
     highlights: value.highlights && typeof value.highlights === "object" && !Array.isArray(value.highlights) ? value.highlights : {},
+    benchmarks: Array.isArray(value.benchmarks) && value.benchmarks.length ? value.benchmarks : copy(demoBenchmarks),
   };
   delete migrated.preparations;
   delete migrated.preparationAssignments;
   delete migrated.preparationReviews;
   delete migrated.nextPreparationId;
   delete migrated.nextPreparationReviewId;
-  migrated.projects = value.projects.map((project) => ({ ...project, organisation_id: project.organisation_id || organisationId(project.organisation) }));
+  migrated.projects = value.projects.map((project) => ({
+    ...project,
+    organisation_id: project.organisation_id || organisationId(project.organisation),
+    country: project.country === undefined ? (project.project_id === 104 ? null : "Malaysia") : project.country,
+    property_type: project.property_type === undefined ? (project.project_id === 104 ? null : "Office") : project.property_type,
+  }));
   for (const project of migrated.projects) {
     if (project.organisation_id && !migrated.organisations.some((item) => item.id === project.organisation_id)) {
       migrated.organisations.push({ id: project.organisation_id, name: project.organisation });

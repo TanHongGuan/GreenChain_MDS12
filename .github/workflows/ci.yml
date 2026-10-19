@@ -1,0 +1,77 @@
+name: CI
+
+# Sprint 9 regression gate. Three independent jobs so a failure names the layer
+# that broke rather than one red tick covering everything.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Run pytest
+        # The suite builds its own SQLite fixtures, so no database service is
+        # needed here. Migrations are exercised separately against Postgres.
+        run: python -m pytest backend/app/tests -q
+
+  migrations:
+    name: Migrations against PostgreSQL
+    runs-on: ubuntu-latest
+    # Migration 0004 uses ALTER-constraint operations that SQLite cannot run, so
+    # the chain is only ever proven against the database it actually targets.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: greenchain_ci
+          POSTGRES_USER: greenchain
+          POSTGRES_PASSWORD: ci-password
+        options: >-
+          --health-cmd "pg_isready -U greenchain -d greenchain_ci"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+        ports: ["5432:5432"]
+    env:
+      DATABASE_URL: postgresql+psycopg://greenchain:ci-password@localhost:5432/greenchain_ci
+      JWT_SECRET: ci-only-secret
+      DEV_SEED_PASSWORD: ci-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Upgrade to head
+        run: python -m alembic upgrade head
+      - name: Downgrade one revision and re-upgrade
+        # Proves the newest migration is reversible, which is what makes a bad
+        # deploy recoverable.
+        run: |
+          python -m alembic downgrade -1
+          python -m alembic upgrade head
+      - name: Seed scripts run against a real schema
+        run: |
+          python -m backend.app.scripts.seed_auth
+          python -m backend.app.scripts.seed_benchmarks
+
+  frontend:
+    name: Frontend tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run
+      - run: npm run build

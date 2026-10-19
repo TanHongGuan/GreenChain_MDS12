@@ -15,6 +15,11 @@ class Project(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Benchmark-scope attributes (Sprint 8). Nullable because projects created before
+    # Sprint 8, or uploaded without them, legitimately have no known scope - and an
+    # unknown scope must suppress the comparison rather than guess one.
+    country: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    property_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
     organisation_id: Mapped[str] = mapped_column(
         ForeignKey("organisations.id", ondelete="RESTRICT"), nullable=False
     )

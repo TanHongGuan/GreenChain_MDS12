@@ -1,0 +1,16 @@
+.git
+.github
+node_modules
+dist
+.venv
+var/storage
+__pycache__
+**/__pycache__
+*.pyc
+.env
+.pytest_cache
+src
+public
+test_datasets
+docs
+*.md

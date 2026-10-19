@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
-import { getProjectDetail, getMetricHistory, isMockMode } from "../services/dataService.js";
+import { getProjectBenchmarks, getProjectConsistency, getProjectDetail, getMetricHistory, isMockMode } from "../services/dataService.js";
 import {
   getProjectSubmissions,
   getSubmissionDetail,
@@ -10,6 +10,8 @@ import {
 
 import { CORE_METRICS, approvedSeries, metricDefinition, normalizedPoint } from "../utils/metrics.js";
 import { PeriodComparison, TrendChart, VerificationChart } from "../components/MetricCharts.jsx";
+import { BenchmarkComparisonChart } from "../components/BenchmarkComparisonChart.jsx";
+import { ConsistencyMatrix } from "../components/ConsistencyMatrix.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { displayDate, displayUnit } from "../utils/display.js";
 
@@ -329,6 +331,12 @@ export function ProjectDetailPage() {
   const [submissionsStatus, setSubmissionsStatus] = useState("loading");
   const [submissionsError, setSubmissionsError] = useState("");
   const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
+  const [benchmarks, setBenchmarks] = useState(null);
+  const [benchmarksStatus, setBenchmarksStatus] = useState("loading");
+  const [benchmarksError, setBenchmarksError] = useState("");
+  const [consistency, setConsistency] = useState(null);
+  const [consistencyStatus, setConsistencyStatus] = useState("loading");
+  const [consistencyError, setConsistencyError] = useState("");
   const [submissionDetail, setSubmissionDetail] = useState(null);
   const [submissionDetailStatus, setSubmissionDetailStatus] = useState("idle");
   const [submissionDetailError, setSubmissionDetailError] = useState("");
@@ -441,6 +449,42 @@ export function ProjectDetailPage() {
     };
   }, [selectedSubmissionId]);
 
+  useEffect(() => {
+    let isMounted = true;
+    setBenchmarksStatus("loading");
+    setConsistencyStatus("loading");
+    setBenchmarksError("");
+    setConsistencyError("");
+
+    getProjectBenchmarks(projectId)
+      .then((payload) => {
+        if (!isMounted) return;
+        setBenchmarks(payload);
+        setBenchmarksStatus("success");
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        setBenchmarksError(error.message || "Unable to load benchmark comparison.");
+        setBenchmarksStatus("error");
+      });
+
+    getProjectConsistency(projectId)
+      .then((payload) => {
+        if (!isMounted) return;
+        setConsistency(payload);
+        setConsistencyStatus("success");
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        setConsistencyError(error.message || "Unable to load reporting consistency.");
+        setConsistencyStatus("error");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [projectId]);
+
   if (detailStatus === "loading") {
     return (
       <section className="page-panel project-detail-page">
@@ -505,6 +549,33 @@ export function ProjectDetailPage() {
       </section>
 
       <VerificationChart submissions={verificationRecords} />
+
+      <section className="insights-section" aria-labelledby="benchmark-heading">
+        <div className="section-heading">
+          <h2 id="benchmark-heading">Performance vs Benchmark</h2>
+          <p>
+            Latest approved value for each metric against a published target for this project&apos;s country and
+            property type. Approval is a GreenChain review outcome, not independent certification.
+          </p>
+        </div>
+        {benchmarksStatus === "loading" && <p>Loading benchmark comparison...</p>}
+        {benchmarksStatus === "error" && (
+          <div className="form-error" role="status">{benchmarksError}</div>
+        )}
+        {benchmarksStatus === "success" && <BenchmarkComparisonChart report={benchmarks} />}
+      </section>
+
+      <section className="insights-section" aria-labelledby="consistency-heading">
+        <div className="section-heading">
+          <h2 id="consistency-heading">Reporting Consistency</h2>
+          <p>Which metrics this project has reported, in which periods, and whether that data passed review.</p>
+        </div>
+        {consistencyStatus === "loading" && <p>Loading reporting consistency...</p>}
+        {consistencyStatus === "error" && (
+          <div className="form-error" role="status">{consistencyError}</div>
+        )}
+        {consistencyStatus === "success" && <ConsistencyMatrix report={consistency} />}
+      </section>
 
       <section className="traceability-section" aria-labelledby="submission-records-heading">
         <div className="section-heading">

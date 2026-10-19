@@ -6,7 +6,12 @@ This repository has a FastAPI/PostgreSQL backend and a React/Vite frontend. The 
 
 ## Quick Start: Run GreenChain Locally
 
-Run commands from the repository root. The default instructions below use the **real API mode**, PostgreSQL and local file storage.
+There are two ways to run GreenChain:
+
+- **A. Local development (steps 1–12 below):** backend and frontend on your own machine, evidence stored on local disk by default (or in the S3 Object Lock bucket if you have AWS access).
+- **B. Shared team demo:** one host machine runs everything in Docker and teammates just open a URL; every upload goes to the S3 Object Lock bucket. See [Shared team demo](#shared-team-demo-one-host-everyone-else-uses-a-browser).
+
+Run commands from the repository root.
 
 ### 1. Install prerequisites
 
@@ -19,15 +24,16 @@ Start Docker Desktop before starting PostgreSQL. Confirm the commands `git`, `py
 
 ### 2. Clone the repository
 
-The configured Git remote is `https://github.com/TanHongGuan/GreenChain_MDS12.git`. The branch inspected for this guide is `codex/building-organisation-compare`, which also exists as a remote-tracking branch:
+The repository is `https://github.com/TanHongGuan/GreenChain_MDS12` and the working branch is `main`:
 
 ```bash
 git clone https://github.com/TanHongGuan/GreenChain_MDS12.git
 cd GreenChain_MDS12
-git switch codex/building-organisation-compare
 ```
 
-Use the `main` branch unless the team says otherwise.
+Already cloned? Update with `git switch main && git pull --ff-only origin main`.
+
+Clone into a normal folder such as `~/Projects`, **not** an iCloud-synced folder (`~/Documents` or `~/Desktop` with iCloud Drive). iCloud offloads files, including Git's own, and Git commands then hang.
 
 ### 3. Configure environment variables
 
@@ -43,12 +49,26 @@ Windows PowerShell:
 Copy-Item .env.example .env
 ```
 
-Edit `.env` for your machine. Keep `POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_PASSWORD` aligned with `DATABASE_URL`; use an explicit port number in `DATABASE_URL`. Set `DEV_SEED_PASSWORD` to the local development password you intend to use. Replace the example `JWT_SECRET` outside throwaway local development. For the URLs and Vite mode in this guide, set:
+Edit `.env` for your machine. Keep `POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_PASSWORD` aligned with `DATABASE_URL`; use an explicit port number in `DATABASE_URL`. Set `DEV_SEED_PASSWORD` to the local development password you intend to use. Replace the example `JWT_SECRET` outside throwaway local development. For the URLs in this guide, set:
 
 ```env
 FRONTEND_ORIGIN=http://127.0.0.1:5173
 VITE_API_BASE_URL=http://127.0.0.1:8000
-VITE_DATA_MODE=real
+```
+
+Optional settings:
+
+```env
+# Login page shows a dropdown of accounts and signs in without a password (local/demo only;
+# the app refuses to start with this in production).
+ACCOUNT_SELECT_LOGIN=true
+
+# Store evidence in the S3 Object Lock bucket instead of ./var/storage (needs AWS access,
+# see step 8). Credentials stay in ~/.aws; never put access keys in .env.
+STORAGE_BACKEND=s3
+S3_BUCKET=greenchain-evidence-test
+AWS_REGION=ap-southeast-1
+AWS_PROFILE=greenchain-dev
 ```
 
 Use the same hostname (`127.0.0.1`) in both URLs so the credentialed frontend requests match the backend CORS origin. The other supplied defaults are `ENVIRONMENT=development`, `JWT_ALGORITHM=HS256`, `JWT_EXPIRE_MINUTES=60`, `COOKIE_SECURE=false`, `POSTGRES_PORT=5432`, `STORAGE_BACKEND=local`, `LOCAL_STORAGE_ROOT=./var/storage` and `MAX_UPLOAD_SIZE_MB=25`. Never commit `.env`; it is Git-ignored. If you change a `VITE_` value, restart the frontend server.
@@ -101,13 +121,13 @@ python -m backend.app.scripts.seed_auth
 
 The seed script creates or updates the local development accounts and sets their password from `DEV_SEED_PASSWORD`. Re-running it does not create duplicate users, but it **does update their passwords** to the current setting.
 
-Load the Sprint 8 demonstration benchmark set as well:
+**Optional, not for real datasets:** load the Sprint 8 demonstration benchmark set:
 
 ```bash
 python -m backend.app.scripts.seed_benchmarks
 ```
 
-These are **placeholder figures** attributed to `GreenChain Demo Benchmark Set demo-2026.1`, not to any real standards body. The provider and version are shown beside every comparison in the UI. Replace them with licensed data and bump `SOURCE_VERSION` before showing a comparison outside the project team.
+Skip this when working with real data. These are **placeholder figures** attributed to `GreenChain Demo Benchmark Set demo-2026.1`, not to any real standards body. The provider and version are shown beside every comparison in the UI. Replace them with licensed data and bump `SOURCE_VERSION` before showing a comparison outside the project team.
 
 Benchmarks are matched on a project's country and property type, which no earlier sprint collects. Set them explicitly for any project you want benchmarked:
 
@@ -125,7 +145,8 @@ With the Python virtual environment active:
 python -m backend.app.scripts.setup_storage
 ```
 
-This prepares and checks `var/storage/original/` and `var/storage/processed/`. It is local filesystem storage, **not** production S3 or WORM storage. With `STORAGE_BACKEND=s3`, the same command instead checks that the configured bucket has versioning and Object Lock enabled; see `docs/STORAGE_S3_OBJECT_LOCK.md`.
+- **Local storage (default, `STORAGE_BACKEND=local`):** prepares and checks `var/storage/original/` and `var/storage/processed/`. This is plain disk storage with no tamper protection.
+- **S3 Object Lock (`STORAGE_BACKEND=s3`):** checks that the bucket is reachable with versioning and Object Lock enabled. Every upload is then stored as a locked S3 version (GOVERNANCE mode). This needs an AWS profile with the evidence-bucket policy; ask the storage owner (Hui Zern) for access. Setup, IAM policy and verification: `docs/STORAGE_S3_OBJECT_LOCK.md`.
 
 ### 9. Start the backend
 
@@ -163,7 +184,9 @@ You should see the GreenChain sign-in page (or be redirected there). `http://127
 
 ### 12. Log in with a development account
 
-For `VITE_DATA_MODE=real`, use one of the accounts seeded in step 7. All three use **the value currently set in your `.env` as `DEV_SEED_PASSWORD`**, not a universal password:
+With `ACCOUNT_SELECT_LOGIN=true`, choose an account from the dropdown and press **Log In**; no password is needed.
+
+Otherwise use email and password with one of the accounts seeded in step 7. All three use **the value currently set in your `.env` as `DEV_SEED_PASSWORD`**, not a universal password:
 
 | Email | Role |
 |---|---|
@@ -172,6 +195,22 @@ For `VITE_DATA_MODE=real`, use one of the accounts seeded in step 7. All three u
 | `auditor@greenchain.test` | AUDITOR |
 
 The unchanged `.env.example` value is `change-this-local-password`; `123` is **not** its default. These are local development accounts only.
+
+Upload data as the uploader (**Upload Data**): CSV or XLSX with columns `metric_name`, `value`, `unit` and optional `category`, one reporting period (for example `2026-Q1`) per file. The auditor approves or rejects it under **Review**; only approved data appears in charts and comparisons.
+
+## Shared team demo: one host, everyone else uses a browser
+
+One machine runs PostgreSQL, the API and the website in Docker; teammates on the same network open the host's address. Every upload from any laptop goes to the host's API, which stores it in the S3 Object Lock bucket. Only the host needs AWS credentials; teammates need nothing installed.
+
+On the host (Docker Desktop running, AWS profile configured):
+
+```bash
+cp deploy/demo.env.example deploy/.env.demo   # fill in secrets, FRONTEND_ORIGIN=http://<host Wi-Fi IP>:8080, AWS_CONFIG_DIR
+./deploy/demo_up.sh                           # build, start, migrate, seed accounts, verify bucket, print URL
+./deploy/demo_up.sh down                      # stop (database and S3 evidence are kept)
+```
+
+Teammates open `http://<host Wi-Fi IP>:8080`, pick an account from the dropdown and press **Log In**. The host must stay awake on the same network; campus Wi-Fi may block laptop-to-laptop traffic (use a phone hotspot if so). Login is passwordless on this stack, so only run it on a trusted network. Full details: `docs/SHARED_DEMO_BACKEND.md`.
 
 ## Common Setup Problems
 
@@ -186,7 +225,11 @@ The unchanged `.env.example` value is `change-this-local-password`; `123` is **n
 | Development account does not exist | Run `python -m backend.app.scripts.seed_auth`. |
 | Development password is rejected | Check `DEV_SEED_PASSWORD` in `.env`, then rerun the seed command; it updates seeded passwords. |
 | Port 8000 or 5173 is unavailable | Stop the conflicting service or choose another port; update the corresponding API URL or `FRONTEND_ORIGIN` and restart affected servers. |
-| Frontend cannot reach backend / cookie login fails | Check both servers, `VITE_API_BASE_URL`, `FRONTEND_ORIGIN`, exact hostname/port match and `VITE_DATA_MODE=real`; restart after `.env` changes. |
+| Frontend cannot reach backend / cookie login fails | Check both servers, `VITE_API_BASE_URL`, `FRONTEND_ORIGIN` and exact hostname/port match; restart after `.env` changes. |
+| "Authentication is required" right after logging in | The page and API are on different hosts (e.g. page on `127.0.0.1`, API on `localhost`), so the browser drops the cookie. Use the same hostname in both URLs. On the shared demo, rerun `./deploy/demo_up.sh` and refresh. |
+| Login shows a password form, not a dropdown | `ACCOUNT_SELECT_LOGIN` is not `true` in the backend's environment; set it and restart the backend. |
+| Git commands hang | The clone is in an iCloud-synced folder; clone again into `~/Projects`. |
+| `evidence_storage: unavailable` in `/health/ready` | S3 bucket unreachable or misconfigured; check `AWS_PROFILE`, `S3_BUCKET`, `AWS_REGION` and run `python -m backend.app.scripts.setup_storage`. |
 
 ## Current Implementation Status
 

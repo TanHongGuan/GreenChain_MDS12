@@ -14,3 +14,9 @@ services:
       # Login page shows a dropdown of accounts and signs in without a password.
       # Anyone who can reach this address can act as any account, including the auditor.
       ACCOUNT_SELECT_LOGIN: "true"
+
+  web:
+    volumes:
+      # Built by deploy/demo_up.sh with VITE_API_BASE_URL=/api. Kept apart from ./dist so a
+      # developer build pointing at localhost:8000 cannot replace the shared site.
+      - ./deploy/.demo-dist:/usr/share/nginx/html:ro

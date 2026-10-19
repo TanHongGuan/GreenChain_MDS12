@@ -26,7 +26,9 @@ fi
 set -a; . "$ENV_FILE"; set +a
 
 echo "==> Building frontend (API served same-origin under /api)"
-VITE_API_BASE_URL=/api npm run build >/dev/null
+# Separate output directory: a routine `npm run build` (which targets the local dev API) must
+# never overwrite what the shared site serves.
+VITE_API_BASE_URL=/api npm run build -- --outDir deploy/.demo-dist --emptyOutDir >/dev/null
 
 echo "==> Starting PostgreSQL, API (S3 evidence) and nginx"
 "${COMPOSE[@]}" up -d --build

@@ -407,6 +407,71 @@ stored_file = storage.store_original(upload.file, upload.filename, upload.conten
 
 `StoredFile` contains `storage_key`, `original_filename`, `size_bytes`, `content_type` and `storage_backend`. Runtime contents under `var/storage/original/` and `var/storage/processed/` are ignored by Git; only `var/storage/.gitkeep` is tracked. SHA-256/evidence metadata does **not** by itself establish immutable or WORM storage. S3/Object Lock integration is future work.
 
+## Deployment and Operations (Sprint 9)
+
+### Health endpoints
+
+Both are unauthenticated: a load balancer cannot log in, and neither exposes user or project data.
+
+| Endpoint | Answers | Use it for |
+|---|---|---|
+| `GET /health` | Is the process alive? No dependencies checked. | Container restart policy |
+| `GET /health/ready` | Can it reach PostgreSQL? Returns **503** with `{"checks":{"database":"unavailable"}}` if not. | Deploy gate, rolling update readiness |
+
+Keep them separate. If a restart probe also checks the database, a database outage looks like a dead process and the orchestrator restarts a perfectly healthy container in a loop.
+
+### Production configuration is enforced at startup
+
+With `ENVIRONMENT=production`, the app **refuses to boot** on any of these, reporting all problems at once rather than one per restart:
+
+- `JWT_SECRET` left at its development default, or shorter than 32 characters
+- `COOKIE_SECURE` not `true` (the session cookie would travel over plain HTTP)
+- `FRONTEND_ORIGIN` set to `*` (invalid with credentialed CORS), using `http://`, or pointing at localhost
+- `DATABASE_URL` still containing the shipped development password
+
+These are cheap to check at boot and expensive to discover in production, where a misconfigured deploy looks healthy and is silently insecure.
+
+### Running the production-shaped stack
+
+```bash
+npm run build                      # produces dist/, which nginx serves
+export POSTGRES_DB=greenchain POSTGRES_USER=greenchain POSTGRES_PASSWORD='<strong>'
+export JWT_SECRET="$(openssl rand -hex 32)"
+export FRONTEND_ORIGIN=https://your-host
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec api alembic upgrade head
+```
+
+`docker-compose.prod.yml` defaults nothing — a missing variable fails immediately instead of deploying a development value. Evidence is stored on the `greenchain_evidence` volume; **anything written inside the container is lost on the next deploy**.
+
+`docker-compose.yml` (PostgreSQL only) is still the local development stack.
+
+### Deployment smoke test
+
+```bash
+./deploy/smoke_test.sh http://localhost:8000 "$DEV_SEED_PASSWORD"
+```
+
+22 checks covering the full acceptance journey plus the negative paths: health, anonymous access denied, role boundaries enforced, malformed and oversized uploads rejected, upload → `UNREVIEWED` → approve → approved metrics visible → insights. It exits non-zero on the first failure, so it can gate a deploy. It is safe to run repeatedly; each run creates its own submission.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs three independent jobs so a red tick names the layer that broke:
+
+| Job | What it proves |
+|---|---|
+| `backend` | `pytest` against SQLite fixtures |
+| `migrations` | The chain upgrades, downgrades one revision and re-upgrades **against real PostgreSQL**, then both seed scripts run. Migration `0004` uses ALTER-constraint operations SQLite cannot execute, so this is the only place the chain is genuinely proven. |
+| `frontend` | `vitest` and a production build |
+
+### Handover notes
+
+- **Python 3.12 or newer.** The codebase uses syntax that 3.10 (the macOS default) cannot parse. CI and the Docker image both pin 3.12.
+- **Seed scripts are idempotent.** Re-running `seed_auth` updates existing users' passwords to the current `DEV_SEED_PASSWORD`; `seed_benchmarks` reports `0 new rows` on a second run.
+- **Benchmark data is placeholder.** Attributed to `GreenChain Demo Benchmark Set demo-2026.1`, never to a real standards body. Replace before any external claim.
+- **Storage is local filesystem only.** S3 Object Lock / WORM is separate in-progress work behind the same `StorageService` protocol.
+- **Known gap — no tenant isolation.** `POST /submissions` accepts a caller-supplied organisation name with no membership check, and the auditor queue is global. Role boundaries are enforced; organisation boundaries are not. Do not run multi-organisation data on this until that is closed.
+
 ## Useful Development Commands
 
 Stop PostgreSQL without removing its Compose volume:

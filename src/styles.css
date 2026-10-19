@@ -1391,6 +1391,12 @@ select:not([multiple]) {
 .chart-legend-note {
   color: #708095;
   font-style: italic;
+  /* A flex item defaults to min-width:auto, so this sentence refuses to shrink
+     below its own length and pushes the page wider than a phone viewport,
+     clipping every paragraph beside it. Let it wrap, and give it its own row
+     once the legend keys no longer leave space. */
+  flex: 1 1 16rem;
+  min-width: 0;
 }
 
 .chart-swatch {
@@ -1505,6 +1511,7 @@ select:not([multiple]) {
   font-size: 0.85rem;
   color: #45586d;
   margin: 0 0 16px;
+  overflow-wrap: anywhere;
 }
 
 .benchmark-excluded {

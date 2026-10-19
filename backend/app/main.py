@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.auth import router as auth_router
 from backend.app.api.discovery import router as discovery_router
+from backend.app.api.health import router as health_router
 from backend.app.api.insights import router as insights_router
 from backend.app.api.projects import router as projects_router
 from backend.app.api.reviews import router as reviews_router
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
+    app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(discovery_router)
     app.include_router(insights_router)

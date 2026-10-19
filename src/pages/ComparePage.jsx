@@ -88,7 +88,6 @@ export function ComparePage() {
         </div>
         <section className="compare-section" aria-labelledby="building-chart-heading"><h2 id="building-chart-heading">{metric.label} by building</h2>
           {!selectedIds.length ? <p className="comparison-empty">Select at least two buildings to compare.</p> : selectedIds.length === 1 ? <p className="comparison-empty">Select one more building for a comparison.</p> : <>
-            <p className="compare-meta">{available.length} of {rows.length} selected buildings have approved {metric.label.toLowerCase()} data for {period}.</p>
             <ComparisonBarChart rows={chartRows} metric={metric} sort={sort} />
             {ranked.length > 1 ? <p className="compare-note">Highest reported total: <strong>{ranked.at(-1).name}</strong>. Lowest reported total: <strong>{ranked[0].name}</strong>. These are absolute values, not efficiency rankings.</p> : null}
           </>}

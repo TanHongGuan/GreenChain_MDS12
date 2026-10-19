@@ -1,9 +1,28 @@
 from functools import lru_cache
 
-from backend.app.core.config import get_settings
+from backend.app.core.config import Settings, get_settings
 from backend.app.storage.base import StorageService
 from backend.app.storage.exceptions import StorageError
 from backend.app.storage.local import LocalStorageService
+
+
+def build_s3_client(settings: Settings):
+    import boto3
+
+    return boto3.client("s3", region_name=settings.aws_region, endpoint_url=settings.s3_endpoint_url or None)
+
+
+def build_s3_storage(settings: Settings, client=None) -> StorageService:
+    from backend.app.storage.s3 import S3StorageService
+
+    return S3StorageService(
+        client or build_s3_client(settings),
+        settings.s3_bucket or "",
+        key_prefix=settings.s3_key_prefix,
+        lock_mode=settings.s3_object_lock_mode,
+        retention_days=settings.s3_retention_days,
+        lock_processed=settings.s3_lock_processed,
+    )
 
 
 @lru_cache
@@ -12,4 +31,6 @@ def get_storage_service() -> StorageService:
     backend = settings.storage_backend.lower().strip()
     if backend == "local":
         return LocalStorageService(settings.local_storage_root)
+    if backend == "s3":
+        return build_s3_storage(settings)
     raise StorageError(f"Unsupported STORAGE_BACKEND: {settings.storage_backend}")

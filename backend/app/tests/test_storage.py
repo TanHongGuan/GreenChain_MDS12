@@ -122,7 +122,7 @@ def test_configured_storage_root_is_honoured(monkeypatch, tmp_path) -> None:
 
 
 def test_unsupported_storage_backend_fails_clearly(monkeypatch) -> None:
-    monkeypatch.setenv("STORAGE_BACKEND", "s3")
+    monkeypatch.setenv("STORAGE_BACKEND", "ftp")
     get_settings.cache_clear()
     get_storage_service.cache_clear()
 

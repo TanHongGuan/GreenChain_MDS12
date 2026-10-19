@@ -15,7 +15,7 @@ Audit plan items: #2 DB policy, #6 evidence/integrity, #7 WORM decision/config
 | Trusted digest independent of PostgreSQL (S3 `ChecksumSHA256`) | Implemented, tested | `backend/app/integrity/verification.py`, `tests/test_integrity_verification.py` |
 | Verify-before-download for the public evidence route | Implemented, tested | `GET /submissions/{id}/evidence/original` returns 409 on mismatch |
 | Migration up/down on PostgreSQL 16 | Verified locally on 2026-10-19 (disposable container, legacy row backfilled) | Section 9 |
-| Real AWS bucket with Object Lock | **NOT VERIFIED.** Needs an AWS account and team approval | Section 6, `scripts/worm_evidence_check.py` |
+| Real AWS bucket with Object Lock | **Verified 2026-10-19** on test bucket `greenchain-evidence-test` (ap-southeast-1, GOVERNANCE, 1 day) | Section 9, `scripts/worm_evidence_check.py` |
 | Frontend display of version/retention fields | **NOT IMPLEMENTED.** API fields exist; UI belongs to Hong Guan | Section 4 |
 
 moto is an in-process S3 emulator. Passing moto tests shows the code issues the correct S3 calls and
@@ -203,6 +203,18 @@ and the app's submission detail. Redact the account ID and never capture credent
 * Migration on PostgreSQL 16 (disposable Docker container, 2026-10-19): `upgrade 0006`, insert a
   legacy submission, `upgrade head`. The legacy row has `storage_backend='local'` and NULL version fields.
   `downgrade -1` removed the columns and kept the row; `upgrade head` again reached `20261019_0007`.
+* Real AWS (2026-10-19, isolated test bucket `greenchain-evidence-test`, ap-southeast-1, versioning +
+  Object Lock enabled, all public access blocked, no default retention): `worm_evidence_check`
+  reported `all_passed: true`. The synthetic file was stored as version `K2XxsalsDg9QAjnU.IGrZ.KFRKfoE_Ku`
+  with GOVERNANCE retention until 2026-10-20T10:10:12Z and an S3 SHA-256 equal to the application's digest.
+  Its permanent delete was refused (`AccessDenied ... object protected by object lock`). An overwrite
+  created a new version while the locked version was unchanged, and verification returned MATCH
+  (`STORAGE_CHECKSUM`) and MISMATCH for a forged digest. This was independently confirmed with
+  `aws s3api head-object --checksum-mode ENABLED`, `list-object-versions` and a CLI `delete-object`
+  (also AccessDenied).
+* Caveat: the test IAM user had `AmazonS3FullAccess`, which includes `s3:BypassGovernanceRetention`.
+  The delete was refused because no bypass header was sent. To claim the application identity *cannot*
+  bypass retention, replace that policy with the least-privilege policy in Section 6 (explicit Deny on bypass).
 
 ## 10. Decisions for the team (do not treat as agreed)
 

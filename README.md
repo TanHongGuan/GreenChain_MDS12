@@ -109,7 +109,7 @@ With the Python virtual environment active:
 python -m backend.app.scripts.setup_storage
 ```
 
-This prepares and checks `var/storage/original/` and `var/storage/processed/`. It is local filesystem storage, **not** production S3 or WORM storage.
+This prepares and checks `var/storage/original/` and `var/storage/processed/`. It is local filesystem storage, **not** production S3 or WORM storage. With `STORAGE_BACKEND=s3`, the same command instead checks that the configured bucket has versioning and Object Lock enabled; see `docs/STORAGE_S3_OBJECT_LOCK.md`.
 
 ### 9. Start the backend
 
@@ -178,7 +178,7 @@ The original Sprint 1 foundation provided FastAPI authentication/RBAC, PostgreSQ
 
 The current **mock mode** (`VITE_DATA_MODE=mock`) adds deterministic demo personas, organisation-owned My Buildings, building selection at upload, sustainability submissions and auditor review. Mock records live in browser session storage and never write to the real backend. To use it, set `VITE_DATA_MODE=mock` in `.env`, restart Vite and sign in with a listed persona such as `uploader@demo.greenchain.test`, `auditor@demo.greenchain.test` or `viewer@demo.greenchain.test`; any nonempty demo password works. The frontend also seeds `future-uploader@demo.greenchain.test` and `second-auditor@demo.greenchain.test`. Mock role checks are UX simulation, not backend security.
 
-**Not integrated:** real-mode company building management; its mock-only service wrappers return 501. Production S3 Object Lock/WORM storage, registration, OAuth and MFA are not implemented here. Certification preparation was removed from the active product scope. Historical Batch 3-6 documents describe discontinued mock experiments and are not current integration requirements; see `docs/CERTIFICATION_PREPARATION_REMOVAL.md`.
+**Not integrated:** real-mode company building management; its mock-only service wrappers return 501. An S3 Object Lock/WORM evidence backend is implemented and tested against an S3 emulator, but has not yet been verified against a real AWS bucket (see `docs/STORAGE_S3_OBJECT_LOCK.md`). Registration, OAuth and MFA are not implemented here. Certification preparation was removed from the active product scope. Historical Batch 3-6 documents describe discontinued mock experiments and are not current integration requirements; see `docs/CERTIFICATION_PREPARATION_REMOVAL.md`.
 
 ## Testing and Verification
 
@@ -306,14 +306,17 @@ Current models include `users`, `organisations`, `organisation_members`, `projec
 
 ## Storage Architecture
 
-The implemented storage service can write original and processed files to the local filesystem. Its main pieces are:
+The storage service writes original and processed evidence either to the local filesystem (`STORAGE_BACKEND=local`, development) or to a versioned AWS S3 bucket with Object Lock retention (`STORAGE_BACKEND=s3`). Full design, trust model, AWS setup and verification steps: `docs/STORAGE_S3_OBJECT_LOCK.md`. Its main pieces are:
 
-- `backend/app/storage/base.py`: `StorageService` protocol.
+- `backend/app/storage/base.py`: `StorageService` protocol (version-aware reads, `describe`, version-specific deletes).
 - `backend/app/storage/local.py`: local storage implementation.
+- `backend/app/storage/s3.py`: S3 implementation with `VersionId` pinning, Object Lock retention and S3-recorded SHA-256 checksums.
 - `backend/app/storage/dependencies.py`: `get_storage_service()`.
-- `backend/app/storage/models.py`: `StoredFile`, accepted extensions/content types.
+- `backend/app/storage/models.py`: `StoredFile`, `StoredObjectInfo`, accepted extensions/content types.
 - `backend/app/integrity/hashing.py`: SHA-256 helper.
-- `backend/app/scripts/setup_storage.py`: local storage initialization and writability check.
+- `backend/app/integrity/verification.py`: verification of one exact stored version against the database digest and the provider checksum.
+- `backend/app/scripts/setup_storage.py`: local storage initialisation, or S3 bucket versioning/Object Lock check.
+- `backend/app/scripts/worm_evidence_check.py`: produces a JSON evidence report from a real test bucket (denied delete of a locked version, unchanged hash after overwrite).
 
 The existing dependency pattern is:
 
@@ -322,7 +325,7 @@ storage = Depends(get_storage_service)
 stored_file = storage.store_original(upload.file, upload.filename, upload.content_type)
 ```
 
-`StoredFile` contains `storage_key`, `original_filename`, `size_bytes`, `content_type` and `storage_backend`. Runtime contents under `var/storage/original/` and `var/storage/processed/` are ignored by Git; only `var/storage/.gitkeep` is tracked. SHA-256/evidence metadata does **not** by itself establish immutable or WORM storage. S3/Object Lock integration is future work.
+`StoredFile` contains `storage_key`, `original_filename`, `size_bytes`, `content_type`, `storage_backend`, `sha256` and, on S3, `version_id`, `retention_mode` and `retain_until`; these are persisted on the submission (migration `20261019_0007`). Runtime contents under `var/storage/original/` and `var/storage/processed/` are ignored by Git; only `var/storage/.gitkeep` is tracked. SHA-256 alone does **not** establish immutable or WORM storage; the S3 backend's Object Lock behaviour is tested against moto, and a real AWS bucket must be verified separately with `worm_evidence_check`.
 
 ## Useful Development Commands
 

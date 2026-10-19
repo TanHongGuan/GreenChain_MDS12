@@ -30,6 +30,11 @@ PUBLIC_ROUTES = {
     # cookie, so an anonymous call is a no-op. Keeping it idempotent avoids a
     # client being stuck unable to clear a stale or already-expired session.
     ("POST", "/auth/logout"): "Idempotent cookie clear; no data access and no server-side state.",
+    # Reviewed 2026-10-19: demo account-select login. Both answer 404 unless
+    # ACCOUNT_SELECT_LOGIN=true, which the settings validator refuses in production
+    # (test_account_select_login.py). When enabled they are pre-login by design.
+    ("GET", "/auth/accounts"): "Demo login account list; 404 unless ACCOUNT_SELECT_LOGIN, never in production.",
+    ("POST", "/auth/select"): "Demo passwordless sign-in; 404 unless ACCOUNT_SELECT_LOGIN, never in production.",
 }
 
 # FastAPI's own documentation routes, which carry no data of their own.

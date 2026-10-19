@@ -33,6 +33,28 @@ export async function login(email, password) {
   return payload.user;
 }
 
+// Accounts offered by the demo account-select login, or null when the backend has it disabled
+// (ACCOUNT_SELECT_LOGIN=false answers 404) so the page falls back to email and password.
+export async function getLoginAccounts() {
+  const response = await fetch(`${API_BASE_URL}/auth/accounts`, { credentials: "include" });
+  if (response.status === 404) {
+    return null;
+  }
+  const payload = await parseResponse(response);
+  return payload.accounts;
+}
+
+export async function loginAsAccount(userId) {
+  const response = await fetch(`${API_BASE_URL}/auth/select`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ user_id: userId }),
+  });
+  const payload = await parseResponse(response);
+  return payload.user;
+}
+
 export async function getCurrentUser() {
   const response = await fetch(`${API_BASE_URL}/auth/me`, {
     credentials: "include",

@@ -38,6 +38,12 @@ export function AuthProvider({ children }) {
     return authenticatedUser;
   }
 
+  async function loginAsAccount(userId) {
+    const authenticatedUser = await authApi.loginAsAccount(userId);
+    setUser(authenticatedUser);
+    return authenticatedUser;
+  }
+
   async function logout() {
     try {
       await authApi.logout();
@@ -52,6 +58,7 @@ export function AuthProvider({ children }) {
       isLoading,
       isAuthenticated: Boolean(user),
       login,
+      loginAsAccount,
       logout,
       refreshUser,
     }),

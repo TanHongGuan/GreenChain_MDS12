@@ -1,0 +1,22 @@
+# Overlay: serve the stack to teammates on the same Wi-Fi over plain HTTP, for demos.
+#
+# docker-compose.prod.yml deliberately refuses non-HTTPS origins and non-Secure cookies.
+# Browsers will not send a Secure cookie over http://, so a LAN address such as
+# http://192.168.1.20:8080 cannot log in under production settings. This overlay runs the
+# API in development mode with non-Secure cookies. Use it only on a trusted network for a
+# demo; a real deployment must use HTTPS with docker-compose.prod.yml unchanged.
+services:
+  api:
+    environment:
+      ENVIRONMENT: development
+      COOKIE_SECURE: "false"
+      DEV_SEED_PASSWORD: ${DEV_SEED_PASSWORD:?set DEV_SEED_PASSWORD}
+      # Login page shows a dropdown of accounts and signs in without a password.
+      # Anyone who can reach this address can act as any account, including the auditor.
+      ACCOUNT_SELECT_LOGIN: "true"
+
+  web:
+    volumes:
+      # Built by deploy/demo_up.sh with VITE_API_BASE_URL=/api. Kept apart from ./dist so a
+      # developer build pointing at localhost:8000 cannot replace the shared site.
+      - ./deploy/.demo-dist:/usr/share/nginx/html:ro

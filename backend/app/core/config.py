@@ -28,6 +28,9 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
     dev_seed_password: str | None = Field(default=None, alias="DEV_SEED_PASSWORD")
+    # Demo-only: lets anyone who can reach the app sign in by picking an account from a list,
+    # with no password. Off by default and refused in production (see validator below).
+    account_select_login: bool = Field(default=False, alias="ACCOUNT_SELECT_LOGIN")
     storage_backend: str = Field(default="local", alias="STORAGE_BACKEND")
     local_storage_root: str = Field(default="./var/storage", alias="LOCAL_STORAGE_ROOT")
     max_upload_size_mb: int = Field(default=25, alias="MAX_UPLOAD_SIZE_MB")
@@ -36,6 +39,9 @@ class Settings(BaseSettings):
     # here: boto3 resolves them from the standard chain (AWS_PROFILE, ~/.aws, or an IAM role).
     s3_bucket: str | None = Field(default=None, alias="S3_BUCKET")
     aws_region: str = Field(default="ap-southeast-1", alias="AWS_REGION")
+    # Named profile from ~/.aws (credentials stay there, never in .env). Empty means boto3's default
+    # chain: environment variables, the default profile, or an attached IAM role.
+    aws_profile: str | None = Field(default=None, alias="AWS_PROFILE")
     s3_endpoint_url: str | None = Field(default=None, alias="S3_ENDPOINT_URL")
     s3_key_prefix: str = Field(default="", alias="S3_KEY_PREFIX")
     s3_object_lock_mode: str = Field(default="GOVERNANCE", alias="S3_OBJECT_LOCK_MODE")
@@ -101,6 +107,8 @@ class Settings(BaseSettings):
             problems.append("COOKIE_SECURE must be true so the session cookie is not sent over plain HTTP")
         if DEFAULT_DB_PASSWORD in self.database_url:
             problems.append("DATABASE_URL still contains the development default password")
+        if self.account_select_login:
+            problems.append("ACCOUNT_SELECT_LOGIN must be false: passwordless account selection is demo-only")
 
         for origin in self.frontend_origins:
             if origin == "*":

@@ -41,6 +41,7 @@ var/storage/*
 # Frontend dependencies/build output
 node_modules/
 dist/
+deploy/.demo-dist/
 .vite/
 coverage/
 .env.local

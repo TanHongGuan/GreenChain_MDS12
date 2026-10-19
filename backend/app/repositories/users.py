@@ -29,6 +29,15 @@ class SQLAlchemyUserRepository:
         stmt = select(User).options(joinedload(User.organisation_membership)).where(User.id == user_id)
         return self._to_auth_user(self.db.scalars(stmt).first())
 
+    def list_active_users(self) -> list[AuthUser]:
+        stmt = (
+            select(User)
+            .options(joinedload(User.organisation_membership))
+            .where(User.is_active.is_(True))
+            .order_by(User.role, User.name, User.email)
+        )
+        return [user for row in self.db.scalars(stmt).all() if (user := self._to_auth_user(row)) is not None]
+
     def _to_auth_user(self, user: User | None) -> AuthUser | None:
         if user is None or not user.is_active:
             return None

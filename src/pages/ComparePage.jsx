@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ComparisonBarChart, OrganisationTrend } from "../components/ComparisonCharts.jsx";
 import { getComparisonSnapshot } from "../services/comparisonService.js";
-import { isMockMode } from "../services/dataService.js";
 import { CORE_METRICS, comparisonRows, organisationSummary, organisations, reportingPeriods } from "../utils/comparison.js";
 import { displayUnit } from "../utils/display.js";
 
@@ -60,7 +59,6 @@ export function ComparePage() {
   return <section className="page-panel compare-page">
     <div className="page-heading"><h1>Compare</h1></div>
     <p className="compare-intro">Compare reported building values and organisation totals from approved quarterly submissions.</p>
-    {isMockMode ? <p className="compare-demo-label">Demo data · Fictional buildings and illustrative values</p> : null}
     <div className="compare-tabs" role="tablist" aria-label="Comparison view">
       <button type="button" role="tab" aria-selected={view === "buildings"} onClick={() => setView("buildings")}>Building Comparison</button>
       <button type="button" role="tab" aria-selected={view === "organisation"} onClick={() => setView("organisation")}>Organisation Performance</button>

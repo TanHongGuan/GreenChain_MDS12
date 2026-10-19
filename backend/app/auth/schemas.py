@@ -26,3 +26,11 @@ class UserResponse(BaseModel):
 
 class LoginResponse(BaseModel):
     user: UserResponse
+
+
+class AccountSelectRequest(BaseModel):
+    user_id: str
+
+
+class AccountListResponse(BaseModel):
+    accounts: list[UserResponse]

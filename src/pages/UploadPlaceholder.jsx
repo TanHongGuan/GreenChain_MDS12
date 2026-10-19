@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { Panel } from "../components/Panel.jsx";
-import { Link, useSearchParams } from "react-router-dom";
 
-import { createSubmission, getOwnedMockBuildings, isMockMode } from "../services/dataService.js";
+import { createSubmission } from "../services/dataService.js";
 import { parseCsv, readTextFile } from "../utils/uploadPreview.js";
 
 const ACCEPTED_EXTENSIONS = [".csv", ".xlsx"];
@@ -13,16 +13,13 @@ function fileExtension(filename) {
   return dotIndex === -1 ? "" : filename.slice(dotIndex).toLowerCase();
 }
 
-function validateForm({ projectName, organisation, projectId, useOwnedBuilding, reportingPeriod, file }) {
+function validateForm({ projectName, organisation, reportingPeriod, file }) {
   const errors = {};
 
-  if (useOwnedBuilding && !projectId) {
-    errors.projectId = "Select one of your buildings.";
-  }
-  if (!useOwnedBuilding && !projectName.trim()) {
+  if (!projectName.trim()) {
     errors.projectName = "Project / Building name is required.";
   }
-  if (!useOwnedBuilding && !organisation.trim()) {
+  if (!organisation.trim()) {
     errors.organisation = "Organisation is required.";
   }
   if (!reportingPeriod.trim()) {
@@ -42,13 +39,6 @@ function validateForm({ projectName, organisation, projectId, useOwnedBuilding, 
 }
 
 export function UploadPlaceholder() {
-  const [searchParams] = useSearchParams();
-  const requestedBuildingId = searchParams.get("building");
-  const [uploadMode, setUploadMode] = useState(isMockMode ? "owned" : "legacy");
-  const [ownedBuildings, setOwnedBuildings] = useState([]);
-  const [buildingsStatus, setBuildingsStatus] = useState(isMockMode ? "loading" : "idle");
-  const [buildingsError, setBuildingsError] = useState("");
-  const [selectedBuildingId, setSelectedBuildingId] = useState("");
   const [projectName, setProjectName] = useState("");
   const [organisation, setOrganisation] = useState("");
   const [year, setYear] = useState("");
@@ -62,27 +52,7 @@ export function UploadPlaceholder() {
   const [result, setResult] = useState(null);
   const inputRef = useRef(null);
 
-  useEffect(() => {
-    if (!isMockMode) return;
-    let active = true;
-    getOwnedMockBuildings().then((buildings) => {
-      if (!active) return;
-      setOwnedBuildings(buildings);
-      if (requestedBuildingId && buildings.some((building) => building.project_id === Number(requestedBuildingId))) {
-        setSelectedBuildingId(requestedBuildingId);
-      }
-      setBuildingsStatus("success");
-    }).catch((failure) => {
-      if (active) { setBuildingsError(failure.message || "Unable to load your buildings."); setBuildingsStatus("error"); }
-    });
-    return () => { active = false; };
-  }, [requestedBuildingId]);
-
   const isBusy = status === "validating" || status === "uploading";
-  const selectedBuilding = ownedBuildings.find((building) => building.project_id === Number(selectedBuildingId));
-  const useOwnedBuilding = isMockMode && uploadMode === "owned";
-  const displayProjectName = useOwnedBuilding ? selectedBuilding?.project_name || "" : projectName;
-  const displayOrganisation = useOwnedBuilding ? selectedBuilding?.organisation || "" : organisation;
   const reportingPeriod = year && quarter ? `${year}-${quarter}` : "";
   const duplicateNames = [...new Set(previewRows.map((row) => row.metric_name).filter((name, index) => previewRows.findIndex((row) => row.metric_name === name) !== index))];
 
@@ -110,7 +80,7 @@ export function UploadPlaceholder() {
 
     setStatus("validating");
     setNotice("");
-    const nextErrors = validateForm({ projectName, organisation, projectId: selectedBuilding?.project_id, useOwnedBuilding, reportingPeriod, file });
+    const nextErrors = validateForm({ projectName, organisation, reportingPeriod, file });
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -121,8 +91,6 @@ export function UploadPlaceholder() {
     try {
       if (fileExtension(file.name) === ".csv") {
         setPreviewRows(parseCsv(await readTextFile(file)));
-      } else if (isMockMode) {
-        throw new Error("Demo upload needs a CSV file so its metrics can be previewed. XLSX is available in real mode.");
       } else setPreviewRows([]);
       setStatus("idle");
       setStage("confirm");
@@ -137,12 +105,10 @@ export function UploadPlaceholder() {
     setNotice("");
     try {
       const result = await createSubmission({
-        ...(useOwnedBuilding ? { projectId: selectedBuilding?.project_id } : {}),
-        projectName: displayProjectName.trim(),
-        organisation: displayOrganisation.trim(),
+        projectName: projectName.trim(),
+        organisation: organisation.trim(),
         reportingPeriod: reportingPeriod.trim(),
         file,
-        previewRows,
       });
       setStatus("success");
       setNotice(`Submission #${result.submission_id} is ${result.status}.`);
@@ -167,20 +133,19 @@ export function UploadPlaceholder() {
       <div className="page-heading">
         <p className="eyebrow">Uploader Workspace</p>
         <h1>Upload Data</h1>
-        {isMockMode && <p className="demo-label">Demo data · Browser session only</p>}
       </div>
 
       {stage === "success" ? <div className="upload-result" role="status">
         <p className="form-success">{notice}</p>
-        <p>{isMockMode ? "This demo submission is available in the mock review queue only." : "Your submission was accepted by the backend."} Awaiting auditor review.</p>
+        <p>Your submission was accepted by the backend. Awaiting auditor review.</p>
         {result?.project_id && <Link to={`/projects/${result.project_id}`} className="secondary-button">View project</Link>}
         <button type="button" className="secondary-button" onClick={() => { setStage("form"); setNotice(""); setResult(null); }}>New submission</button>
       </div> : null}
 
       {stage === "confirm" && <section className="upload-confirm" aria-labelledby="confirm-heading">
         <h2 id="confirm-heading">Confirm submission</h2>
-        <dl className="detail-grid"><div><dt>Project</dt><dd>{displayProjectName}</dd></div><div><dt>Organisation</dt><dd>{displayOrganisation}</dd></div><div><dt>Period</dt><dd>{reportingPeriod}</dd></div><div><dt>File</dt><dd>{file?.name} ({(file?.size / 1024).toFixed(1)} KB)</dd></div></dl>
-        <p>{isMockMode ? "Demo preview only. No backend validation or evidence storage occurs." : "Frontend preview only. The backend validates the final upload."} {previewRows.length} parsed row{previewRows.length === 1 ? "" : "s"}.</p>
+        <dl className="detail-grid"><div><dt>Project</dt><dd>{projectName}</dd></div><div><dt>Organisation</dt><dd>{organisation}</dd></div><div><dt>Period</dt><dd>{reportingPeriod}</dd></div><div><dt>File</dt><dd>{file?.name} ({(file?.size / 1024).toFixed(1)} KB)</dd></div></dl>
+        <p>Frontend preview only. The backend validates the final upload. {previewRows.length} parsed row{previewRows.length === 1 ? "" : "s"}.</p>
         {duplicateNames.length > 0 && <p className="form-warning" role="status">Repeated metric names: {duplicateNames.join(", ")}. Review these rows before submitting.</p>}
         {previewRows.length ? <div className="metrics-table-wrap"><table className="metrics-table"><thead><tr><th>Metric</th><th>Value</th><th>Unit</th><th>Category</th></tr></thead><tbody>
           {previewRows.slice(0, 10).map((row, index) => <tr key={`${row.metric_name}-${index}`}><td>{row.metric_name}</td><td>{row.value}</td><td>{row.unit}</td><td>{row.category || "—"}</td></tr>)}
@@ -198,26 +163,6 @@ export function UploadPlaceholder() {
           </div>
         )}
 
-        {isMockMode && <div className="upload-mode" aria-label="Building selection mode">
-          <button type="button" className={uploadMode === "owned" ? "active" : ""} aria-pressed={uploadMode === "owned"} onClick={() => setUploadMode("owned")}>My Buildings</button>
-          <button type="button" className={uploadMode === "legacy" ? "active" : ""} aria-pressed={uploadMode === "legacy"} onClick={() => setUploadMode("legacy")}>Legacy free-text</button>
-        </div>}
-        {useOwnedBuilding && <>
-          <label htmlFor="owned-building">Your building</label>
-          {buildingsStatus === "loading" && <p>Loading your buildings...</p>}
-          {buildingsStatus === "error" && <div className="form-error" role="alert">{buildingsError}</div>}
-          {buildingsStatus === "success" && <>
-            <select id="owned-building" value={selectedBuildingId} onChange={(event) => setSelectedBuildingId(event.target.value)} disabled={isBusy}>
-              <option value="">Select a building</option>
-              {ownedBuildings.map((building) => <option value={building.project_id} key={building.project_id}>{building.project_name}</option>)}
-            </select>
-            {selectedBuilding && <p>{selectedBuilding.organisation} · {selectedBuilding.location || "Location not set"}</p>}
-            {ownedBuildings.length === 0 && <p>No buildings yet. <Link to="/my-buildings/new">Create a building</Link> to upload to it.</p>}
-            {requestedBuildingId && !ownedBuildings.some((building) => building.project_id === Number(requestedBuildingId)) && <p className="form-warning">That building is not in your demo organisation.</p>}
-          </>}
-          {errors.projectId && <span className="field-error">{errors.projectId}</span>}
-        </>}
-        {!useOwnedBuilding && <>
         <label htmlFor="project-name">Project / Building name</label>
         <input
           id="project-name"
@@ -237,14 +182,12 @@ export function UploadPlaceholder() {
           disabled={isBusy}
         />
         {errors.organisation && <span className="field-error">{errors.organisation}</span>}
-        {isMockMode && <p className="demo-label">Compatibility path: existing buildings owned by another demo organisation cannot be selected by name.</p>}
-        </>}
 
         <div className="period-fields"><label htmlFor="reporting-year">Reporting year<input id="reporting-year" inputMode="numeric" type="number" min="2000" max="2100" value={year} onChange={(event) => setYear(event.target.value)} disabled={isBusy} placeholder="2026" /></label><label htmlFor="reporting-quarter">Quarter<select id="reporting-quarter" value={quarter} onChange={(event) => setQuarter(event.target.value)} disabled={isBusy}><option value="">Select quarter</option>{[1, 2, 3, 4].map((number) => <option key={number} value={`Q${number}`}>Q{number}</option>)}</select></label></div>
         {reportingPeriod && <p>Reporting period: {reportingPeriod}</p>}
         {errors.reportingPeriod && <span className="field-error">{errors.reportingPeriod}</span>}
 
-        <Panel id="file-requirements-heading" title="File requirements" note="CSV or XLSX · up to 25 MiB"><p>One reporting period per file. CSV or XLSX, up to 25 MiB. Required columns: <code>metric_name</code>, <code>value</code>, <code>unit</code>. Optional: <code>category</code>. For XLSX, the active worksheet is processed.</p><a href="/greenchain-sample.csv" download className="secondary-button">Download sample CSV</a><p className="panel-caveat">Sample values are illustrative, not verified data or enforced unit rules.</p></Panel>
+        <Panel id="file-requirements-heading" title="File requirements" note="CSV or XLSX · up to 25 MiB"><p>One reporting period per file. CSV or XLSX, up to 25 MiB. Required columns: <code>metric_name</code>, <code>value</code>, <code>unit</code>. Optional: <code>category</code>. For XLSX, the active worksheet is processed.</p><a href="/greenchain-sample.csv" download className="secondary-button">Download sample CSV</a><p className="panel-caveat">The sample shows the column layout only; its values are placeholders, not data.</p></Panel>
         <label htmlFor="submission-file">Submission file</label>
         <div
           className="drop-zone"

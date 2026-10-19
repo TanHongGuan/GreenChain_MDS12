@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { Panel } from "../components/Panel.jsx";
 import { Link } from "react-router-dom";
 
-import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail, getReviewHistory, isMockMode } from "../services/dataService.js";
+import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail } from "../services/dataService.js";
 import { metricDefinition } from "../utils/metrics.js";
 import { displayDate, displayUnit } from "../utils/display.js";
 
@@ -25,7 +24,6 @@ export function ReviewPlaceholder() {
   const [pendingDecision, setPendingDecision] = useState(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [filters, setFilters] = useState({ project: "", organisation: "", period: "", search: "" });
-  const [history, setHistory] = useState(null);
 
   const filteredQueue = useMemo(() => queue.filter((item) =>
     (!filters.project || item.project_name === filters.project) &&
@@ -63,7 +61,6 @@ export function ReviewPlaceholder() {
         setQueueError(error.message || "Unable to load review queue.");
         setQueueStatus("error");
       });
-    getReviewHistory().then((items) => { if (isMounted) setHistory(items); }).catch(() => { if (isMounted) setHistory(null); });
 
     return () => {
       isMounted = false;
@@ -115,7 +112,6 @@ export function ReviewPlaceholder() {
       setDecisionNotice(result.reason ? `${result.message} Reason: ${result.reason}` : result.message);
       setDecisionStatus("success");
       setPendingDecision(null);
-      if (isMockMode) getReviewHistory().then(setHistory);
     } catch (error) {
       setDecisionNotice(error.message || "Review decision could not be saved.");
       setDecisionStatus("error");
@@ -146,7 +142,6 @@ export function ReviewPlaceholder() {
       <div className="page-heading">
         <p className="eyebrow">Auditor Workspace</p>
         <h1>Auditor Review</h1>
-        {isMockMode && <p className="demo-label">Demo data · Browser session only</p>}
       </div>
 
       <div className="review-filters" aria-label="Queue filters">
@@ -250,7 +245,6 @@ export function ReviewPlaceholder() {
                   ? <button type="button" className="secondary-button" onClick={() => downloadEvidence(detail.evidence.processed.url, detail.evidence.processed.label)}>Download processed</button>
                   : <span>Processed file unavailable</span>}
               </div>
-              {isMockMode && detail.simulated_evidence && <Panel id="simulated-evidence-heading" title="Simulated evidence preview" note="Demo only" level={3}><p className="panel-caveat">Derived from demo metrics. This is not the uploaded file or an immutable artifact.</p><div><div><h4>Original-style rows</h4><pre>{detail.simulated_evidence.original}</pre></div><div><h4>Processed-style rows</h4><pre>{detail.simulated_evidence.processed}</pre></div></div></Panel>}
 
               <h3>Processed Metrics</h3>
               <div className="metrics-table-wrap">
@@ -314,7 +308,6 @@ export function ReviewPlaceholder() {
           )}
         </section>
       </div>
-      {isMockMode && history?.length > 0 && <section className="review-history" aria-labelledby="review-history-heading"><h2 id="review-history-heading">Demo review history</h2><div className="metrics-table-wrap"><table className="metrics-table"><thead><tr><th>Submission / project</th><th>Decision</th><th>Reviewer</th><th>Reviewed</th><th>Reason</th></tr></thead><tbody>{history.map((item) => <tr key={item.submission_id}><td>#{item.submission_id} · {item.project_name}</td><td><span className={statusClass(item.status)}>{item.status}</span></td><td>{item.review?.reviewer_email || "Demo auditor"}</td><td>{displayDate(item.reviewed_at, true)}</td><td>{item.reason || "No reason recorded"}</td></tr>)}</tbody></table></div></section>}
     </section>
   );
 }

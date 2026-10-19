@@ -1,0 +1,22 @@
+# Overlay: store evidence in the S3 Object Lock bucket instead of the local volume.
+#
+#   docker compose --env-file deploy/.env.demo \
+#     -f docker-compose.prod.yml -f docker-compose.s3.yml up -d --build
+#
+# Credentials are never placed in an env file or image. The host's ~/.aws directory is
+# mounted read-only and AWS_PROFILE selects the least-privilege identity (see
+# docs/STORAGE_S3_OBJECT_LOCK.md section 6). On a cloud host, drop the mount and attach
+# an IAM role instead.
+services:
+  api:
+    environment:
+      STORAGE_BACKEND: s3
+      S3_BUCKET: ${S3_BUCKET:?set S3_BUCKET}
+      AWS_REGION: ${AWS_REGION:?set AWS_REGION}
+      AWS_PROFILE: ${AWS_PROFILE:?set AWS_PROFILE}
+      S3_KEY_PREFIX: ${S3_KEY_PREFIX:-}
+      S3_OBJECT_LOCK_MODE: ${S3_OBJECT_LOCK_MODE:-GOVERNANCE}
+      S3_RETENTION_DAYS: ${S3_RETENTION_DAYS:-1}
+      S3_LOCK_PROCESSED: ${S3_LOCK_PROCESSED:-true}
+    volumes:
+      - ${AWS_CONFIG_DIR:?set AWS_CONFIG_DIR to the host ~/.aws directory}:/home/greenchain/.aws:ro

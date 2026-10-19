@@ -12,6 +12,7 @@ import { CORE_METRICS, approvedSeries, metricDefinition, normalizedPoint } from 
 import { PeriodComparison, TrendChart, VerificationChart } from "../components/MetricCharts.jsx";
 import { BenchmarkComparisonChart } from "../components/BenchmarkComparisonChart.jsx";
 import { ConsistencyMatrix } from "../components/ConsistencyMatrix.jsx";
+import { Panel } from "../components/Panel.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { displayDate, displayUnit } from "../utils/display.js";
 
@@ -533,8 +534,7 @@ export function ProjectDetailPage() {
         </div>
       )}
 
-      <section className="performance-section" aria-labelledby="performance-heading">
-        <div className="section-title-row"><h2 id="performance-heading">Approved performance by quarter</h2><p>Approved values only</p></div>
+      <Panel id="performance-heading" title="Approved performance" note="By quarter · approved values only" defaultOpen>
         {historyStatus === "loading" && <p>Loading approved history...</p>}
         {historyStatus === "success" && <>
           <div className="metric-tabs" role="tablist" aria-label="Performance metric">
@@ -546,43 +546,34 @@ export function ProjectDetailPage() {
           </section>)}
           <PeriodComparison seriesByKey={historyByKey} definitions={CORE_METRICS} />
         </>}
-      </section>
+      </Panel>
 
       <VerificationChart submissions={verificationRecords} />
 
-      <section className="insights-section" aria-labelledby="benchmark-heading">
-        <div className="section-heading">
-          <h2 id="benchmark-heading">Performance vs Benchmark</h2>
-          <p>
-            Latest approved value for each metric against a published target for this project&apos;s country and
-            property type. Approval is a GreenChain review outcome, not independent certification.
-          </p>
-        </div>
+      <Panel id="benchmark-heading" title="Performance vs Benchmark" note="Against published targets" defaultOpen>
+        <p className="panel-caveat">
+          Latest approved value for each metric against a published target for this project&apos;s country and
+          property type. Approval is a GreenChain review outcome, not independent certification.
+        </p>
         {benchmarksStatus === "loading" && <p>Loading benchmark comparison...</p>}
         {benchmarksStatus === "error" && (
           <div className="form-error" role="status">{benchmarksError}</div>
         )}
         {benchmarksStatus === "success" && <BenchmarkComparisonChart report={benchmarks} />}
-      </section>
+      </Panel>
 
-      <section className="insights-section" aria-labelledby="consistency-heading">
-        <div className="section-heading">
-          <h2 id="consistency-heading">Reporting Consistency</h2>
-          <p>Which metrics this project has reported, in which periods, and whether that data passed review.</p>
-        </div>
+      <Panel id="consistency-heading" title="Reporting Consistency" note="Coverage by metric and period">
+        <p className="panel-caveat">
+          Which metrics this project has reported, in which periods, and whether that data passed review.
+        </p>
         {consistencyStatus === "loading" && <p>Loading reporting consistency...</p>}
         {consistencyStatus === "error" && (
           <div className="form-error" role="status">{consistencyError}</div>
         )}
         {consistencyStatus === "success" && <ConsistencyMatrix report={consistency} />}
-      </section>
+      </Panel>
 
-      <section className="traceability-section" aria-labelledby="submission-records-heading">
-        <div className="section-heading">
-          <h2 id="submission-records-heading">Submission Records</h2>
-          <p>Trace project values to submitted evidence and review outcomes.</p>
-        </div>
-
+      <Panel id="submission-records-heading" title="Submission Records" note="Evidence and review outcomes">
         {submissionsStatus === "loading" && <p>Loading submission records...</p>}
         {submissionsStatus === "error" && (
           <div className="form-error" role="status">
@@ -596,19 +587,16 @@ export function ProjectDetailPage() {
             onSelectSubmission={setSelectedSubmissionId}
           />
         )}
-      </section>
+      </Panel>
 
-      <section className="traceability-section" aria-labelledby="submission-detail-heading">
-        <div className="section-heading">
-          <h2 id="submission-detail-heading">Submission Detail</h2>
-        </div>
+      <Panel id="submission-detail-heading" title="Submission Detail" note="Traceability for one submission">
         {submissionsStatus === "success" && requestedSubmissionId !== null && !submissions.some((record) => String(record.submission_id) === requestedSubmissionId) ? <p className="form-error" role="status">This submission is unavailable in the visible project history.</p> : <SubmissionDetailPanel
           detail={submissionDetail}
           status={submissionDetailStatus}
           error={submissionDetailError}
           canInspectEvidence={user?.role === "AUDITOR" || submissionDetail?.status === "APPROVED"}
         />}
-      </section>
+      </Panel>
     </section>
   );
 }

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+
+import { Panel } from "../components/Panel.jsx";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { createSubmission, getOwnedMockBuildings, isMockMode } from "../services/dataService.js";
@@ -242,7 +244,7 @@ export function UploadPlaceholder() {
         {reportingPeriod && <p>Reporting period: {reportingPeriod}</p>}
         {errors.reportingPeriod && <span className="field-error">{errors.reportingPeriod}</span>}
 
-        <div className="upload-requirements"><h2>File requirements</h2><p>One reporting period per file. CSV or XLSX, up to 25 MiB. Required columns: <code>metric_name</code>, <code>value</code>, <code>unit</code>. Optional: <code>category</code>. For XLSX, the active worksheet is processed.</p><a href="/greenchain-sample.csv" download className="secondary-button">Download sample CSV</a><p>Sample values are illustrative, not verified data or enforced unit rules.</p></div>
+        <Panel id="file-requirements-heading" title="File requirements" note="CSV or XLSX · up to 25 MiB"><p>One reporting period per file. CSV or XLSX, up to 25 MiB. Required columns: <code>metric_name</code>, <code>value</code>, <code>unit</code>. Optional: <code>category</code>. For XLSX, the active worksheet is processed.</p><a href="/greenchain-sample.csv" download className="secondary-button">Download sample CSV</a><p className="panel-caveat">Sample values are illustrative, not verified data or enforced unit rules.</p></Panel>
         <label htmlFor="submission-file">Submission file</label>
         <div
           className="drop-zone"

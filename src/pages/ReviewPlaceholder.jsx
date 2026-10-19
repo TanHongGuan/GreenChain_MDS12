@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+
+import { Panel } from "../components/Panel.jsx";
 import { Link } from "react-router-dom";
 
 import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail, getReviewHistory, isMockMode } from "../services/dataService.js";
@@ -248,7 +250,7 @@ export function ReviewPlaceholder() {
                   ? <button type="button" className="secondary-button" onClick={() => downloadEvidence(detail.evidence.processed.url, detail.evidence.processed.label)}>Download processed</button>
                   : <span>Processed file unavailable</span>}
               </div>
-              {isMockMode && detail.simulated_evidence && <div className="simulated-evidence"><h3>Simulated evidence preview</h3><p>Derived from demo metrics. This is not the uploaded file or an immutable artifact.</p><div><div><h4>Original-style rows</h4><pre>{detail.simulated_evidence.original}</pre></div><div><h4>Processed-style rows</h4><pre>{detail.simulated_evidence.processed}</pre></div></div></div>}
+              {isMockMode && detail.simulated_evidence && <Panel id="simulated-evidence-heading" title="Simulated evidence preview" note="Demo only" level={3}><p className="panel-caveat">Derived from demo metrics. This is not the uploaded file or an immutable artifact.</p><div><div><h4>Original-style rows</h4><pre>{detail.simulated_evidence.original}</pre></div><div><h4>Processed-style rows</h4><pre>{detail.simulated_evidence.processed}</pre></div></div></Panel>}
 
               <h3>Processed Metrics</h3>
               <div className="metrics-table-wrap">

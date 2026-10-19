@@ -1930,3 +1930,127 @@ nav a[aria-current="page"]::after {
     font-size: 0.75rem;
   }
 }
+
+/* --- Collapsible panels ---------------------------------------------------
+   Native <details>/<summary>, so keyboard operation, the accessibility tree
+   and find-in-page all work without script. Each panel is its own card, which
+   is what gives the page separation; the long caveats live inside, so they
+   stay available without dominating the first screen. */
+.panel-section {
+  margin-top: var(--space-3);
+  border: 1px solid var(--leaf-100);
+  border-radius: 16px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.panel-section + .panel-section {
+  margin-top: var(--space-2);
+}
+
+.panel-summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  background: var(--leaf-50);
+  border-bottom: 1px solid transparent;
+  list-style: none;
+  user-select: none;
+}
+
+/* Replace the default triangle with a leaf that turns as the panel opens. */
+.panel-summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel-summary::after {
+  content: "";
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  align-self: center;
+  opacity: 0.55;
+  background: var(--leaf-mark) center / contain no-repeat;
+  transform: rotate(-90deg);
+  transition: transform 160ms ease-out, opacity 160ms ease-out;
+}
+
+.panel-section[open] > .panel-summary::after {
+  transform: rotate(0deg);
+  opacity: 0.85;
+}
+
+.panel-section[open] > .panel-summary {
+  border-bottom-color: var(--leaf-100);
+}
+
+.panel-summary:hover {
+  background: var(--leaf-100);
+}
+
+.panel-summary:focus-visible {
+  outline: 3px solid var(--leaf-300);
+  outline-offset: -3px;
+}
+
+/* The heading already carries the section name; strip the extra block margins
+   so the summary row stays a single tidy line. */
+.panel-summary h2,
+.panel-summary h3 {
+  margin: 0;
+  font-size: 1.06rem;
+}
+
+/* A nested panel is subordinate to the section it sits in. */
+.panel-summary h3 {
+  font-size: 0.96rem;
+}
+
+/* Secondary, so the eye lands on the section name first. */
+.panel-note {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.panel-body {
+  padding: var(--space-3);
+}
+
+/* Caveats and explanations: kept, but demoted out of the headline position. */
+.panel-caveat {
+  margin: 0 0 var(--space-2);
+  max-width: 68ch;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+}
+
+/* The page panel is now a frame for cards, so it does not need its own vine
+   competing with each section. */
+.project-detail-page::before {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .panel-summary {
+    flex-wrap: wrap;
+    gap: 4px var(--space-1);
+    padding: var(--space-2);
+  }
+
+  .panel-note {
+    flex-basis: 100%;
+  }
+
+  .panel-body {
+    padding: var(--space-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-summary::after {
+    transition: none;
+  }
+}

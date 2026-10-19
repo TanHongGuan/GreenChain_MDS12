@@ -2,6 +2,7 @@ import { getStore, saveStore } from "./store.js";
 import { resetMockStore } from "./store.js";
 import { currentDemoUser } from "./identity.js";
 import { assignedSubmissions, buildingSubmissions, ownedBuildings } from "./selectors.js";
+import { CORE_METRICS } from "../utils/metrics.js";
 
 const fail = (message, status = 404) => Object.assign(new Error(message), { status });
 const state = () => getStore();
@@ -211,3 +212,220 @@ export async function createSubmission({ projectId = null, projectName, organisa
 export async function getHighlightedProjects() { return { projects: state().projects.map(projectCard).filter((item) => item.highlighted) }; }
 export async function addHighlightedProject(id) { if (!projectById(id)) throw fail("Project was not found."); const list = state().highlights[userId()] ||= []; if (!list.includes(Number(id))) list.push(Number(id)); saveStore(); return { project: projectCard(projectById(id)) }; }
 export async function removeHighlightedProject(id) { const list = state().highlights[userId()] ||= []; const index = list.indexOf(Number(id)); if (index >= 0) list.splice(index, 1); saveStore(); return { project_id: Number(id), highlighted: false, removed: index >= 0 }; }
+
+// --- Sprint 8 investor insights -------------------------------------------------
+// Mirrors backend/app/benchmarks/service.py. Kept deliberately close to the server
+// logic so a demo and a real run tell the same story; if one changes, change both.
+
+const AT_TARGET_TOLERANCE_PERCENT = 5;
+
+// The canonical machine name, which must match CANONICAL_METRICS in
+// backend/app/benchmarks/canonical.py. CORE_METRICS.label is a display heading
+// ("CO₂ emissions") and is deliberately not used as an identifier.
+function canonicalName(definition) {
+  return definition.names[0];
+}
+
+function canonicalMetric(name) {
+  return CORE_METRICS.find((metric) => metric.names.some((alias) => alias.toLowerCase() === String(name).toLowerCase()));
+}
+
+function toCanonicalValue(value, unit, definition) {
+  const reported = String(unit || "").toLowerCase();
+  if (reported === definition.unit.toLowerCase()) return Number(value);
+  if (definition.key === "co2" && reported === "kgco2e") return Number(value) * 0.001;
+  return null;
+}
+
+function periodYear(period) {
+  const match = /^(\d{4})-Q([1-4])$/.exec(String(period || "").trim());
+  return match ? Number(match[1]) : null;
+}
+
+function classify(differencePercent) {
+  if (Math.abs(differencePercent) <= AT_TARGET_TOLERANCE_PERCENT) return "AT_TARGET";
+  // Every canonical metric is a consumption or emission quantity, so lower is better.
+  return differencePercent < 0 ? "BETTER_THAN_TARGET" : "WORSE_THAN_TARGET";
+}
+
+function notComparable(label, point, reason, direction) {
+  return {
+    metric_name: label,
+    reporting_period: point.reporting_period,
+    submission_id: point.submission_id,
+    value: Number(point.value),
+    unit: point.unit,
+    direction,
+    benchmark_value: null,
+    benchmark_unit: null,
+    difference_percent: null,
+    classification: "NOT_COMPARABLE",
+    reason,
+    source: null,
+  };
+}
+
+export async function getProjectBenchmarks(id) {
+  const project = projectById(id);
+  if (!project) throw fail("Project was not found.");
+
+  const detail = await getProjectDetail(id);
+  const comparisons = [];
+
+  for (const metric of detail.metrics) {
+    const point = metric.latest;
+    if (!point) continue;
+
+    const definition = canonicalMetric(metric.metric_name);
+    if (!definition) {
+      comparisons.push(notComparable(metric.metric_name, point, "UNKNOWN_METRIC_DIRECTION", null));
+      continue;
+    }
+
+    const measured = toCanonicalValue(point.value, point.unit, definition);
+    if (measured === null) {
+      comparisons.push(notComparable(canonicalName(definition), point, "UNIT_MISMATCH", "LOWER_IS_BETTER"));
+      continue;
+    }
+    if (!project.country || !project.property_type) {
+      comparisons.push(notComparable(canonicalName(definition), point, "PROJECT_SCOPE_UNKNOWN", "LOWER_IS_BETTER"));
+      continue;
+    }
+    const year = periodYear(point.reporting_period);
+    if (year === null) {
+      comparisons.push(notComparable(canonicalName(definition), point, "PERIOD_NOT_PARSEABLE", "LOWER_IS_BETTER"));
+      continue;
+    }
+
+    const candidates = (state().benchmarks || [])
+      .filter((row) => row.country === project.country && row.property_type === project.property_type
+        && definition.names.some((alias) => alias.toLowerCase() === String(row.metric_name).toLowerCase())
+        && row.year <= year)
+      .sort((a, b) => b.year - a.year);
+    if (candidates.length === 0) {
+      comparisons.push(notComparable(canonicalName(definition), point, "NO_BENCHMARK_FOR_SCOPE", "LOWER_IS_BETTER"));
+      continue;
+    }
+
+    let benchmark = null;
+    let benchmarkValue = null;
+    for (const row of candidates) {
+      const converted = toCanonicalValue(row.value, row.unit, definition);
+      if (converted !== null) { benchmark = row; benchmarkValue = converted; break; }
+    }
+    if (benchmark === null) {
+      comparisons.push(notComparable(canonicalName(definition), point, "UNIT_MISMATCH", "LOWER_IS_BETTER"));
+      continue;
+    }
+    if (benchmarkValue === 0) {
+      comparisons.push(notComparable(canonicalName(definition), point, "BENCHMARK_NOT_USABLE", "LOWER_IS_BETTER"));
+      continue;
+    }
+
+    const differencePercent = ((measured - benchmarkValue) / benchmarkValue) * 100;
+    comparisons.push({
+      metric_name: canonicalName(definition),
+      reporting_period: point.reporting_period,
+      submission_id: point.submission_id,
+      value: measured,
+      unit: definition.unit,
+      direction: "LOWER_IS_BETTER",
+      benchmark_value: benchmarkValue,
+      benchmark_unit: definition.unit,
+      difference_percent: differencePercent,
+      classification: classify(differencePercent),
+      reason: null,
+      source: {
+        provider: benchmark.provider,
+        source_name: benchmark.source_name,
+        source_version: benchmark.source_version,
+        source_url: benchmark.source_url,
+        country: benchmark.country,
+        property_type: benchmark.property_type,
+        year: benchmark.year,
+      },
+    });
+  }
+
+  return {
+    project: {
+      project_id: project.project_id,
+      project_name: project.project_name,
+      organisation: project.organisation,
+      country: project.country ?? null,
+      property_type: project.property_type ?? null,
+    },
+    tolerance_percent: AT_TARGET_TOLERANCE_PERCENT,
+    comparisons: comparisons.sort((a, b) => a.metric_name.localeCompare(b.metric_name)),
+  };
+}
+
+export async function getProjectConsistency(id) {
+  if (!projectById(id)) throw fail("Project was not found.");
+
+  const relevant = state().submissions
+    .filter((item) => item.project_id === Number(id) && ["APPROVED", "UNREVIEWED"].includes(item.status))
+    .filter((item) => periodYear(item.reporting_period) !== null);
+
+  const periodSet = new Set(relevant.map((item) => item.reporting_period));
+  const observed = new Map();
+  const metricSet = new Set();
+
+  for (const submission of relevant.slice().sort((a, b) => a.submitted_at.localeCompare(b.submitted_at))) {
+    for (const metric of submission.metrics) {
+      const definition = canonicalMetric(metric.metric_name);
+      const label = definition ? canonicalName(definition) : metric.metric_name;
+      const converted = definition ? toCanonicalValue(metric.value, metric.unit, definition) : Number(metric.value);
+      metricSet.add(label);
+      const key = `${label}|${submission.reporting_period}`;
+      const current = observed.get(key);
+      const candidateApproved = submission.status === "APPROVED";
+      // APPROVED always beats UNREVIEWED. Within one status the later submission
+      // wins, which this loop gets for free by iterating oldest-first.
+      const wins = !current || candidateApproved || !current.approved;
+      if (wins) {
+        observed.set(key, {
+          approved: candidateApproved,
+          state: candidateApproved ? "APPROVED" : "UNREVIEWED",
+          value: converted,
+          unit: definition ? definition.unit : metric.unit,
+          submission_id: submission.submission_id,
+        });
+      }
+    }
+  }
+
+  const periods = [...periodSet].sort();
+  const metrics = [...metricSet].sort();
+  const cells = [];
+  let approvedCells = 0;
+  for (const metric of metrics) {
+    for (const period of periods) {
+      const found = observed.get(`${metric}|${period}`);
+      if (!found) {
+        cells.push({ metric_name: metric, reporting_period: period, state: "MISSING", value: null, unit: null, submission_id: null });
+        continue;
+      }
+      if (found.state === "APPROVED") approvedCells += 1;
+      cells.push({
+        metric_name: metric,
+        reporting_period: period,
+        state: found.state,
+        value: found.value,
+        unit: found.unit,
+        submission_id: found.submission_id,
+      });
+    }
+  }
+
+  const totalCells = metrics.length * periods.length;
+  return {
+    project_id: Number(id),
+    metrics,
+    periods,
+    cells,
+    approved_cells: approvedCells,
+    total_cells: totalCells,
+    approved_coverage_percent: totalCells ? (approvedCells / totalCells) * 100 : null,
+  };
+}

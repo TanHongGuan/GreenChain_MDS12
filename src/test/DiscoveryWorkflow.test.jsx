@@ -134,6 +134,34 @@ describe("Sprint 7 discovery and highlighted workflow", () => {
     );
   });
 
+  test("home renders all three Sprint 7 discovery sections", async () => {
+    renderApp("/");
+
+    expect(await screen.findByRole("heading", { name: "Recently updated projects" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Featured sustainable projects" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "New projects" })).toBeInTheDocument();
+  });
+
+  test("each section links into Projects with a preset the catalogue accepts", async () => {
+    renderApp("/");
+
+    await screen.findByRole("heading", { name: "Recently updated projects" });
+    const hrefs = screen.getAllByRole("link", { name: "View all" }).map((link) => link.getAttribute("href"));
+
+    expect(hrefs).toEqual([
+      "/projects?sort=updated_desc",
+      "/projects?status=APPROVED&sort=period_desc",
+      "/projects?sort=created_desc",
+    ]);
+  });
+
+  test("featured section explains how it is derived instead of implying editorial choice", async () => {
+    renderApp("/");
+
+    await screen.findByRole("heading", { name: "Featured sustainable projects" });
+    expect(screen.getByText("No explicit featured flag exists.")).toBeInTheDocument();
+  });
+
   test("project card link opens detail while star toggles without navigation", async () => {
     setupFetch();
     renderApp("/");

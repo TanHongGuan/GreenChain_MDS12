@@ -1326,3 +1326,339 @@ select:not([multiple]) {
   .project-list-item { grid-template-columns: minmax(0, 1fr) auto; }
   .project-list-item .project-view-link { grid-column: 1 / -1; justify-self: end; }
 }
+
+/* Sprint 7: explains how a discovery section is derived (text comes from the API). */
+.section-note {
+  margin: -4px 0 12px;
+  font-size: 0.82rem;
+  color: #708095;
+  max-width: 72ch;
+}
+
+/* --- Sprint 8: investor sustainability insights ------------------------------- */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.insights-section {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #dee5eb;
+}
+
+.insight-empty {
+  color: #45586d;
+}
+
+/* Chart colour roles. The two poles are a validated diverging pair (blue/red):
+   green/red was rejected because it is the classic red-green confusion case, and
+   the app's own green is already spoken for by "approved". Direction of better is
+   carried by the row sublabel and the legend note, never by hue alone. */
+.benchmark-insight {
+  --chart-below: #2a78d6;
+  --chart-above: #d03b3b;
+  --chart-grid: #e8edf1;
+  --chart-baseline: #c9d2dc;
+  --chart-ink: #172437;
+  --chart-ink-muted: #708095;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+  color: #45586d;
+}
+
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.chart-legend-note {
+  color: #708095;
+  font-style: italic;
+}
+
+.chart-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.chart-swatch-below {
+  background: #2a78d6;
+}
+
+.chart-swatch-above {
+  background: #d03b3b;
+}
+
+.chart-frame {
+  border: 1px solid #dee5eb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px 4px;
+  margin-bottom: 16px;
+}
+
+.benchmark-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Hairline, solid, recessive - never dashed. */
+.benchmark-chart .chart-gridline {
+  stroke: #e8edf1;
+  stroke-width: 1;
+}
+
+.benchmark-chart .chart-baseline {
+  stroke: #c9d2dc;
+  stroke-width: 1;
+}
+
+.benchmark-chart .chart-tick {
+  fill: #708095;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.benchmark-chart .chart-axis-title {
+  fill: #45586d;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.benchmark-chart .chart-row-label {
+  fill: #172437;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.benchmark-chart .chart-row-sublabel {
+  fill: #708095;
+  font-size: 11px;
+}
+
+.benchmark-chart .chart-value-inside {
+  fill: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.benchmark-chart .chart-value-outside {
+  fill: #45586d;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.benchmark-chart .benchmark-bar-below {
+  fill: #2a78d6;
+}
+
+.benchmark-chart .benchmark-bar-above {
+  fill: #d03b3b;
+}
+
+.benchmark-chart .benchmark-row {
+  cursor: default;
+}
+
+.benchmark-chart .benchmark-row-hit {
+  fill: transparent;
+}
+
+.benchmark-chart .benchmark-row-active {
+  fill: #f3f7f3;
+}
+
+.benchmark-chart .benchmark-row:focus {
+  outline: none;
+}
+
+.benchmark-chart .benchmark-row:focus-visible .benchmark-row-hit {
+  stroke: #23835e;
+  stroke-width: 2;
+}
+
+.benchmark-provenance {
+  font-size: 0.85rem;
+  color: #45586d;
+  margin: 0 0 16px;
+}
+
+.benchmark-excluded {
+  border: 1px solid #dee5eb;
+  border-radius: 8px;
+  background: #f8fafb;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.benchmark-excluded h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  color: #0d2744;
+}
+
+.benchmark-excluded ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+  color: #45586d;
+}
+
+.benchmark-excluded li + li {
+  margin-top: 6px;
+}
+
+.benchmark-table .table-note {
+  color: #708095;
+  font-size: 0.8rem;
+}
+
+/* --- reporting consistency matrix --- */
+
+.coverage-stat {
+  margin-bottom: 16px;
+}
+
+.coverage-label {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #708095;
+}
+
+.coverage-value {
+  margin: 2px 0 4px;
+  font-size: 2.25rem;
+  font-weight: 600;
+  color: #0d2744;
+  line-height: 1.1;
+}
+
+.coverage-detail {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 0.85rem;
+  color: #45586d;
+}
+
+.consistency-matrix {
+  width: 100%;
+  border-collapse: separate;
+  /* The 2px gap is the separator between cells - no borders drawn around marks. */
+  border-spacing: 2px;
+}
+
+.consistency-matrix th {
+  text-align: left;
+  font-size: 0.82rem;
+  color: #45586d;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+.consistency-matrix thead th {
+  font-variant-numeric: tabular-nums;
+}
+
+.matrix-cell {
+  padding: 8px 10px;
+  border-radius: 6px;
+  vertical-align: top;
+  min-width: 96px;
+}
+
+.matrix-glyph {
+  display: inline-block;
+  width: 16px;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.matrix-state {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.matrix-value {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: #45586d;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status tints carry a glyph and a word in every cell, so the colour is a second
+   channel rather than the only one. Text stays in ink tokens for contrast. */
+.matrix-cell-approved {
+  background: #e8f5ed;
+  color: #14543c;
+}
+
+.matrix-cell-approved .matrix-glyph {
+  color: #0ca30c;
+}
+
+.matrix-cell-unreviewed {
+  background: #fdf3dd;
+  color: #6b4b06;
+}
+
+.matrix-cell-unreviewed .matrix-glyph {
+  color: #a9750a;
+}
+
+.matrix-cell-missing {
+  background: #f3f5f7;
+  color: #5b6b7d;
+}
+
+.matrix-cell-missing .matrix-glyph {
+  color: #8b99a8;
+}
+
+.matrix-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 720px) {
+  .matrix-cell {
+    min-width: 72px;
+    padding: 6px;
+  }
+
+  .coverage-value {
+    font-size: 1.85rem;
+  }
+}

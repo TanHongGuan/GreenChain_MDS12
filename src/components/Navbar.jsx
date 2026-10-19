@@ -22,7 +22,6 @@ export function Navbar() {
   }
   if (canAccess(user, PERMISSIONS.REVIEW_SUBMISSION)) {
     links.push({ to: "/review", label: "Review" });
-    if (isMockMode) links.push({ to: "/preparation-reviews", label: "Preparation Reviews" });
   }
 
   async function handleLogout() {
@@ -31,7 +30,7 @@ export function Navbar() {
   }
 
   function handleDemoReset() {
-    if (window.confirm("Reset all demo projects, submissions, preparations, consultant reviews and highlights in this browser session? This cannot be undone.")) {
+    if (window.confirm("Reset all demo projects, submissions and highlights in this browser session? This cannot be undone.")) {
       resetDemoData(true);
       navigate("/", { replace: true });
       window.location.reload();

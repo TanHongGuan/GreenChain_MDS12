@@ -260,7 +260,7 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
       <div className="evidence-actions">
         {!canInspectEvidence && <p>Evidence access is restricted for this submission.</p>}
         {canInspectEvidence && <>
-        <EvidenceLink submissionId={detail.submission_id} type="original" label="Original data" evidence={original} />
+        <EvidenceLink submissionId={detail.submission_id} type="original" label="Original uploaded file" evidence={original} />
         <EvidenceLink
           submissionId={detail.submission_id}
           type="processed"
@@ -318,6 +318,8 @@ export function ProjectDetailPage() {
   const { projectId } = useParams();
   const location = useLocation();
   const projectListUrl = `/projects${location.search}`;
+  const navigationParams = new URLSearchParams(location.search);
+  const requestedSubmissionId = navigationParams.get("submission");
   const [detail, setDetail] = useState(null);
   const [detailStatus, setDetailStatus] = useState("loading");
   const [detailError, setDetailError] = useState("");
@@ -390,7 +392,8 @@ export function ProjectDetailPage() {
         const visibleRecords = user?.role === "VIEWER" ? records.filter((record) => record.status === "APPROVED") : records;
         setVerificationRecords(records);
         setSubmissions(visibleRecords);
-        setSelectedSubmissionId(visibleRecords.length > 0 ? visibleRecords[0].submission_id : null);
+        const requestedRecord = requestedSubmissionId === null ? visibleRecords[0] : visibleRecords.find((record) => String(record.submission_id) === requestedSubmissionId);
+        setSelectedSubmissionId(requestedRecord?.submission_id ?? null);
         setSubmissionsStatus("success");
       })
       .catch((error) => {
@@ -404,7 +407,7 @@ export function ProjectDetailPage() {
     return () => {
       isMounted = false;
     };
-  }, [projectId, user?.role]);
+  }, [projectId, user?.role, requestedSubmissionId]);
 
   useEffect(() => {
     if (!selectedSubmissionId) {
@@ -528,12 +531,12 @@ export function ProjectDetailPage() {
         <div className="section-heading">
           <h2 id="submission-detail-heading">Submission Detail</h2>
         </div>
-        <SubmissionDetailPanel
+        {submissionsStatus === "success" && requestedSubmissionId !== null && !submissions.some((record) => String(record.submission_id) === requestedSubmissionId) ? <p className="form-error" role="status">This submission is unavailable in the visible project history.</p> : <SubmissionDetailPanel
           detail={submissionDetail}
           status={submissionDetailStatus}
           error={submissionDetailError}
           canInspectEvidence={user?.role === "AUDITOR" || submissionDetail?.status === "APPROVED"}
-        />
+        />}
       </section>
     </section>
   );

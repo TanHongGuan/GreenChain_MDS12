@@ -40,20 +40,8 @@ export async function updateMockBuilding(id, input) {
   if (!isMockMode) throw Object.assign(new Error("Company buildings are available in mock mode only."), { status: 501 });
   return mock.updateBuilding(id, input);
 }
-const mockPreparationOnly = () => {
-  if (!isMockMode) throw Object.assign(new Error("Certification preparation is available in mock mode only."), { status: 501 });
-};
-export function getMockBuildingPreparation(id) { mockPreparationOnly(); return mock.getBuildingPreparation(id); }
-export function selectMockBuildingScheme(id, schemeId, confirmed = false) { mockPreparationOnly(); return mock.selectBuildingScheme(id, schemeId, confirmed); }
-export function saveMockCriterionPreparation(id, criterionId, input) { mockPreparationOnly(); return mock.saveCriterionPreparation(id, criterionId, input); }
-export function assignMockPreparationConsultant(id, consultantId, confirmed = false) { mockPreparationOnly(); return mock.assignPreparationConsultant(id, consultantId, confirmed); }
-export function getAssignedMockPreparations() { mockPreparationOnly(); return mock.getAssignedPreparations(); }
-export function getAssignedMockPreparation(id) { mockPreparationOnly(); return mock.getAssignedPreparation(id); }
-export function reviewMockPreparationCriterion(id, criterionId, outcome, feedback) { mockPreparationOnly(); return mock.reviewPreparationCriterion(id, criterionId, outcome, feedback); }
-export function getMockPreparationPackage(id) { mockPreparationOnly(); return mock.getPreparationPackage(id); }
-export function exportMockPreparationPackage(id, snapshot) { mockPreparationOnly(); return mock.exportPreparationPackage(id, snapshot); }
 export async function getAssignedMockSubmissions() {
-  if (!isMockMode) throw Object.assign(new Error("Consultant assignments are available in mock mode only."), { status: 501 });
+  if (!isMockMode) throw Object.assign(new Error("Demo auditor assignments are available in mock mode only."), { status: 501 });
   return mock.getAssignedSubmissions();
 }
 export function resetDemoData(confirmed = false) {

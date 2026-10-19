@@ -1,0 +1,7 @@
+﻿Dataset,Test name,Expected outcome,Reference
+D01,Bayview Q1 main vs submeter,ACCEPT; do not sum overlapping submeters,D01_expected_monthly.csv
+D02,Bayview Q2 period,ACCEPT; 91 days,D02_expected_monthly.csv
+D03,Meranti Q1 MWh & litres,ACCEPT; unit conversions and independent meter sums,D03_expected_monthly.csv
+D04,Meranti Q2 period,ACCEPT; 91 days,D04_expected_monthly.csv
+D05,Missing electricity + reversed water meter,FAIL validation; never publish,D05_expected_validation_errors.csv
+D06,Spike without adequate evidence,ACCEPT ETL; reviewer rejects; never publicly display,D06_expected_monthly.csv

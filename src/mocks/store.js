@@ -1,7 +1,7 @@
 import { DEMO_ORGANISATIONS, DEMO_USERS } from "./identity.js";
 
 export const MOCK_STORAGE_KEY = "greenchain-demo-v1";
-export const MOCK_SCHEMA_VERSION = 4;
+export const MOCK_SCHEMA_VERSION = 5;
 const comparisonProjects = [
   { project_id: 105, project_name: "Bukit Civic Annex", organisation: "Demo Civic Trust", location: "Kuala Lumpur" },
   { project_id: 106, project_name: "Taman Skills Hub", organisation: "Demo Civic Trust", location: "Selangor" },
@@ -53,11 +53,6 @@ const seed = {
     ...comparisonSubmissions,
   ],
   highlights: {},
-  preparations: [],
-  nextPreparationId: 1,
-  preparationAssignments: [],
-  preparationReviews: [],
-  nextPreparationReviewId: 1,
   nextProjectId: 109,
   nextSubmissionId: 1116,
 };
@@ -83,10 +78,12 @@ function migrateStore(value) {
     users: DEMO_USERS.map((user) => ({ ...user })),
     assignments: Array.isArray(value.assignments) ? value.assignments : copy(seed.assignments),
     highlights: value.highlights && typeof value.highlights === "object" && !Array.isArray(value.highlights) ? value.highlights : {},
-    preparations: Array.isArray(value.preparations) ? value.preparations : [],
-    preparationAssignments: Array.isArray(value.preparationAssignments) ? value.preparationAssignments : [],
-    preparationReviews: Array.isArray(value.preparationReviews) ? value.preparationReviews : [],
   };
+  delete migrated.preparations;
+  delete migrated.preparationAssignments;
+  delete migrated.preparationReviews;
+  delete migrated.nextPreparationId;
+  delete migrated.nextPreparationReviewId;
   migrated.projects = value.projects.map((project) => ({ ...project, organisation_id: project.organisation_id || organisationId(project.organisation) }));
   for (const project of migrated.projects) {
     if (project.organisation_id && !migrated.organisations.some((item) => item.id === project.organisation_id)) {
@@ -102,8 +99,6 @@ function migrateStore(value) {
   }
   migrated.nextProjectId = Math.max(Number(value.nextProjectId) || 0, 109, ...migrated.projects.map((item) => Number(item.project_id) + 1));
   migrated.nextSubmissionId = Math.max(Number(value.nextSubmissionId) || 0, 1116, ...migrated.submissions.map((item) => Number(item.submission_id) + 1));
-  migrated.nextPreparationId = Math.max(Number(value.nextPreparationId) || 0, 1, ...migrated.preparations.map((item) => (Number(item.id) || 0) + 1));
-  migrated.nextPreparationReviewId = Math.max(Number(value.nextPreparationReviewId) || 0, 1, ...migrated.preparationReviews.map((item) => (Number(item.id) || 0) + 1));
   return migrated;
 }
 

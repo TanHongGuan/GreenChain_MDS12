@@ -170,7 +170,7 @@ export function UploadPlaceholder() {
 
       {stage === "success" ? <div className="upload-result" role="status">
         <p className="form-success">{notice}</p>
-        <p>{isMockMode ? "This demo submission is available in the mock review queue only." : "Your submission was accepted by the backend."} Awaiting auditor review. Approval is not building certification.</p>
+        <p>{isMockMode ? "This demo submission is available in the mock review queue only." : "Your submission was accepted by the backend."} Awaiting auditor review.</p>
         {result?.project_id && <Link to={`/projects/${result.project_id}`} className="secondary-button">View project</Link>}
         <button type="button" className="secondary-button" onClick={() => { setStage("form"); setNotice(""); setResult(null); }}>New submission</button>
       </div> : null}

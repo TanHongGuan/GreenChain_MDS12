@@ -30,7 +30,7 @@ export function MyBuildingsPage() {
       {buildings.map((building) => <article className="company-list-row" role="listitem" key={building.project_id}>
         <div className="company-list-main"><h2>{building.project_name}</h2><p>{building.location || "Location not set"} · {building.organisation}</p>{building.description && <p className="company-description">{building.description}</p>}</div>
         <div className="company-list-summary"><strong>{building.submission_count}</strong><span>submission{building.submission_count === 1 ? "" : "s"}</span><small>{building.latest_submission ? `Latest: ${building.latest_submission.reporting_period} · ${building.latest_submission.status}` : "No submissions yet"}</small></div>
-        <div className="company-row-actions"><Link className="secondary-button" to={`/projects/${building.project_id}`}>View</Link><Link className="secondary-button" to={`/my-buildings/${building.project_id}/edit`}>Edit</Link><Link className="secondary-button" to={`/upload?building=${building.project_id}`}>Upload</Link><Link className="secondary-button" to={`/my-buildings/${building.project_id}/preparation`}>Preparation</Link></div>
+        <div className="company-row-actions"><Link className="secondary-button" to={`/projects/${building.project_id}`}>View</Link><Link className="secondary-button" to={`/my-buildings/${building.project_id}/edit`}>Edit</Link><Link className="secondary-button" to={`/upload?building=${building.project_id}`}>Upload</Link></div>
       </article>)}
     </div>}
   </section>;

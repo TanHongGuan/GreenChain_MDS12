@@ -33,6 +33,9 @@ describe("versioned mock foundation", () => {
     legacy.projects.push({ project_id: 9000, project_name: "Legacy Building", organisation: "Old Org", created_at: "2026-01-01T00:00:00Z" });
     legacy.submissions.push({ submission_id: 9001, project_id: 9000, reporting_period: "2026-Q3", status: "REJECTED", reason: "Old review", metrics: [], submitted_at: "2026-08-01T00:00:00Z" });
     legacy.highlights = { 2: [9000] };
+    legacy.preparations = [{ id: 1, project_id: 9000 }];
+    legacy.preparationAssignments = [{ preparation_id: 1, consultant_id: 3 }];
+    legacy.preparationReviews = [{ preparation_id: 1, outcome: "NEEDS_REVISION" }];
     sessionStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(legacy));
     clearMockStoreCache();
 
@@ -42,6 +45,9 @@ describe("versioned mock foundation", () => {
     expect(migrated.organisations).toContainEqual({ id: "legacy-Old%20Org", name: "Old Org" });
     expect(migrated.submissions.find((item) => item.submission_id === 9001).reason).toBe("Old review");
     expect(migrated.highlights[2]).toEqual([9000]);
+    expect(migrated).not.toHaveProperty("preparations");
+    expect(migrated).not.toHaveProperty("preparationAssignments");
+    expect(migrated).not.toHaveProperty("preparationReviews");
     expect(migrated.nextProjectId).toBeGreaterThan(9000);
     expect(migrated.nextSubmissionId).toBeGreaterThan(9001);
     expect(migrated.submissions.find((item) => item.submission_id === 1001).metrics[0].value).toBe(124000);
@@ -73,7 +79,7 @@ describe("versioned mock foundation", () => {
     expect(assignedSubmissions(store, secondAuditor)).toEqual([]);
   });
 
-  it("guards new company/consultant service reads and returns detached snapshots", async () => {
+  it("guards company and auditor service reads and returns detached snapshots", async () => {
     await expect(mock.getOwnedBuildings()).rejects.toMatchObject({ status: 401 });
     setDemoUser(findDemoUserByEmail("viewer@demo.greenchain.test"));
     await expect(mock.getOwnedBuildings()).rejects.toMatchObject({ status: 403 });

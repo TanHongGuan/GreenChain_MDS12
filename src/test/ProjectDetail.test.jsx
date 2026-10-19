@@ -286,7 +286,7 @@ describe("project detail page", () => {
     expect(screen.getByText("GreenChain Auditor (auditor@greenchain.test)")).toBeInTheDocument();
     expect(screen.queryByText("Show unreviewed submissions (dashed)")).not.toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "Metric history over time" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Original data" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Original uploaded file" })).toHaveAttribute(
       "href",
       `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/submissions/10/evidence/original`,
     );

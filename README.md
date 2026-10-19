@@ -1,8 +1,8 @@
 # GreenChain MDS12
 
-GreenChain is a building sustainability data platform. Its broader aim is to support company data submission, validation and integrity checks, auditor review, visibility of approved sustainability records, and preparation of evidence for green-building certification.
+GreenChain is a sustainability evidence management and transparency platform. Organisations can submit building sustainability data, preserve evidence integrity, maintain traceable audit records, and share reviewed electricity, water and CO2 emissions information.
 
-This repository has a FastAPI/PostgreSQL backend and a React/Vite frontend. The current frontend also has a **mock mode** for company building management, consultant review and unofficial certification preparation; those features are not yet integrated with the real backend. See [Current Implementation Status](#current-implementation-status) before using the site as more than a local demonstration.
+This repository has a FastAPI/PostgreSQL backend and a React/Vite frontend. The frontend also has a **mock mode** for company building management and demo workflows; it does not write to the real backend. See [Current Implementation Status](#current-implementation-status) before using the site as more than a local demonstration.
 
 ## Quick Start: Run GreenChain Locally
 
@@ -176,9 +176,9 @@ The unchanged `.env.example` value is `change-this-local-password`; `123` is **n
 
 The original Sprint 1 foundation provided FastAPI authentication/RBAC, PostgreSQL user/organisation persistence, React/Vite login and a local-storage abstraction. The checked-out backend now also has project discovery/catalogue, submissions, sustainability metrics, evidence metadata, highlights and auditor approve/reject endpoints. The frontend supports public project detail, approved-data charts and comparison, upload and review workflows. This is broader than the old Sprint 1-only README description.
 
-The current **mock mode** (`VITE_DATA_MODE=mock`) adds deterministic demo personas, organisation-owned My Buildings, building selection at upload, GBI NREB/GreenRE ENRB representative preparation checklists, consultant assignment/review and an unofficial HTML preparation package. Mock records live in browser session storage and never write to the real backend. To use it, set `VITE_DATA_MODE=mock` in `.env`, restart Vite and sign in with a listed persona such as `uploader@demo.greenchain.test`, `auditor@demo.greenchain.test` or `viewer@demo.greenchain.test`; any nonempty demo password works. The frontend also seeds `future-uploader@demo.greenchain.test` and `second-auditor@demo.greenchain.test`. Mock role checks are UX simulation, not backend security.
+The current **mock mode** (`VITE_DATA_MODE=mock`) adds deterministic demo personas, organisation-owned My Buildings, building selection at upload, sustainability submissions and auditor review. Mock records live in browser session storage and never write to the real backend. To use it, set `VITE_DATA_MODE=mock` in `.env`, restart Vite and sign in with a listed persona such as `uploader@demo.greenchain.test`, `auditor@demo.greenchain.test` or `viewer@demo.greenchain.test`; any nonempty demo password works. The frontend also seeds `future-uploader@demo.greenchain.test` and `second-auditor@demo.greenchain.test`. Mock role checks are UX simulation, not backend security.
 
-**Not integrated:** real-mode company building management, certification preparation, consultant assignment/review and package export. Real-mode service wrappers for those mock-only operations return 501. Production S3 Object Lock/WORM storage, official certification scoring/eligibility/issuance, registration, OAuth and MFA are not implemented here. The illustrative checklists are not official certification assessments. See `docs/BATCH_06_INTEGRATION_HANDOVER.md` and `BATCH_06_IMPLEMENTATION_REPORT.md` for current gaps and QA status; Batch 6 is partially complete.
+**Not integrated:** real-mode company building management; its mock-only service wrappers return 501. Production S3 Object Lock/WORM storage, registration, OAuth and MFA are not implemented here. Certification preparation was removed from the active product scope. Historical Batch 3-6 documents describe discontinued mock experiments and are not current integration requirements; see `docs/CERTIFICATION_PREPARATION_REMOVAL.md`.
 
 ## Testing and Verification
 
@@ -197,15 +197,15 @@ The last three commands check frontend tests, its production build and whitespac
 
 | Role | Core navigation | Restricted routes |
 |---|---|---|
-| `VIEWER` | Home, Highlighted, Projects, Compare | `/upload`, `/review`, `/my-buildings/*`, `/preparation-reviews/*` |
-| `UPLOADER` | Home, Highlighted, Projects, Compare, Upload Data; My Buildings in mock mode | `/review`, `/preparation-reviews/*` |
-| `AUDITOR` | Home, Highlighted, Projects, Compare, Review; Preparation Reviews in mock mode | `/upload`, `/my-buildings/*` |
+| `VIEWER` | Home, Highlighted, Projects, Compare | `/upload`, `/review`, `/my-buildings/*` |
+| `UPLOADER` | Home, Highlighted, Projects, Compare, Upload Data; My Buildings in mock mode | `/review` |
+| `AUDITOR` | Home, Highlighted, Projects, Compare, Review | `/upload`, `/my-buildings/*` |
 
 In real mode, the backend authenticates with an HttpOnly cookie and enforces its existing API permissions. Refresh after login should retain the authenticated user; logout returns to `/login`; protected routes redirect to `/login` when signed out; wrong-role routes show Access Denied. Mock persona selection and frontend route guards do not replace backend authorisation.
 
 ## API Contract
 
-Authentication uses an HttpOnly cookie named `greenchain_access_token`. Frontend JavaScript does not read or store the JWT. These are the existing backend endpoints, not proposed certification APIs.
+Authentication uses an HttpOnly cookie named `greenchain_access_token`. Frontend JavaScript does not read or store the JWT. These are the existing backend endpoints.
 
 ### `POST /auth/login`
 

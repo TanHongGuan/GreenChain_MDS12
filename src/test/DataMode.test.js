@@ -38,15 +38,6 @@ describe("data mode boundary", () => {
     await expect(service.getOwnedMockBuildings()).rejects.toMatchObject({ status: 501 });
     await expect(service.createMockBuilding({ project_name: "No real endpoint" })).rejects.toMatchObject({ status: 501 });
     await expect(service.updateMockBuilding(1, { project_name: "No real endpoint" })).rejects.toMatchObject({ status: 501 });
-    expect(() => service.getMockBuildingPreparation(1)).toThrow("mock mode only");
-    expect(() => service.selectMockBuildingScheme(1, "GBI_NREB")).toThrow("mock mode only");
-    expect(() => service.saveMockCriterionPreparation(1, "EE5", {})).toThrow("mock mode only");
-    expect(() => service.assignMockPreparationConsultant(1, 3)).toThrow("mock mode only");
-    expect(() => service.getAssignedMockPreparations()).toThrow("mock mode only");
-    expect(() => service.getAssignedMockPreparation(1)).toThrow("mock mode only");
-    expect(() => service.reviewMockPreparationCriterion(1, "EE5", "NEEDS_REVISION", "Note")).toThrow("mock mode only");
-    expect(() => service.getMockPreparationPackage(1)).toThrow("mock mode only");
-    expect(() => service.exportMockPreparationPackage(1, {})).toThrow("mock mode only");
     expect(() => service.resetDemoData(true)).toThrow("mock mode only");
   });
 });

@@ -1,0 +1,8 @@
+﻿Field / concept,Source / rule,Canonical output,Validation / note
+Building ID,App-selected building; workbook ID is fixture-only,building_id,Authenticated org ownership applies
+Reporting month,Derived from parsed daily date,reporting_month YYYY-MM,Must be in selected quarter
+Electricity,Bayview main inclusive meter; Meranti independent GRID-A plus ANNEX-B,electricity_kwh,Never double-count submeters
+Water,Bayview cumulative differences; Meranti litres / 1000,water_m3,Nonnegative consumption; no silent imputation
+Emissions,Bayview monthly reported components; Meranti daily kg /1000,co2_tco2e,"Reported emissions, not independently verified"
+Original file,Original workbook bytes,file/hash evidence,SHA-256 verification belongs to integration
+Review state,"Auditor workflow, not ETL",unreviewed/approved/rejected,Public viewer only approved

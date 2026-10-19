@@ -96,9 +96,4 @@ describe("mock company pages", () => {
     expect(service.createMockBuilding).not.toHaveBeenCalled();
   });
 
-  it("blocks viewers from the mock consultant review route", async () => {
-    auth.user = { id: 1, role: "VIEWER", organisation_id: null };
-    render(<MemoryRouter initialEntries={["/preparation-reviews"]}><AppRoutes /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "Access Denied" })).toBeInTheDocument();
-  });
 });

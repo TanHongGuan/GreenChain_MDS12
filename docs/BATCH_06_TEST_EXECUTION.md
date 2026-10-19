@@ -1,5 +1,20 @@
 # Batch 6 test execution evidence
 
+## Preparation review evidence navigation retest (18 October 2026)
+
+| Check | Actual result | Status |
+|---|---|---|
+| Consultant linked evidence | `PreparationEvidenceNavigation.test.jsx` follows View submission to the correct project and selected submission, then returns to the same preparation/category. | Pass |
+| Review safety | Test confirms dirty form warning and no review-outcome change from opening evidence. | Pass |
+| Access and stale references | Tests confirm stale references have no broken link, an unassigned auditor is denied and Viewer cannot reveal an unreviewed submission through a deep link. | Pass |
+| Original file | Existing real-mode evidence action is labelled Original uploaded file. Mock mode reports it unavailable because no original file is stored. Backend/storage integration remains a dependency for real files. | Existing capability only |
+| Focused tests | `npm test -- --run src/test/PreparationEvidenceNavigation.test.jsx`: 3/3 passed. Existing `PreparationReviewPages.test.jsx` and `ProjectDetail.test.jsx`: 11/11 passed. | Pass |
+| Full regression | `npm test -- --run`: 26 files, **126/126 passed**. | Pass |
+| Build and whitespace | `npm run build`: Vite 7.3.6, 81 modules, exit 0. `git diff --check`: exit 0. | Pass |
+| Responsive visual matrix | Local browser was reachable, but its active session was an uploader. The consultant review layout was not independently inspected at 390/768/1440 in this follow-up. | Not Run |
+
+These checks do not close the earlier exported-package print or broader accessibility limitations below.
+
 ## Targeted UI layout retest (18 October 2026)
 
 | ID | Browser / command | Actual result | Status |

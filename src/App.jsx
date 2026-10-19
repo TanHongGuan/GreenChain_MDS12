@@ -1,4 +1,4 @@
-import { Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import { ProtectedRoute } from "./auth/ProtectedRoute.jsx";
 import { RoleRoute } from "./auth/RoleRoute.jsx";
@@ -14,9 +14,6 @@ import { ReviewPlaceholder } from "./pages/ReviewPlaceholder.jsx";
 import { UploadPlaceholder } from "./pages/UploadPlaceholder.jsx";
 import { MyBuildingsPage } from "./pages/MyBuildingsPage.jsx";
 import { BuildingFormPage } from "./pages/BuildingFormPage.jsx";
-import { BuildingPreparationPage } from "./pages/BuildingPreparationPage.jsx";
-import { PreparationReviewsPage } from "./pages/PreparationReviewsPage.jsx";
-import { PreparationPackagePage } from "./pages/PreparationPackagePage.jsx";
 import { isMockMode } from "./services/dataService.js";
 import { canAccess, PERMISSIONS } from "./auth/permissions.js";
 
@@ -55,8 +52,6 @@ export function AppRoutes() {
             <Route path="/my-buildings" element={<MyBuildingsPage />} />
             <Route path="/my-buildings/new" element={<BuildingFormPage />} />
             <Route path="/my-buildings/:buildingId/edit" element={<BuildingFormPage />} />
-            <Route path="/my-buildings/:buildingId/preparation" element={<BuildingPreparationPage />} />
-            <Route path="/my-buildings/:buildingId/package" element={<PreparationPackagePage />} />
           </Route>
           <Route
             element={
@@ -67,11 +62,8 @@ export function AppRoutes() {
           >
             <Route path="/review" element={<ReviewPlaceholder />} />
           </Route>
-          <Route element={<RoleRoute permission={(user) => isMockMode && canAccess(user, PERMISSIONS.REVIEW_SUBMISSION)} />}>
-            <Route path="/preparation-reviews" element={<PreparationReviewsPage />} />
-            <Route path="/preparation-reviews/:preparationId" element={<PreparationReviewsPage />} />
-          </Route>
           <Route path="/access-denied" element={<AccessDenied />} />
+          <Route path="*" element={<Navigate to="/projects" replace />} />
         </Route>
       </Route>
     </Routes>

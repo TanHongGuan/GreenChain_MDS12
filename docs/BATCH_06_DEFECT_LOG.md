@@ -1,5 +1,13 @@
 # Batch 6 defect log
 
+## Preparation review evidence navigation (18 October 2026)
+
+| ID | Severity | Root cause and observed defect | Scoped fix | Retest / residual |
+|---|---|---|---|---|
+| D06-09 | Medium | Linked company-evidence submissions were plain text in the preparation review, leaving consultants without a direct route to the existing project submission detail. | Added compact semantic View submission links to the canonical `/projects/:projectId` detail with a visible-submission query selector and return context. Linked rows show ID, period, status and metrics; stale references remain unavailable text. Dirty review inputs prompt before leaving. No review decision is made by navigation. | New navigation tests pass for linked/stale submissions, return context, unsaved-input warning, unassigned auditor and Viewer denial. Full frontend suite 126/126; build and diff check pass. Responsive browser inspection at 390/768/1440 was not completed in this follow-up. |
+
+The original uploaded-file action already exists on the project submission detail for real-mode evidence URLs. Mock mode has no stored original file, so its action remains unavailable. No storage endpoint or downloadable file was fabricated.
+
 ## Targeted UI layout follow-up (18 October 2026)
 
 | ID | Severity | Root cause and observed defect | Scoped fix | Retest |

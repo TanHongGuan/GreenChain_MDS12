@@ -122,9 +122,21 @@ describe("login", () => {
   test("login page renders", async () => {
     await renderUnauthenticated();
 
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    const accountSelector = screen.getByLabelText(/^email$/i);
+    expect(accountSelector).toBeInTheDocument();
+    expect(accountSelector).toHaveTextContent("viewer@greenchain.test");
+    expect(accountSelector).toHaveTextContent("uploader@greenchain.test");
+    expect(accountSelector).toHaveTextContent("auditor@greenchain.test");
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /log in/i })).toBeInTheDocument();
+  });
+
+  test("other email remains available for accounts outside the starter list", async () => {
+    await renderUnauthenticated();
+
+    await userEvent.selectOptions(screen.getByLabelText(/^email$/i), "other");
+
+    expect(screen.getByLabelText(/^other email$/i)).toBeInTheDocument();
   });
 
   test("required fields work", async () => {
@@ -156,7 +168,7 @@ describe("login", () => {
     renderApp("/login");
     await screen.findByRole("heading", { name: /sign in/i });
 
-    await userEvent.type(screen.getByLabelText(/email/i), "viewer@greenchain.test");
+    await userEvent.selectOptions(screen.getByLabelText(/^email$/i), "viewer@greenchain.test");
     await userEvent.type(screen.getByLabelText(/password/i), "password");
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
 
@@ -181,7 +193,7 @@ describe("login", () => {
     renderApp("/login");
     await screen.findByRole("heading", { name: /sign in/i });
 
-    await userEvent.type(screen.getByLabelText(/email/i), "viewer@greenchain.test");
+    await userEvent.selectOptions(screen.getByLabelText(/^email$/i), "viewer@greenchain.test");
     await userEvent.type(screen.getByLabelText(/password/i), "wrong");
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
 
@@ -206,7 +218,7 @@ describe("login", () => {
     renderApp("/login");
     await screen.findByRole("heading", { name: /sign in/i });
 
-    await userEvent.type(screen.getByLabelText(/email/i), "uploader@greenchain.test");
+    await userEvent.selectOptions(screen.getByLabelText(/^email$/i), "uploader@greenchain.test");
     await userEvent.type(screen.getByLabelText(/password/i), "password");
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
 

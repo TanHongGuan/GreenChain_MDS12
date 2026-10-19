@@ -13,7 +13,7 @@ const choose = (fake, real) => (...args) => (isMockMode ? fake(...args) : real(.
 export async function login(email, password) {
   if (!isMockMode) return realAuth.login(email, password);
   const user = findDemoUserByEmail(email);
-  if (!user || !password) throw Object.assign(new Error("Use a listed demo identity and enter a demo password."), { status: 401 });
+  if (!user) throw Object.assign(new Error("Choose a listed demo identity."), { status: 401 });
   setDemoUser(user);
   return { ...user };
 }

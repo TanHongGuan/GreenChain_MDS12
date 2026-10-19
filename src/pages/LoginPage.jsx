@@ -6,6 +6,12 @@ import { AppLoading } from "../components/AppLoading.jsx";
 import { isMockMode } from "../services/dataService.js";
 import { DEMO_USERS } from "../mocks/identity.js";
 
+const REAL_ACCOUNTS = [
+  { role: "Viewer", email: "viewer@greenchain.test" },
+  { role: "Uploader", email: "uploader@greenchain.test" },
+  { role: "Auditor", email: "auditor@greenchain.test" },
+];
+
 function isLikelyEmail(value) {
   return value.includes("@") && !value.startsWith("@") && !value.endsWith("@");
 }
@@ -15,6 +21,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
+  const [useCustomEmail, setUseCustomEmail] = useState(false);
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState("");
@@ -31,10 +38,10 @@ export function LoginPage() {
   async function handleSubmit(event) {
     event.preventDefault();
     const nextErrors = {};
-    if (!email.trim() || !isLikelyEmail(email.trim())) {
-      nextErrors.email = "Enter a valid email address.";
+    if (isMockMode ? !DEMO_USERS.some((user) => user.email === email) : !email.trim() || !isLikelyEmail(email.trim())) {
+      nextErrors.email = isMockMode ? "Choose a demo identity." : "Enter a valid email address.";
     }
-    if (!password) {
+    if (!isMockMode && !password) {
       nextErrors.password = "Enter your password.";
     }
     setFieldErrors(nextErrors);
@@ -46,7 +53,7 @@ export function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      await login(email, password);
+      await login(email, isMockMode ? undefined : password);
       const destination = location.state?.from?.pathname || "/";
       navigate(destination, { replace: true });
     } catch (requestError) {
@@ -74,44 +81,64 @@ export function LoginPage() {
             </div>
           ) : null}
 
-          {isMockMode && <>
-            <label htmlFor="demo-identity">Demo identity</label>
-            <select id="demo-identity" value={email} onChange={(event) => setEmail(event.target.value)}>
-              <option value="">Choose a demo identity</option>
-              {DEMO_USERS.map((user) => <option key={user.id} value={user.email}>{user.name} ({user.role})</option>)}
+          {isMockMode ? <>
+            <label htmlFor="email">Demo user</label>
+            <select id="email" name="email" value={email} aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? "email-error" : undefined} onChange={(event) => setEmail(event.target.value)}>
+              <option value="">Choose a user</option>
+              {DEMO_USERS.map((user) => <option key={user.id} value={user.email}>{user.name} ({user.email})</option>)}
             </select>
-            <p className="demo-label">Browser-session demo only. Any nonempty demo password works; this is not real authentication.</p>
+            <p className="demo-label">Local demo only. This does not authenticate against the backend.</p>
+          </> : <>
+            <label htmlFor="email">Email</label>
+            <select
+              id="email"
+              name="email"
+              value={useCustomEmail ? "other" : email}
+              aria-invalid={Boolean(fieldErrors.email)}
+              aria-describedby={fieldErrors.email ? "email-error" : undefined}
+              onChange={(event) => {
+                setUseCustomEmail(event.target.value === "other");
+                setEmail(event.target.value === "other" ? "" : event.target.value);
+              }}
+            >
+              <option value="">Choose an account</option>
+              {REAL_ACCOUNTS.map((account) => (
+                <option key={account.email} value={account.email}>{account.role} ({account.email})</option>
+              ))}
+              <option value="other">Other email</option>
+            </select>
+            {useCustomEmail ? <>
+              <label htmlFor="custom-email">Other email</label>
+              <input
+                id="custom-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                aria-invalid={Boolean(fieldErrors.email)}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </> : null}
           </>}
-
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            aria-invalid={Boolean(fieldErrors.email)}
-            aria-describedby={fieldErrors.email ? "email-error" : undefined}
-            onChange={(event) => setEmail(event.target.value)}
-          />
           {fieldErrors.email ? (
             <span className="field-error" id="email-error">
               {fieldErrors.email}
             </span>
           ) : null}
 
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            aria-invalid={Boolean(fieldErrors.password)}
-            aria-describedby={fieldErrors.password ? "password-error" : undefined}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          {fieldErrors.password ? (
+          {!isMockMode && <>
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              aria-invalid={Boolean(fieldErrors.password)}
+              aria-describedby={fieldErrors.password ? "password-error" : undefined}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </>}
+          {!isMockMode && fieldErrors.password ? (
             <span className="field-error" id="password-error">
               {fieldErrors.password}
             </span>

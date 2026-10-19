@@ -9,7 +9,7 @@ describe("data mode boundary", () => {
     const service = await import("../services/dataService.js");
     global.fetch = vi.fn(() => { throw new Error("Mock mode used network"); });
     expect(service.isMockMode).toBe(true);
-    expect((await service.login("uploader@demo.greenchain.test", "demo")).role).toBe("UPLOADER");
+    expect((await service.login("uploader@demo.greenchain.test")).role).toBe("UPLOADER");
     expect((await service.getHomeDiscovery()).summary.total_projects).toBe(8);
     expect(global.fetch).not.toHaveBeenCalled();
   });

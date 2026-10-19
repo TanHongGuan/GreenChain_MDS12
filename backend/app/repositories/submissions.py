@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from datetime import datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
@@ -18,6 +19,14 @@ def create_submission(
     processed_storage_key: str,
     original_sha256: str,
     previous_submission_id: int | None = None,
+    storage_backend: str = "local",
+    original_version_id: str | None = None,
+    original_retention_mode: str | None = None,
+    original_retain_until: datetime | None = None,
+    processed_version_id: str | None = None,
+    processed_sha256: str | None = None,
+    processed_retention_mode: str | None = None,
+    processed_retain_until: datetime | None = None,
 ) -> Submission:
     submission = Submission(
         project_id=project_id,
@@ -29,6 +38,14 @@ def create_submission(
         processed_storage_key=processed_storage_key,
         original_sha256=original_sha256,
         previous_submission_id=previous_submission_id,
+        storage_backend=storage_backend,
+        original_version_id=original_version_id,
+        original_retention_mode=original_retention_mode,
+        original_retain_until=original_retain_until,
+        processed_version_id=processed_version_id,
+        processed_sha256=processed_sha256,
+        processed_retention_mode=processed_retention_mode,
+        processed_retain_until=processed_retain_until,
     )
     db.add(submission)
     db.flush()

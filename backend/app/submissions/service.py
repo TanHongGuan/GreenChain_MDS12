@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -18,7 +19,9 @@ from backend.app.repositories.submissions import create_submission, get_submissi
 from backend.app.storage.base import StorageService
 from backend.app.storage.dependencies import get_storage_service
 from backend.app.storage.exceptions import StorageError
+from backend.app.storage.models import StoredFile
 
+logger = logging.getLogger(__name__)
 
 class SubmissionValidationError(Exception):
     """Raised when accepted upload data fails downstream validation."""
@@ -103,12 +106,18 @@ async def process_submission(
         db.rollback()
         raise SubmissionProcessingError("Original file could not be stored.") from exc
 
+    if original_file.sha256 is not None and original_file.sha256 != original_sha256:
+        db.rollback()
+        _discard_stored_files(storage, [original_file])
+        raise SubmissionProcessingError("Stored original does not match the uploaded bytes.")
+
     try:
         processed_file = storage.store_processed(
             BytesIO(processed_bytes), f"{Path(file.filename).stem}.csv", "text/csv"
         )
     except StorageError as exc:
         db.rollback()
+        _discard_stored_files(storage, [original_file])
         raise SubmissionProcessingError("Processed file could not be stored.") from exc
 
     try:
@@ -122,18 +131,43 @@ async def process_submission(
             processed_storage_key=processed_file.storage_key,
             original_sha256=original_sha256,
             previous_submission_id=previous_submission_id,
+            storage_backend=original_file.storage_backend,
+            original_version_id=original_file.version_id,
+            original_retention_mode=original_file.retention_mode,
+            original_retain_until=original_file.retain_until,
+            processed_version_id=processed_file.version_id,
+            processed_sha256=processed_file.sha256 or calculate_sha256(BytesIO(processed_bytes)),
+            processed_retention_mode=processed_file.retention_mode,
+            processed_retain_until=processed_file.retain_until,
         )
         bulk_create_metrics(db, submission.id, cleaned_rows)
         db.commit()
     except Exception as exc:
         db.rollback()
-        try:
-            storage.delete_if_allowed(processed_file.storage_key)
-        except StorageError:
-            pass
+        _discard_stored_files(storage, [processed_file, original_file])
         raise SubmissionProcessingError("Submission could not be saved.") from exc
 
     return SubmissionResult(submission_id=submission.id, status=submission.status)
+
+
+def _discard_stored_files(storage: StorageService, stored_files: list[StoredFile]) -> None:
+    """Best-effort removal of evidence written for a submission that was never recorded.
+
+    Under S3 Object Lock the delete is refused and the locked version remains until retention
+    expires. That orphan is intentional (WORM evidence cannot be removed early) and is logged so it
+    can be reconciled; it is never referenced by a submission row.
+    """
+    for stored in stored_files:
+        try:
+            storage.delete_if_allowed(stored.storage_key, stored.version_id)
+        except StorageError as exc:
+            logger.warning(
+                "Unreferenced evidence retained after failed submission: backend=%s key=%s version=%s (%s)",
+                stored.storage_backend,
+                stored.storage_key,
+                stored.version_id,
+                exc,
+            )
 
 
 def get_submission_processor(

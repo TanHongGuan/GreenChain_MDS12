@@ -1,0 +1,61 @@
+# Production-shaped stack: Postgres + API + the built frontend behind nginx.
+#
+# Local development still uses docker-compose.yml (Postgres only) plus the Vite
+# dev server; this file exists so a deployment can be rehearsed with the same
+# topology it will actually run, which is the Sprint 9 deployment deliverable.
+#
+# Every secret is read from the environment. Nothing is defaulted, so a missing
+# value fails loudly here instead of silently deploying a development default.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - greenchain_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ENVIRONMENT: production
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      COOKIE_SECURE: "true"
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?set FRONTEND_ORIGIN}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      STORAGE_BACKEND: local
+      LOCAL_STORAGE_ROOT: /app/var/storage
+    volumes:
+      # Evidence must outlive the container. Replace with the object-store
+      # backend once that work lands.
+      - greenchain_evidence:/app/var/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  web:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./dist:/usr/share/nginx/html:ro
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  greenchain_prod_data:
+  greenchain_evidence:

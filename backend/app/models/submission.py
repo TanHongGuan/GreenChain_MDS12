@@ -23,7 +23,7 @@ class Submission(Base):
     processed_storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     original_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     # Evidence storage references. Version IDs pin the exact immutable S3 object versions; they are
-    # NULL for the unversioned local backend and for rows created before migration 20261019_0007.
+    # NULL for the unversioned local backend and for rows created before migration 20261019_0008.
     storage_backend: Mapped[str] = mapped_column(String(32), nullable=False, default="local", server_default="local")
     original_version_id: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     original_retention_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)

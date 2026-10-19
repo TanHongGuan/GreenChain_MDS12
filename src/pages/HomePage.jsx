@@ -23,6 +23,45 @@ function approvedMetric(detail, key) {
   };
 }
 
+function DiscoverySection({
+  id,
+  title,
+  projects,
+  viewAllTo,
+  note,
+  emptyText = "No projects to show.",
+  updatingProjectId,
+  onToggleHighlight,
+}) {
+  const items = projects || [];
+  return (
+    <section className="discovery-section" aria-labelledby={`${id}-heading`}>
+      <div className="section-title-row">
+        <h2 id={`${id}-heading`}>{title}</h2>
+        <Link to={viewAllTo}>View all</Link>
+      </div>
+      {/* The backend states how a section is derived rather than implying an
+          editorial choice; surface that wording instead of inventing our own. */}
+      {note && <p className="section-note">{note}</p>}
+      {items.length === 0 ? (
+        <p>{emptyText}</p>
+      ) : (
+        <div className="discovery-card-grid">
+          {items.slice(0, 4).map((project) => (
+            <DiscoveryProjectCard
+              key={project.project_id}
+              project={project}
+              isUpdating={updatingProjectId === project.project_id}
+              onToggleHighlight={onToggleHighlight}
+              showLatestDecision={false}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function updateProject(projects, updatedProject) {
   return projects.map((project) => (project.project_id === updatedProject.project_id ? updatedProject : project));
 }
@@ -154,10 +193,34 @@ export function HomePage() {
               return <div key={key}><dt>{label}</dt><dd>{metric.value}</dd>{metric.period && <small>Approved period: {metric.period}</small>}</div>;
             })}</dl>
           </section>}
-          <section className="discovery-section" aria-labelledby="recent-heading">
-            <div className="section-title-row"><h2 id="recent-heading">Recently updated projects</h2><Link to="/projects?sort=updated_desc">View all</Link></div>
-            {(discovery.recently_updated || []).length === 0 ? <p>No projects to show.</p> : <div className="discovery-card-grid">{discovery.recently_updated.slice(0, 4).map((project) => <DiscoveryProjectCard key={project.project_id} project={project} isUpdating={updatingProjectId === project.project_id} onToggleHighlight={handleToggleHighlight} showLatestDecision={false} />)}</div>}
-          </section>
+          <DiscoverySection
+            id="recent"
+            title="Recently updated projects"
+            projects={discovery.recently_updated}
+            viewAllTo="/projects?sort=updated_desc"
+            updatingProjectId={updatingProjectId}
+            onToggleHighlight={handleToggleHighlight}
+          />
+
+          <DiscoverySection
+            id="featured"
+            title="Featured sustainable projects"
+            projects={discovery.featured}
+            viewAllTo="/projects?status=APPROVED&sort=period_desc"
+            note={discovery.featured_rule}
+            emptyText="No project has approved data yet, so none can be featured."
+            updatingProjectId={updatingProjectId}
+            onToggleHighlight={handleToggleHighlight}
+          />
+
+          <DiscoverySection
+            id="new"
+            title="New projects"
+            projects={discovery.new_projects}
+            viewAllTo="/projects?sort=created_desc"
+            updatingProjectId={updatingProjectId}
+            onToggleHighlight={handleToggleHighlight}
+          />
         </>
       )}
     </section>

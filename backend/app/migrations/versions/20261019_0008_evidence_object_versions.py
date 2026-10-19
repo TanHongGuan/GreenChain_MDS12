@@ -1,7 +1,7 @@
 """add evidence storage backend, S3 version and retention references to submissions
 
-Revision ID: 20261019_0007
-Revises: 20260903_0006
+Revision ID: 20261019_0008
+Revises: 20260903_0007
 Create Date: 2026-10-19 00:00:00.000000
 """
 from collections.abc import Sequence
@@ -9,8 +9,8 @@ from collections.abc import Sequence
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "20261019_0007"
-down_revision: str | Sequence[str] | None = "20260903_0006"
+revision: str = "20261019_0008"
+down_revision: str | Sequence[str] | None = "20260903_0007"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

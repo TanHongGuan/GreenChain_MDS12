@@ -10,7 +10,7 @@ Audit plan items: #2 DB policy, #6 evidence/integrity, #7 WORM decision/config
 | Capability | Status | Evidence |
 |---|---|---|
 | S3 storage provider (`STORAGE_BACKEND=s3`) | Implemented, tested against moto | `backend/app/storage/s3.py`, `tests/test_s3_storage.py` |
-| Exact version pinning (S3 `VersionId` persisted per submission) | Implemented, tested | migration `20261019_0007`, `tests/test_s3_submission_flow.py` |
+| Exact version pinning (S3 `VersionId` persisted per submission) | Implemented, tested | migration `20261019_0008`, `tests/test_s3_submission_flow.py` |
 | Object Lock retention on originals and processed files | Implemented, tested against moto | `tests/test_s3_storage.py::test_locked_version_cannot_be_deleted` |
 | Trusted digest independent of PostgreSQL (S3 `ChecksumSHA256`) | Implemented, tested | `backend/app/integrity/verification.py`, `tests/test_integrity_verification.py` |
 | Verify-before-download for the public evidence route | Implemented, tested | `GET /submissions/{id}/evidence/original` returns 409 on mismatch |
@@ -65,7 +65,7 @@ take an optional `version_id`. `describe` returns `StoredObjectInfo` (provider c
 `delete_if_allowed` on S3 requires an exact `version_id` (a version-less delete would only add a
 delete marker) and never sends `BypassGovernanceRetention`.
 
-**Database (`submissions`, migration `20261019_0007`):** `storage_backend` (default `local`),
+**Database (`submissions`, migration `20261019_0008`):** `storage_backend` (default `local`),
 `original_version_id`, `original_retention_mode`, `original_retain_until`, `processed_version_id`,
 `processed_sha256`, `processed_retention_mode`, `processed_retain_until`. All additive; existing rows
 are backfilled as `local` with NULL version fields.
@@ -202,7 +202,7 @@ and the app's submission detail. Redact the account ID and never capture credent
 * `pytest`: full backend suite passes (S3 behaviour via moto; see the PR description for the count).
 * Migration on PostgreSQL 16 (disposable Docker container, 2026-10-19): `upgrade 0006`, insert a
   legacy submission, `upgrade head`. The legacy row has `storage_backend='local'` and NULL version fields.
-  `downgrade -1` removed the columns and kept the row; `upgrade head` again reached `20261019_0007`.
+  `downgrade -1` removed the columns and kept the row; `upgrade head` again reached `20261019_0008`.
 * Real AWS (2026-10-19, isolated test bucket `greenchain-evidence-test`, ap-southeast-1, versioning +
   Object Lock enabled, all public access blocked, no default retention): `worm_evidence_check`
   reported `all_passed: true`. The synthetic file was stored as version `K2XxsalsDg9QAjnU.IGrZ.KFRKfoE_Ku`

@@ -95,6 +95,54 @@ const submissionDetail = {
   ],
 };
 
+const benchmarkReport = {
+  project: {
+    project_id: 42,
+    project_name: "Green Tower",
+    organisation: "Acme Corp",
+    country: "Malaysia",
+    property_type: "Office",
+  },
+  tolerance_percent: 5,
+  comparisons: [
+    {
+      metric_name: "Electricity",
+      reporting_period: "2026-Q2",
+      submission_id: 10,
+      value: 150,
+      unit: "kWh",
+      direction: "LOWER_IS_BETTER",
+      benchmark_value: 200,
+      benchmark_unit: "kWh",
+      difference_percent: -25,
+      classification: "BETTER_THAN_TARGET",
+      reason: null,
+      source: {
+        provider: "GreenChain Demo Benchmark Set",
+        source_name: "Illustrative placeholder targets",
+        source_version: "demo-2026.1",
+        source_url: null,
+        country: "Malaysia",
+        property_type: "Office",
+        year: 2026,
+      },
+    },
+  ],
+};
+
+const consistencyReport = {
+  project_id: 42,
+  metrics: ["Electricity"],
+  periods: ["2026-Q1", "2026-Q2"],
+  cells: [
+    { metric_name: "Electricity", reporting_period: "2026-Q1", state: "APPROVED", value: 100, unit: "kWh", submission_id: 9 },
+    { metric_name: "Electricity", reporting_period: "2026-Q2", state: "APPROVED", value: 150, unit: "kWh", submission_id: 10 },
+  ],
+  approved_cells: 2,
+  total_cells: 2,
+  approved_coverage_percent: 100,
+};
+
 function jsonResponse(status, payload) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -124,6 +172,12 @@ async function renderProjectDetail(
         throw new Error(`Unexpected metric history call: ${requestUrl}`);
       }
       return Promise.resolve(response.clone());
+    }
+    if (requestUrl.endsWith(`/insights/projects/${projectId}/benchmarks`)) {
+      return Promise.resolve(jsonResponse(200, benchmarkReport));
+    }
+    if (requestUrl.endsWith(`/insights/projects/${projectId}/consistency`)) {
+      return Promise.resolve(jsonResponse(200, consistencyReport));
     }
     if (requestUrl.endsWith(`/submissions/projects/${projectId}`)) {
       return Promise.resolve(submissionsResponse.clone());
@@ -299,4 +353,15 @@ describe("project detail page", () => {
       `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/submissions/10/evidence/audit_report`,
     );
   });
+  test("renders Sprint 8 insights sections from the real API payloads", async () => {
+    await renderProjectDetail();
+
+    expect(await screen.findByRole("heading", { name: "Performance vs Benchmark" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Reporting Consistency" })).toBeInTheDocument();
+    expect(screen.getAllByText("Better than target").length).toBeGreaterThan(0);
+    // The provider appears in the provenance line and again in the table twin.
+    expect(screen.getAllByText(/GreenChain Demo Benchmark Set/).length).toBeGreaterThan(0);
+    expect(screen.getByText("100%")).toBeInTheDocument();
+  });
+
 });

@@ -212,9 +212,16 @@ and the app's submission detail. Redact the account ID and never capture credent
   (`STORAGE_CHECKSUM`) and MISMATCH for a forged digest. This was independently confirmed with
   `aws s3api head-object --checksum-mode ENABLED`, `list-object-versions` and a CLI `delete-object`
   (also AccessDenied).
-* Caveat: the test IAM user had `AmazonS3FullAccess`, which includes `s3:BypassGovernanceRetention`.
-  The delete was refused because no bypass header was sent. To claim the application identity *cannot*
-  bypass retention, replace that policy with the least-privilege policy in Section 6 (explicit Deny on bypass).
+* Least privilege (2026-10-19): the test identity `greenchain-dev` was switched from
+  `AmazonS3FullAccess` to the Section 6 policy (`GreenChainEvidenceAccess`). Then:
+  * `list-buckets` was denied, so the identity is scoped to the evidence bucket only.
+  * `delete-object --bypass-governance-retention` on the locked version was denied by the explicit
+    Deny on `s3:BypassGovernanceRetention`.
+  * `put-object-retention --bypass-governance-retention` (an attempt to shorten retention) was also denied.
+  * The locked version was still present with its original retain-until.
+  * `worm_evidence_check` re-run under this policy: `all_passed: true`.
+  The application identity therefore cannot remove or shorten GOVERNANCE retention. An account
+  administrator with bypass permission still could, which is the documented difference from COMPLIANCE mode.
 
 ## 10. Decisions for the team (do not treat as agreed)
 

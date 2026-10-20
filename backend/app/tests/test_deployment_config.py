@@ -22,7 +22,9 @@ PROD = {
 
 def settings_for(**overrides) -> Settings:
     values = {**PROD, **overrides}
-    return Settings(**{key: value for key, value in values.items()})
+    # _env_file=None: judge only these values, not whatever a developer's local .env contains
+    # (e.g. ACCOUNT_SELECT_LOGIN=true for the demo would otherwise fail every production case).
+    return Settings(_env_file=None, **{key: value for key, value in values.items()})
 
 
 @pytest.fixture(autouse=True)
@@ -117,6 +119,7 @@ def test_valid_production_configuration_is_accepted() -> None:
 
 def test_development_defaults_are_allowed_outside_production() -> None:
     settings = Settings(
+        _env_file=None,
         ENVIRONMENT="development",
         JWT_SECRET=DEFAULT_JWT_SECRET,
         COOKIE_SECURE="false",

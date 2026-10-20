@@ -287,10 +287,7 @@ export function UploadPlaceholder() {
             ? <strong>{needingAction.length} {needingAction.length === 1 ? "needs" : "need"} your decision.</strong>
             : "Nothing needs changing — check the lines below and continue."}
         </p>
-        <p className="mapping-hint">
-          Suggested by {mappingPreview.model} from your column headings and notes. A suggestion to check against your
-          file, not a verified reading of it. No measurements have been uploaded yet.
-        </p>
+        <p className="mapping-hint">Supported by {mappingPreview.model}</p>
 
         {needingAction.length > 0 && <div className="needs-you">
           <h3>Needs you</h3>

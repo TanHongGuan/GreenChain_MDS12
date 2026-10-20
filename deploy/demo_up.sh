@@ -11,7 +11,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ENV_FILE=deploy/.env.demo
-COMPOSE=(docker compose --env-file "$ENV_FILE" -f docker-compose.prod.yml -f docker-compose.s3.yml -f docker-compose.lan.yml)
+# Own project name so the demo stack never shares containers with the local dev
+# `docker compose up -d postgres` (both define a service called postgres).
+COMPOSE=(docker compose -p greenchain-demo --env-file "$ENV_FILE" -f docker-compose.prod.yml -f docker-compose.s3.yml -f docker-compose.lan.yml)
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing $ENV_FILE. Copy deploy/demo.env.example and fill it in." >&2

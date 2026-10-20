@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+import json
 
 from sqlalchemy.orm import Session
 
@@ -110,6 +112,8 @@ class SubmissionRecord:
 @dataclass(frozen=True)
 class SubmissionDetail(SubmissionRecord):
     metrics: list[MetricTrace]
+    input_format: str = "LEGACY"
+    confirmed_mapping: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -357,7 +361,8 @@ def get_submission_detail(submission_id: int, current_user: AuthUser, *, db: Ses
         )
         for metric in submission.metrics
     ]
-    return SubmissionDetail(**record.__dict__, metrics=metrics)
+    return SubmissionDetail(**record.__dict__, metrics=metrics, input_format=submission.input_format,
+                            confirmed_mapping=json.loads(submission.mapping_json) if submission.mapping_json else None)
 
 
 def verify_original_integrity(submission_id: int, current_user: AuthUser, *, db: Session, storage: StorageService) -> IntegrityResult:
@@ -443,7 +448,7 @@ def get_evidence(
         return _verified_evidence_file(
             storage,
             label="Processed",
-            filename=f"processed-{submission.id}-{submission.original_filename}",
+            filename=f"processed-{submission.id}-{Path(submission.original_filename).stem}.csv",
             content_type="text/csv",
             storage_key=submission.processed_storage_key,
             version_id=submission.processed_version_id,

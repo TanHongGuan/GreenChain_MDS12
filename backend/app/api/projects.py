@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, Query, status
+from pydantic import BaseModel
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from backend.app.auth.dependencies import get_current_user
+from backend.app.auth.dependencies import require_permission
+from backend.app.auth.permissions import Permission
 from backend.app.auth.models import AuthUser
 from backend.app.catalogue.service import (
     CatalogueError,
@@ -19,8 +23,67 @@ from backend.app.performance.service import (
     get_metric_history,
     get_project_detail,
 )
+from backend.app.models.project import Project
+from backend.app.models.organisation import Organisation
+from backend.app.models.monthly_record import MonthlyRecord
+from backend.app.models.submission import Submission, SUBMISSION_STATUS_APPROVED
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+class OwnedBuildingInput(BaseModel):
+    name: str
+    location: str | None = None
+    country: str | None = None
+    property_type: str | None = None
+
+
+def _owned_building(project: Project, organisation: Organisation) -> dict:
+    return {
+        "project_id": project.id, "project_name": project.name,
+        "organisation_id": project.organisation_id, "organisation": organisation.name,
+        "location": project.location, "country": project.country,
+        "property_type": project.property_type,
+    }
+
+
+@router.get("/owned")
+def owned_buildings(
+    current_user: AuthUser = Depends(require_permission(Permission.UPLOAD_SUBMISSION)),
+    db: Session = Depends(get_db),
+) -> dict:
+    if not current_user.organisation_id:
+        return {"buildings": []}
+    organisation = db.get(Organisation, current_user.organisation_id)
+    if organisation is None:
+        return {"buildings": []}
+    projects = db.scalars(select(Project).where(Project.organisation_id == organisation.id).order_by(Project.name, Project.id)).all()
+    return {"buildings": [_owned_building(project, organisation) for project in projects]}
+
+
+@router.post("/owned", status_code=status.HTTP_201_CREATED)
+def create_owned_building(
+    payload: OwnedBuildingInput,
+    current_user: AuthUser = Depends(require_permission(Permission.UPLOAD_SUBMISSION)),
+    db: Session = Depends(get_db),
+) -> dict:
+    organisation = db.get(Organisation, current_user.organisation_id) if current_user.organisation_id else None
+    if organisation is None:
+        raise api_error(status.HTTP_403_FORBIDDEN, "ORGANISATION_REQUIRED", "An organisation is required.")
+    name = payload.name.strip()
+    if not name or len(name) > 255:
+        raise api_error(status.HTTP_400_BAD_REQUEST, "INVALID_NAME", "Building name must be 1 to 255 characters.")
+    existing = db.scalar(select(Project.id).where(Project.organisation_id == organisation.id, func.lower(Project.name) == name.lower()))
+    if existing is not None:
+        raise api_error(status.HTTP_409_CONFLICT, "DUPLICATE_BUILDING", "This organisation already has a building with that name.")
+    fields = {key: (value.strip() or None) if value is not None else None for key, value in payload.model_dump(exclude={"name"}).items()}
+    if any(value and len(value) > (255 if key == "location" else 128) for key, value in fields.items()):
+        raise api_error(status.HTTP_400_BAD_REQUEST, "INVALID_METADATA", "Building metadata is too long.")
+    project = Project(name=name, organisation_id=organisation.id, **fields)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return {"building": _owned_building(project, organisation)}
 
 
 @router.get("")
@@ -109,6 +172,34 @@ def _serialize_latest_metric(metric: LatestMetric) -> dict:
         "metric_name": metric.metric_name,
         "latest": _serialize_point(metric.latest),
         "previous": _serialize_point(metric.previous),
+    }
+
+
+@router.get("/{project_id}/monthly")
+def approved_monthly_history(
+    project_id: int,
+    _: AuthUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    if db.get(Project, project_id) is None:
+        raise api_error(status.HTTP_404_NOT_FOUND, "PROJECT_NOT_FOUND", "Project was not found.")
+    records = db.execute(
+        select(MonthlyRecord, Submission)
+        .join(Submission, MonthlyRecord.submission_id == Submission.id)
+        .where(MonthlyRecord.project_id == project_id, Submission.status == SUBMISSION_STATUS_APPROVED)
+        .order_by(MonthlyRecord.reporting_period, Submission.created_at.desc(), Submission.id.desc())
+    ).all()
+    latest_by_month = {}
+    for row, submission in records:
+        latest_by_month.setdefault(row.reporting_period, (row, submission))
+    return {
+        "project_id": project_id,
+        "monthly_records": [
+            {"submission_id": submission.id, "reporting_period": period,
+             "electricity_kwh": str(row.electricity_kwh), "water_m3": str(row.water_m3),
+             "co2_tco2e": str(row.co2_tco2e)}
+            for period, (row, submission) in sorted(latest_by_month.items())
+        ],
     }
 
 

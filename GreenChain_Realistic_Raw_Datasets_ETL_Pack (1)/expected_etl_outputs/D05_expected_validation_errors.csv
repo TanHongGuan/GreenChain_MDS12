@@ -1,3 +1,0 @@
-﻿severity,sheet,row_date,field,error_code,expected_handling
-ERROR,Electricity_Log,2026-01-19,Main Incoming Grid (kWh),INVALID_NUMERIC,Reject or quarantine dataset; no publication
-ERROR,Water_Readings,2026-02-09,Water Meter - cumulative (m3),DECREASING_CUMULATIVE,Reject or quarantine dataset; no publication

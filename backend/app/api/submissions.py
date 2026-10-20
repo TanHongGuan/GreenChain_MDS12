@@ -4,6 +4,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from backend.app.auth.dependencies import get_current_user, require_permission
 from backend.app.auth.models import AuthUser
@@ -39,10 +40,32 @@ from backend.app.submissions.traceability import (
     get_submission_detail,
     get_submission_history,
 )
+from backend.app.models.monthly_record import MonthlyRecord
+from backend.app.models.submission import Submission, SUBMISSION_STATUS_APPROVED
+from backend.app.models.project import Project
+from backend.app.auth.models import UserRole
+from backend.app.etl.ai_mapping import MappingUnavailable, inspect_sheets, inspection_payload, suggest_mapping
+from backend.app.etl.monthly import classify_and_clean, read_input
+from backend.app.etl.errors import ETLParseError, ETLValidationError
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
 SubmissionProcessor = Callable[[UploadFile, str, str, str, str, int | None], Awaitable[SubmissionResult]]
+
+
+def _monthly_access_allowed(submission: Submission, current_user: AuthUser, db: Session) -> bool:
+    if submission.input_format == "LEGACY" or submission.status == SUBMISSION_STATUS_APPROVED:
+        return True
+    if current_user.role == UserRole.AUDITOR:
+        return True
+    project = db.get(Project, submission.project_id)
+    return bool(current_user.role == UserRole.UPLOADER and project and project.organisation_id == current_user.organisation_id)
+
+
+def _require_monthly_access(submission_id: int, current_user: AuthUser, db: Session) -> None:
+    submission = db.get(Submission, submission_id)
+    if submission is not None and not _monthly_access_allowed(submission, current_user, db):
+        raise api_error(status.HTTP_404_NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission was not found.")
 
 
 def submission_error(status_code: int, code: str, message: str) -> HTTPException:
@@ -81,24 +104,24 @@ async def create_submission(
     organisation: str | None = Form(default=None),
     reporting_period: str | None = Form(default=None),
     previous_submission_id: int | None = Form(default=None),
+    project_id: int | None = Form(default=None),
+    confirmed_mapping: str | None = Form(default=None),
     current_user: AuthUser = Depends(require_permission(Permission.UPLOAD_SUBMISSION)),
     settings: Settings = Depends(get_settings),
     processor: SubmissionProcessor = Depends(get_submission_processor),
-) -> dict[str, int | str]:
+) -> dict[str, int | str | None]:
     upload_file = validate_file(file, settings)
-    clean_project_name = required_text(project_name, "Project / Building name")
-    clean_organisation = required_text(organisation, "Organisation")
+    clean_project_name = (project_name or "").strip() if project_id is not None else required_text(project_name, "Project / Building name")
+    clean_organisation = (organisation or "").strip() if project_id is not None else required_text(organisation, "Organisation")
     clean_reporting_period = required_text(reporting_period, "Reporting period")
 
     try:
-        result = await processor(
-            upload_file,
-            clean_project_name,
-            clean_organisation,
-            clean_reporting_period,
-            current_user.id,
-            previous_submission_id,
-        )
+        args = (upload_file, clean_project_name, clean_organisation, clean_reporting_period, current_user.id, previous_submission_id)
+        if project_id is None and confirmed_mapping is None:
+            result = await processor(*args)
+        else:
+            result = await processor(*args, project_id=project_id, organisation_id=current_user.organisation_id,
+                                     **({"mapping_json": confirmed_mapping} if confirmed_mapping is not None else {}))
     except SubmissionValidationError as exc:
         raise submission_error(status.HTTP_400_BAD_REQUEST, "INVALID_FILE", str(exc)) from exc
     except SubmissionProcessingError as exc:
@@ -114,10 +137,75 @@ async def create_submission(
             "Submission could not be processed. Please try again.",
         ) from exc
 
-    return {
+    payload = {
         "submission_id": result.submission_id,
         "status": result.status,
         "message": "Submission uploaded successfully",
+    }
+    if result.input_format != "LEGACY" or project_id is not None:
+        payload.update({
+            "project_id": result.project_id,
+            "input_format": result.input_format,
+            "monthly_record_count": result.monthly_record_count,
+            "processing_status": result.processing_status,
+        })
+    return payload
+
+
+@router.post("/mapping-preview")
+async def mapping_preview(
+    file: UploadFile | None = File(default=None),
+    _: AuthUser = Depends(require_permission(Permission.UPLOAD_SUBMISSION)),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    upload = validate_file(file, settings)
+    raw = await upload.read()
+    if not raw:
+        raise submission_error(status.HTTP_400_BAD_REQUEST, "INVALID_FILE", "Uploaded file is empty.")
+    if len(raw) > settings.max_upload_size_mb * 1024 * 1024:
+        raise submission_error(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "FILE_TOO_LARGE", "File exceeds upload limit.")
+    extension = Path(upload.filename).suffix.lower()
+    try:
+        try:
+            headers, rows = read_input(raw, extension)
+            input_format, _ = classify_and_clean(headers, rows)
+            return {"kind": "known", "input_format": input_format}
+        except ETLValidationError:
+            pass
+        sheets = inspect_sheets(raw, extension, sample_only=True)
+        suggestion = await suggest_mapping(sheets, settings.gemini_api_key, settings.gemini_model)
+        return {"kind": "ai_mapping", "mapping": suggestion.model_dump(), "sheets": inspection_payload(sheets),
+                "model": settings.gemini_model}
+    except (ETLParseError, ETLValidationError) as exc:
+        raise submission_error(status.HTTP_400_BAD_REQUEST, "INVALID_FILE", str(exc)) from exc
+    except MappingUnavailable as exc:
+        raise submission_error(status.HTTP_503_SERVICE_UNAVAILABLE, "AI_MAPPING_UNAVAILABLE", str(exc)) from exc
+
+
+@router.get("/{submission_id}/monthly")
+def submission_monthly_records(
+    submission_id: int,
+    current_user: AuthUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    submission = db.get(Submission, submission_id)
+    if submission is None:
+        raise api_error(status.HTTP_404_NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission was not found.")
+    project = db.get(Project, submission.project_id)
+    is_owner = current_user.role == UserRole.UPLOADER and project is not None and project.organisation_id == current_user.organisation_id
+    if submission.status != SUBMISSION_STATUS_APPROVED and not (is_owner or current_user.role == UserRole.AUDITOR):
+        raise api_error(status.HTTP_404_NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission was not found.")
+    rows = db.scalars(select(MonthlyRecord).where(MonthlyRecord.submission_id == submission_id).order_by(MonthlyRecord.reporting_period)).all()
+    return {
+        "submission_id": submission.id,
+        "project_id": submission.project_id,
+        "input_format": submission.input_format,
+        "processing_status": submission.processing_status,
+        "review_status": submission.status,
+        "monthly_records": [
+            {"reporting_period": row.reporting_period, "electricity_kwh": str(row.electricity_kwh),
+             "water_m3": str(row.water_m3), "co2_tco2e": str(row.co2_tco2e)} for row in rows
+        ],
     }
 
 
@@ -208,6 +296,8 @@ def _serialize_record(record: SubmissionRecord) -> dict:
 
 def _serialize_detail(detail: SubmissionDetail) -> dict:
     payload = _serialize_record(detail)
+    payload["input_format"] = detail.input_format
+    payload["confirmed_mapping"] = detail.confirmed_mapping
     payload["metrics"] = [
         {
             "metric_name": metric.metric_name,
@@ -235,7 +325,9 @@ def project_submission_history(
     except ProjectNotFound as exc:
         raise api_error(status.HTTP_404_NOT_FOUND, "PROJECT_NOT_FOUND", "Project was not found.") from exc
 
-    return {"submissions": [_serialize_record(record) for record in records]}
+    return {"submissions": [_serialize_record(record) for record in records
+                            if (submission := db.get(Submission, record.submission_id)) is not None
+                            and _monthly_access_allowed(submission, current_user, db)]}
 
 
 @router.get("/{submission_id}")
@@ -245,6 +337,7 @@ def submission_detail(
     db: Session = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
 ) -> dict:
+    _require_monthly_access(submission_id, current_user, db)
     try:
         detail = get_submission_detail(submission_id, current_user, db=db, storage=storage)
     except SubmissionNotFound as exc:
@@ -261,6 +354,7 @@ def submission_evidence(
     db: Session = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
 ) -> Response:
+    _require_monthly_access(submission_id, current_user, db)
     try:
         evidence = get_evidence(submission_id, artifact_type, current_user, db=db, storage=storage)
     except InvalidArtifactType as exc:

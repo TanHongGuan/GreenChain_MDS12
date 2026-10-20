@@ -2,7 +2,7 @@ const aliases = { metric: "metric_name", name: "metric_name", amount: "value", q
 const missing = new Set(["", "n/a", "na", "null", "none", "-"]);
 const header = (value) => { const normalized = value.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, ""); return aliases[normalized] || normalized; };
 
-export function parseCsv(text) {
+function parseRows(text) {
   const rows = [], row = [];
   let cell = "", quoted = false;
   const input = text.replace(/^\uFEFF/, "");
@@ -21,6 +21,11 @@ export function parseCsv(text) {
   if (quoted) throw new Error("CSV contains an unclosed quoted field.");
   row.push(cell); if (row.some((value) => value.trim())) rows.push(row);
   if (!rows.length) throw new Error("The file is empty.");
+  return rows;
+}
+
+export function parseCsv(text) {
+  const rows = parseRows(text);
   const columns = rows.shift().map(header);
   const absent = ["metric_name", "value", "unit"].filter((name) => !columns.includes(name));
   if (absent.length) throw new Error(`Missing required column(s): ${absent.join(", ")}.`);
@@ -33,6 +38,24 @@ export function parseCsv(text) {
   });
   if (!results.length) throw new Error("The file has no data rows.");
   return results;
+}
+
+const monthlyFormats = [
+  ["reporting_period", "electricity_kwh", "water_m3", "co2_tco2e"],
+  ["Month", "Electricity (MWh)", "Water (Litres)", "Carbon (kgCO2e)"],
+];
+
+export function parseUploadCsv(text) {
+  const rows = parseRows(text);
+  const headings = rows[0].map((value) => value.trim());
+  const format = monthlyFormats.find((columns) => columns.length === headings.length && columns.every((name, index) => name.toLowerCase() === headings[index].toLowerCase()));
+  if (!format) return { kind: "legacy", rows: parseCsv(text) };
+  const result = rows.slice(1).map((cells, index) => {
+    if (cells.length !== 4) throw new Error(`Row ${index + 2} has the wrong number of columns.`);
+    return Object.fromEntries(format.map((name, column) => [name, cells[column].trim()]));
+  });
+  if (!result.length) throw new Error("The file has no data rows.");
+  return { kind: "monthly", rows: result, columns: format };
 }
 
 export function readTextFile(file) {

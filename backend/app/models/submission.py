@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
@@ -18,6 +18,9 @@ class Submission(Base):
     uploader_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     reporting_period: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=SUBMISSION_STATUS_UNREVIEWED)
+    input_format: Mapped[str] = mapped_column(String(32), nullable=False, default="LEGACY", server_default="LEGACY")
+    processing_status: Mapped[str] = mapped_column(String(32), nullable=False, default="COMPLETED", server_default="COMPLETED")
+    mapping_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     original_storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     processed_storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
@@ -40,6 +43,7 @@ class Submission(Base):
     project = relationship("Project", back_populates="submissions")
     uploader = relationship("User")
     metrics = relationship("Metric", back_populates="submission", cascade="all, delete-orphan")
+    monthly_records = relationship("MonthlyRecord", back_populates="submission", cascade="all, delete-orphan")
     reviews = relationship("Review", back_populates="submission")
     previous_submission = relationship("Submission", remote_side=[id], back_populates="corrections")
     corrections = relationship("Submission", back_populates="previous_submission")

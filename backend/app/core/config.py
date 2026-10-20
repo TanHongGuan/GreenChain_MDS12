@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     storage_backend: str = Field(default="local", alias="STORAGE_BACKEND")
     local_storage_root: str = Field(default="./var/storage", alias="LOCAL_STORAGE_ROOT")
     max_upload_size_mb: int = Field(default=25, alias="MAX_UPLOAD_SIZE_MB")
+    gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
+    gemini_model: str = Field(default="gemini-3.5-flash-lite", alias="GEMINI_MODEL")
 
     # S3 Object Lock evidence storage (STORAGE_BACKEND=s3). AWS credentials are never configured
     # here: boto3 resolves them from the standard chain (AWS_PROFILE, ~/.aws, or an IAM role).

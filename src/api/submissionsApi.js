@@ -20,11 +20,13 @@ async function parseSubmissionResponse(response) {
   return payload;
 }
 
-export async function createSubmission({ projectName, organisation, reportingPeriod, file, previousSubmissionId = null }) {
+export async function createSubmission({ projectName, organisation, reportingPeriod, file, previousSubmissionId = null, projectId = null, confirmedMapping = null }) {
   const formData = new FormData();
   formData.append("project_name", projectName);
   formData.append("organisation", organisation);
   formData.append("reporting_period", reportingPeriod);
+  if (projectId) formData.append("project_id", String(projectId));
+  if (confirmedMapping) formData.append("confirmed_mapping", JSON.stringify(confirmedMapping));
   if (previousSubmissionId) {
     formData.append("previous_submission_id", String(previousSubmissionId));
   }
@@ -36,6 +38,15 @@ export async function createSubmission({ projectName, organisation, reportingPer
     body: formData,
   });
 
+  return parseSubmissionResponse(response);
+}
+
+export async function previewSubmissionMapping(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API_BASE_URL}/submissions/mapping-preview`, {
+    method: "POST", credentials: "include", body: formData,
+  });
   return parseSubmissionResponse(response);
 }
 

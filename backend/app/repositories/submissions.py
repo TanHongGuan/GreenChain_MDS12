@@ -25,6 +25,8 @@ def create_submission(
     original_retain_until: datetime | None = None,
     processed_version_id: str | None = None,
     processed_sha256: str | None = None,
+    input_format: str = "LEGACY",
+    mapping_json: str | None = None,
     processed_retention_mode: str | None = None,
     processed_retain_until: datetime | None = None,
 ) -> Submission:
@@ -44,6 +46,8 @@ def create_submission(
         original_retain_until=original_retain_until,
         processed_version_id=processed_version_id,
         processed_sha256=processed_sha256,
+        input_format=input_format,
+        mapping_json=mapping_json,
         processed_retention_mode=processed_retention_mode,
         processed_retain_until=processed_retain_until,
     )

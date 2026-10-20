@@ -53,6 +53,24 @@ export async function getProjectDetail(projectId) {
   return parseProjectResponse(response);
 }
 
+export async function getOwnedBuildings() {
+  const response = await fetch(`${API_BASE_URL}/projects/owned`, { credentials: "include" });
+  return (await parseProjectResponse(response)).buildings;
+}
+
+export async function createOwnedBuilding({ name, location }) {
+  const response = await fetch(`${API_BASE_URL}/projects/owned`, {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, location }),
+  });
+  return (await parseProjectResponse(response)).building;
+}
+
+export async function getApprovedMonthlyHistory(projectId) {
+  const response = await fetch(`${API_BASE_URL}/projects/${projectId}/monthly`, { credentials: "include" });
+  return parseProjectResponse(response);
+}
+
 export async function getMetricHistory(projectId, metricName, includeUnreviewed = false) {
   const params = new URLSearchParams();
   if (includeUnreviewed) {

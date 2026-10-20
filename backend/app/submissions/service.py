@@ -5,15 +5,22 @@ from pathlib import Path
 
 from fastapi import Depends, UploadFile
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.database import get_db
 from backend.app.etl.errors import ETLParseError, ETLValidationError
-from backend.app.etl.readers import read_csv_rows, read_xlsx_rows
+from backend.app.etl.monthly import build_monthly_csv, classify_and_clean, read_input, require_submission_quarter
+from backend.app.etl.ai_mapping import MappingSuggestion, process_confirmed_mapping
+from pydantic import ValidationError
 from backend.app.etl.transform import clean_rows
+from backend.app.etl.transform import CanonicalMetricRow
 from backend.app.etl.writer import build_processed_csv
 from backend.app.integrity.hashing import calculate_sha256
 from backend.app.repositories.metrics import bulk_create_metrics
+from backend.app.models.monthly_record import MonthlyRecord
+from backend.app.models.project import Project
+from backend.app.models.submission import SUBMISSION_STATUS_REJECTED, Submission
 from backend.app.repositories.projects import get_or_create_project
 from backend.app.repositories.submissions import create_submission, get_submission_by_id
 from backend.app.storage.base import StorageService
@@ -35,12 +42,10 @@ class SubmissionProcessingError(Exception):
 class SubmissionResult:
     submission_id: int
     status: str = "UNREVIEWED"
-
-
-_PARSERS = {
-    ".csv": read_csv_rows,
-    ".xlsx": read_xlsx_rows,
-}
+    project_id: int | None = None
+    input_format: str = "LEGACY"
+    monthly_record_count: int = 0
+    processing_status: str = "COMPLETED"
 
 
 async def process_submission(
@@ -54,6 +59,9 @@ async def process_submission(
     storage: StorageService,
     settings: Settings | None = None,
     previous_submission_id: int | None = None,
+    project_id: int | None = None,
+    organisation_id: str | None = None,
+    mapping_json: str | None = None,
 ) -> SubmissionResult:
     """Sprint 2 upload pipeline: validate, transform, store, and persist."""
     settings = settings or get_settings()
@@ -62,8 +70,7 @@ async def process_submission(
         raise SubmissionValidationError("A CSV or XLSX file is required.")
 
     extension = Path(file.filename).suffix.lower()
-    parser = _PARSERS.get(extension)
-    if parser is None:
+    if extension not in {".csv", ".xlsx"}:
         raise SubmissionValidationError("Only CSV and XLSX files are supported.")
 
     raw_bytes = await file.read()
@@ -75,9 +82,26 @@ async def process_submission(
         raise SubmissionValidationError(f"File must be {settings.max_upload_size_mb}MB or smaller.")
 
     try:
-        headers, raw_rows = parser(raw_bytes)
-        cleaned_rows = clean_rows(headers, raw_rows)
-    except (ETLParseError, ETLValidationError) as exc:
+        if mapping_json is not None:
+            suggestion = MappingSuggestion.model_validate_json(mapping_json)
+            monthly_rows = process_confirmed_mapping(raw_bytes, extension, suggestion)
+            input_format = "MONTHLY_AI_MAPPED"
+        else:
+            headers, raw_rows = read_input(raw_bytes, extension)
+            input_format, monthly_rows = classify_and_clean(headers, raw_rows)
+        if monthly_rows is not None:
+            require_submission_quarter(monthly_rows, reporting_period)
+            cleaned_rows = [
+                CanonicalMetricRow(name, float(sum(getattr(row, field) for row in monthly_rows)), unit)
+                for name, field, unit in (
+                    ("Electricity", "electricity_kwh", "kWh"),
+                    ("Water", "water_m3", "m3"),
+                    ("CO2e", "co2_tco2e", "tCO2e"),
+                )
+            ]
+        else:
+            cleaned_rows = clean_rows(headers, raw_rows)
+    except (ETLParseError, ETLValidationError, ValidationError) as exc:
         raise SubmissionValidationError(str(exc)) from exc
 
     previous_submission = None
@@ -87,13 +111,33 @@ async def process_submission(
             raise SubmissionValidationError("Corrected submission was not found.")
 
     original_sha256 = calculate_sha256(BytesIO(raw_bytes))
-    processed_bytes = build_processed_csv(cleaned_rows)
+    processed_bytes = build_monthly_csv(monthly_rows) if monthly_rows is not None else build_processed_csv(cleaned_rows)
 
     try:
-        project = get_or_create_project(db, project_name, organisation)
+        if project_id is not None:
+            project = db.get(Project, project_id)
+            if project is None or organisation_id is None or project.organisation_id != organisation_id:
+                raise SubmissionValidationError("Select a building owned by your organisation.")
+        elif monthly_rows is not None:
+            raise SubmissionValidationError("Select an owned building before uploading monthly data.")
+        else:
+            project = get_or_create_project(db, project_name, organisation)
         if previous_submission is not None and previous_submission.project_id != project.id:
             db.rollback()
             raise SubmissionValidationError("Corrections must belong to the same project as the prior submission.")
+        if monthly_rows is not None:
+            months = [row.reporting_period for row in monthly_rows]
+            overlaps = db.scalars(
+                select(MonthlyRecord)
+                .join(Submission, MonthlyRecord.submission_id == Submission.id)
+                .where(MonthlyRecord.project_id == project.id)
+                .where(MonthlyRecord.reporting_period.in_(months))
+                .where(Submission.status != SUBMISSION_STATUS_REJECTED)
+            ).all()
+            if any(record.submission_id != previous_submission_id for record in overlaps):
+                raise SubmissionValidationError(
+                    "Monthly periods already exist for this building. Use an explicit correction of the prior submission."
+                )
     except SubmissionValidationError:
         raise
     except Exception as exc:
@@ -137,17 +181,34 @@ async def process_submission(
             original_retain_until=original_file.retain_until,
             processed_version_id=processed_file.version_id,
             processed_sha256=processed_file.sha256 or calculate_sha256(BytesIO(processed_bytes)),
+            input_format=input_format,
+            mapping_json=suggestion.model_dump_json() if mapping_json is not None else None,
             processed_retention_mode=processed_file.retention_mode,
             processed_retain_until=processed_file.retain_until,
         )
         bulk_create_metrics(db, submission.id, cleaned_rows)
+        if monthly_rows is not None:
+            db.add_all([
+                MonthlyRecord(
+                    submission_id=submission.id,
+                    project_id=project.id,
+                    reporting_period=row.reporting_period,
+                    electricity_kwh=row.electricity_kwh,
+                    water_m3=row.water_m3,
+                    co2_tco2e=row.co2_tco2e,
+                )
+                for row in monthly_rows
+            ])
         db.commit()
     except Exception as exc:
         db.rollback()
         _discard_stored_files(storage, [processed_file, original_file])
         raise SubmissionProcessingError("Submission could not be saved.") from exc
 
-    return SubmissionResult(submission_id=submission.id, status=submission.status)
+    return SubmissionResult(
+        submission_id=submission.id, status=submission.status, project_id=project.id,
+        input_format=input_format, monthly_record_count=len(monthly_rows or []),
+    )
 
 
 def _discard_stored_files(storage: StorageService, stored_files: list[StoredFile]) -> None:
@@ -182,6 +243,9 @@ def get_submission_processor(
         reporting_period: str,
         uploader_id: str,
         previous_submission_id: int | None = None,
+        project_id: int | None = None,
+        organisation_id: str | None = None,
+        mapping_json: str | None = None,
     ) -> SubmissionResult:
         return await process_submission(
             file,
@@ -193,6 +257,9 @@ def get_submission_processor(
             storage=storage,
             settings=settings,
             previous_submission_id=previous_submission_id,
+            project_id=project_id,
+            organisation_id=organisation_id,
+            mapping_json=mapping_json,
         )
 
     return processor

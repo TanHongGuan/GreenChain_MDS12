@@ -267,6 +267,14 @@ nav a.active {
   gap: 16px;
 }
 
+.upload-mapping-grid { display: grid; gap: 14px; margin: 18px 0; }
+.upload-mapping-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr) minmax(90px, auto) minmax(90px, 130px); gap: 10px; align-items: center; }
+.upload-mapping-row > * { min-width: 0; }
+.upload-mapping-row .field-error { grid-column: 1 / -1; }
+.mapping-review-check { display: flex; align-items: flex-start; gap: 10px; }
+.mapping-review-check input { width: auto; margin-top: 4px; }
+@media (max-width: 760px) { .upload-mapping-row { grid-template-columns: 1fr; } }
+
 .drop-zone {
   display: grid;
   gap: 8px;

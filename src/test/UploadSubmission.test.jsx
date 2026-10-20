@@ -23,6 +23,9 @@ function jsonResponse(status, payload) {
 
 function mockFetchQueue(responses) {
   global.fetch = vi.fn((url, options = {}) => {
+    if (String(url).endsWith("/projects/owned") && !options.method) {
+      return Promise.resolve(jsonResponse(200, { buildings: [] }));
+    }
     const next = responses.shift();
     if (!next) {
       throw new Error(`Unexpected fetch call: ${url}`);
@@ -82,7 +85,7 @@ describe("upload submission", () => {
     ]);
     renderUploadShell();
     await screen.findByRole("heading", { name: /upload data/i });
-    expect(screen.getByRole("link", { name: /download sample csv/i })).toHaveAttribute("href", "/greenchain-sample.csv");
+    expect(screen.getByRole("link", { name: /download legacy sample csv/i })).toHaveAttribute("href", "/greenchain-sample.csv");
 
     await userEvent.type(screen.getByLabelText(/project \/ building name/i), "Tower A");
     await userEvent.type(screen.getByLabelText(/organisation/i), "GreenChain Demo Organisation");
@@ -108,7 +111,7 @@ describe("upload submission", () => {
     expect(screen.getByText("Organisation is required.")).toBeInTheDocument();
     expect(screen.getByText("Reporting period is required.")).toBeInTheDocument();
     expect(screen.getByText("Choose a CSV or XLSX file.")).toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
   test("frontend validation blocks unsupported file type", async () => {
@@ -126,7 +129,7 @@ describe("upload submission", () => {
     await userEvent.click(screen.getByRole("button", { name: /review file/i }));
 
     expect(screen.getByText("Only CSV and XLSX files are supported.")).toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
   test("upload displays backend error message", async () => {
@@ -188,5 +191,71 @@ describe("upload submission", () => {
     );
 
     expect(await screen.findByText("Submission #124 is UNREVIEWED.")).toBeInTheDocument();
+  });
+
+  test("monthly upload uses the selected owned building and previews canonical rows", async () => {
+    global.fetch = vi.fn((url, options = {}) => {
+      if (String(url).endsWith("/auth/me")) return Promise.resolve(jsonResponse(200, { user: uploader }));
+      if (String(url).endsWith("/projects/owned")) return Promise.resolve(jsonResponse(200, { buildings: [
+        { project_id: 42, project_name: "Bayview", organisation: "Example Company" },
+      ] }));
+      if (String(url).endsWith("/submissions")) {
+        expect(options.body.get("project_id")).toBe("42");
+        expect(options.body.get("reporting_period")).toBe("2026-Q1");
+        return Promise.resolve(jsonResponse(201, { submission_id: 55, status: "UNREVIEWED", project_id: 42, monthly_record_count: 1 }));
+      }
+      throw new Error(`Unexpected fetch call: ${url}`);
+    });
+    renderUploadShell();
+    await screen.findByRole("option", { name: "Bayview" });
+    await userEvent.selectOptions(screen.getByLabelText("Owned building"), "42");
+    await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
+    await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
+    await userEvent.upload(screen.getByLabelText(/submission file/i), new File([
+      "reporting_period,electricity_kwh,water_m3,co2_tco2e\n2026-01,1200,4,0.5\n",
+    ], "monthly.csv", { type: "text/csv" }));
+    await userEvent.click(screen.getByRole("button", { name: /review file/i }));
+    expect(await screen.findByText(/1 parsed row/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /confirm upload/i }));
+    expect(await screen.findByText("Submission #55 is UNREVIEWED.")).toBeInTheDocument();
+  });
+
+  test("unfamiliar CSV requires mapping review before upload", async () => {
+    const headers = ["Billing Month", "TNB Usage (MWh)", "Water Bill (L)", "GHG Emissions (kgCO2e)"];
+    const fields = ["reporting_period", "electricity_kwh", "water_m3", "co2_tco2e"];
+    const units = ["month", "MWh", "L", "kgCO2e"];
+    global.fetch = vi.fn((url, options = {}) => {
+      if (String(url).endsWith("/auth/me")) return Promise.resolve(jsonResponse(200, { user: uploader }));
+      if (String(url).endsWith("/projects/owned")) return Promise.resolve(jsonResponse(200, { buildings: [
+        { project_id: 42, project_name: "Bayview", organisation: "Example Company" },
+      ] }));
+      if (String(url).endsWith("/submissions/mapping-preview")) return Promise.resolve(jsonResponse(200, {
+        kind: "ai_mapping", model: "test-model", sheets: [{ worksheet: "CSV", candidates: [
+          { header_row: 1, columns: headers.map((header, index) => ({ header, column_ref: "ABCD"[index] })), sample_rows: [["Jan 2026", "30", "850000", "14200"]] },
+        ] }], mapping: { mappings: fields.map((field, index) => ({ field, worksheet: "CSV", header_row: 1,
+          header: headers[index], column_ref: "ABCD"[index], period_column_ref: index ? "A" : "", source_unit: units[index], ambiguous: false, missing: false })), warnings: [] },
+      }));
+      if (String(url).endsWith("/submissions")) {
+        expect(options.body.get("project_id")).toBe("42");
+        expect(JSON.parse(options.body.get("confirmed_mapping")).mappings[1].header).toBe("TNB Usage (MWh)");
+        return Promise.resolve(jsonResponse(201, { submission_id: 56, status: "UNREVIEWED", input_format: "MONTHLY_AI_MAPPED", monthly_record_count: 1, processing_status: "COMPLETED" }));
+      }
+      throw new Error(`Unexpected fetch call: ${url}`);
+    });
+    renderUploadShell();
+    await screen.findByRole("option", { name: "Bayview" });
+    await userEvent.selectOptions(screen.getByLabelText("Owned building"), "42");
+    await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
+    await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
+    await userEvent.upload(screen.getByLabelText(/submission file/i), new File([
+      `${headers.join(",")}\nJan 2026,30,850000,14200\n`,
+    ], "unknown.csv", { type: "text/csv" }));
+    await userEvent.click(screen.getByRole("button", { name: /review file/i }));
+    expect(await screen.findByRole("heading", { name: "Review detected columns" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue to confirmation" })).toBeDisabled();
+    await userEvent.click(screen.getByLabelText(/I verified the four columns/i));
+    await userEvent.click(screen.getByRole("button", { name: "Continue to confirmation" }));
+    await userEvent.click(screen.getByRole("button", { name: /confirm upload/i }));
+    expect(await screen.findByText("Submission #56 is UNREVIEWED.")).toBeInTheDocument();
   });
 });

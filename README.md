@@ -149,6 +149,8 @@ python -m backend.app.scripts.setup_storage
 
 ### 9. Start the backend
 
+For optional Gemini-assisted mapping of unfamiliar CSV/XLSX structures, see [Gemini ETL setup](docs/ETL_GEMINI_INTEGRATION.md). Known upload formats work without an API key. Never put `GEMINI_API_KEY` in a `VITE_` variable or commit it.
+
 **Terminal 1 — Backend.** From the repository root, activate the virtual environment if needed, then keep this terminal running:
 
 macOS/Linux:

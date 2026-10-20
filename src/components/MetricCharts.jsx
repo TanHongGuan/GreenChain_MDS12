@@ -31,7 +31,7 @@ export function TrendChart({ definition, points, onSelectSubmission }) {
       </g>)}
     </svg>
     <p className="chart-axis-note">Vertical axis: {format(min)}–{format(max)} {displayUnit(definition.unit)}. The axis is scaled to the observed range; it does not always start at zero.</p>
-    <div className="chart-sources">{points.map((point) => <button type="button" key={point.submission_id} className="text-button" onClick={() => onSelectSubmission(point.submission_id)}>{point.reporting_period} · #{point.submission_id}</button>)}</div>
+    <div className="chart-sources">{points.map((point) => <button type="button" key={`${point.reporting_period}-${point.submission_id}`} className="text-button" onClick={() => onSelectSubmission(point.submission_id)}>{point.reporting_period} · #{point.submission_id}</button>)}</div>
   </div>;
 }
 

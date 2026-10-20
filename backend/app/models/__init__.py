@@ -1,5 +1,6 @@
 from backend.app.models.benchmark import Benchmark
 from backend.app.models.metric import Metric
+from backend.app.models.monthly_record import MonthlyRecord
 from backend.app.models.highlighted_project import HighlightedProject
 from backend.app.models.organisation import Organisation
 from backend.app.models.organisation_member import OrganisationMember
@@ -12,6 +13,7 @@ __all__ = [
     "Benchmark",
     "HighlightedProject",
     "Metric",
+    "MonthlyRecord",
     "Organisation",
     "OrganisationMember",
     "Project",

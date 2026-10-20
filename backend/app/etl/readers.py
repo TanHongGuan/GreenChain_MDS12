@@ -36,7 +36,7 @@ def read_csv_rows(raw_bytes: bytes) -> ParsedSheet:
     return headers, rows
 
 
-def read_xlsx_rows(raw_bytes: bytes) -> ParsedSheet:
+def read_xlsx_rows(raw_bytes: bytes, worksheet_name: str | None = None) -> ParsedSheet:
     try:
         from openpyxl import load_workbook
     except ImportError as exc:  # pragma: no cover - dependency is required by requirements.txt
@@ -48,7 +48,7 @@ def read_xlsx_rows(raw_bytes: bytes) -> ParsedSheet:
         raise ETLParseError("XLSX file could not be read.") from exc
 
     try:
-        worksheet = workbook.active
+        worksheet = workbook[worksheet_name] if worksheet_name else workbook.active
         if worksheet is None:
             raise ETLParseError("XLSX file has no worksheets.")
 
@@ -67,6 +67,8 @@ def read_xlsx_rows(raw_bytes: bytes) -> ParsedSheet:
         for row in row_iter:
             if row is None or all(cell is None for cell in row):
                 continue
+            if worksheet_name and len(row) != len(headers) and any(cell is not None for cell in row[len(headers):]):
+                raise ETLParseError(f"XLSX row {len(rows) + 2} does not match the header column count.")
             rows.append(dict(zip(headers, row, strict=False)))
 
         return headers, rows

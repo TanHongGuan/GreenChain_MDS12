@@ -1,4 +1,5 @@
 from io import BytesIO
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -136,6 +137,78 @@ def test_uploader_can_submit_supported_file(client: TestClient, app, filename: s
         "status": "UNREVIEWED",
         "message": "Submission uploaded successfully",
     }
+
+
+def test_owned_building_monthly_upload_and_visibility(client: TestClient, session_factory) -> None:
+    login(client, "uploader@greenchain.test")
+    created = client.post("/projects/owned", json={"name": "Monthly Bayview", "location": "Selangor"})
+    assert created.status_code == 201
+    project_id = created.json()["building"]["project_id"]
+    assert any(item["project_id"] == project_id for item in client.get("/projects/owned").json()["buildings"])
+    response = client.post(
+        "/submissions",
+        data={"project_id": str(project_id), "reporting_period": "2026-Q1"},
+        files={"file": ("monthly.csv", b"reporting_period,electricity_kwh,water_m3,co2_tco2e\n2026-01,10,2,0.5\n", "text/csv")},
+    )
+    assert response.status_code == 201, response.text
+    payload = response.json()
+    assert payload["project_id"] == project_id
+    assert payload["monthly_record_count"] == 1
+    submission_id = payload["submission_id"]
+    assert client.get(f"/submissions/{submission_id}/monthly").json()["monthly_records"][0]["reporting_period"] == "2026-01"
+    downloaded = client.get(f"/submissions/{submission_id}/evidence/processed")
+    assert downloaded.status_code == 200
+    assert b"reporting_period,electricity_kwh,water_m3,co2_tco2e" in downloaded.content
+    login(client, "viewer@greenchain.test")
+    assert client.get(f"/submissions/{submission_id}/monthly").status_code == 404
+    assert client.get(f"/submissions/{submission_id}").status_code == 404
+    assert client.get(f"/submissions/{submission_id}/evidence/processed").status_code == 404
+    assert client.get(f"/projects/{project_id}/monthly").json()["monthly_records"] == []
+    with session_factory() as db:
+        submission = db.get(Submission, submission_id)
+        submission.status = SUBMISSION_STATUS_APPROVED
+        db.commit()
+    assert client.get(f"/submissions/{submission_id}/monthly").status_code == 200
+    assert len(client.get(f"/projects/{project_id}/monthly").json()["monthly_records"]) == 1
+
+
+def test_owned_building_creation_is_role_bound(client: TestClient) -> None:
+    login(client, "viewer@greenchain.test")
+    assert client.post("/projects/owned", json={"name": "Not mine"}).status_code == 403
+    login(client, "uploader@greenchain.test")
+    assert client.post("/projects/owned", json={"name": "  Bayview  "}).status_code == 201
+    assert client.post("/projects/owned", json={"name": "bayview"}).status_code == 409
+
+
+def test_unfamiliar_file_preview_uses_ai_and_confirmed_mapping_is_processed(client: TestClient) -> None:
+    from backend.app.tests.test_ai_mapping import UNKNOWN, suggestion
+
+    login(client, "uploader@greenchain.test")
+    project_id = client.post("/projects/owned", json={"name": "AI Preview Building"}).json()["building"]["project_id"]
+    with patch("backend.app.api.submissions.suggest_mapping", new_callable=AsyncMock, return_value=suggestion()) as ai:
+        preview = client.post("/submissions/mapping-preview", files={"file": ("unknown.csv", UNKNOWN, "text/csv")})
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["kind"] == "ai_mapping"
+    ai.assert_awaited_once()
+    uploaded = client.post(
+        "/submissions",
+        data={"project_id": str(project_id), "reporting_period": "2026-Q1", "confirmed_mapping": suggestion().model_dump_json()},
+        files={"file": ("unknown.csv", UNKNOWN, "text/csv")},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    assert uploaded.json()["input_format"] == "MONTHLY_AI_MAPPED"
+    detail = client.get(f"/submissions/{uploaded.json()['submission_id']}").json()["submission"]
+    assert detail["confirmed_mapping"]["mappings"][1]["header"] == "TNB Usage (MWh)"
+
+
+def test_known_monthly_preview_does_not_call_ai(client: TestClient) -> None:
+    login(client, "uploader@greenchain.test")
+    with patch("backend.app.api.submissions.suggest_mapping", new_callable=AsyncMock) as ai:
+        response = client.post("/submissions/mapping-preview", files={"file": (
+            "known.csv", b"reporting_period,electricity_kwh,water_m3,co2_tco2e\n2026-01,1,2,3\n", "text/csv")})
+    assert response.status_code == 200
+    assert response.json() == {"kind": "known", "input_format": "MONTHLY_STANDARD"}
+    ai.assert_not_awaited()
 
 
 def test_submission_requires_authentication(client: TestClient) -> None:

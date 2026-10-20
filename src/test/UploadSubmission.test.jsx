@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -300,12 +300,80 @@ describe("upload submission", () => {
       `${headers.join(",")}\nJan 2026,30,850000,14200\n`,
     ], "unknown.csv", { type: "text/csv" }));
     await userEvent.click(screen.getByRole("button", { name: /review file/i }));
-    expect(await screen.findByRole("heading", { name: "Review detected columns" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Check what we found in your file" })).toBeInTheDocument();
+    // Nothing is uncertain in this fixture, so every metric stays collapsed to one line.
+    expect(screen.queryByLabelText(/which column holds this figure/i)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue to confirmation" })).toBeDisabled();
-    await userEvent.click(screen.getByLabelText(/I checked each source column/i));
+    await userEvent.click(screen.getByLabelText(/I checked each column against my file/i));
     await userEvent.click(screen.getByRole("button", { name: "Continue to confirmation" }));
     await userEvent.click(screen.getByRole("button", { name: /confirm upload/i }));
     expect(await screen.findByText("Submission #56 is UNREVIEWED.")).toBeInTheDocument();
+  });
+
+  test("only the measurement that needs a decision is opened, and it is listed at the top", async () => {
+    // The point of the review step: a confident mapping collapses to one line, an
+    // unresolved one is open and named before the uploader has to hunt for it.
+    const headers = ["Billing Month", "TNB Usage (MWh)", "Water Bill (L)", "GHG Emissions (kgCO2e)", "Invoice Ref"];
+    global.fetch = vi.fn((url) => {
+      const request = String(url);
+      if (request.endsWith("/auth/me")) return Promise.resolve(jsonResponse(200, { user: uploader }));
+      if (request.endsWith("/projects/owned")) return Promise.resolve(jsonResponse(200, { buildings: [{ project_id: 42, project_name: "Bayview", organisation: "Acme" }] }));
+      if (request.endsWith("/submissions/mapping-preview")) return Promise.resolve(jsonResponse(200, {
+        kind: "ai_mapping", model: "test-model", sheets: [{ worksheet: "CSV", candidates: [{
+          header_row: 1,
+          columns: headers.map((header, index) => ({ header, column_ref: "ABCDE"[index] })),
+          sample_rows: [["Jan 2026", "30", "850000", "14200", "INV-1"]],
+        }] }],
+        mapping: {
+          mappings: ["reporting_period", "electricity_kwh", "water_m3", "co2_tco2e"].map((field, index) => ({
+            field, worksheet: "CSV", header_row: 1, header: headers[index], column_ref: "ABCD"[index],
+            period_column_ref: index ? "A" : "", aggregation: "MONTHLY",
+            // Water's unit was not resolved; the other two were.
+            source_unit: field === "water_m3" ? "" : ["month", "MWh", "L", "kgCO2e"][index],
+            ambiguous: false, missing: false,
+          })),
+          warnings: [],
+        },
+      }));
+      throw new Error(`Unexpected fetch call: ${request}`);
+    });
+    renderUploadShell();
+    await screen.findByRole("option", { name: "Bayview" });
+    await userEvent.selectOptions(screen.getByLabelText("Owned building"), "42");
+    await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
+    await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
+    await userEvent.upload(screen.getByLabelText(/submission file/i), new File([
+      `${headers.join(",")}\nJan 2026,30,850000,14200,INV-1\n`,
+    ], "unknown.csv", { type: "text/csv" }));
+    await userEvent.click(screen.getByRole("button", { name: /review file/i }));
+    await screen.findByRole("heading", { name: "Check what we found in your file" });
+
+    // Water is open because its unit is unresolved; the other two are not.
+    expect(screen.getByLabelText(/what the rows represent/i, { selector: "#aggregation-water_m3" })).toBeInTheDocument();
+    expect(screen.queryByText("1 needs your decision.")).toBeInTheDocument();
+    expect(document.querySelector("#aggregation-electricity_kwh")).toBeNull();
+    expect(document.querySelector("#aggregation-co2_tco2e")).toBeNull();
+
+    // The blocking reason is stated once at the top, naming the metric.
+    expect(screen.getByText("Water — Confirm the unit.")).toBeInTheDocument();
+
+    // The column picker drops the invoice reference, which holds no number.
+    const columnPicker = screen.getByLabelText(/which column holds this figure/i);
+    expect(within(columnPicker).queryByRole("option", { name: /Invoice Ref/ })).toBeNull();
+    expect(within(columnPicker).getByRole("option", { name: /Water Bill \(L\)/ })).toBeInTheDocument();
+    // A date column holds no numbers either, but it must stay selectable.
+    expect(within(screen.getByLabelText(/date column on this worksheet/i))
+      .getByRole("option", { name: /Billing Month/ })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /show all columns/i }));
+    expect(within(screen.getByLabelText(/which column holds this figure/i))
+      .getByRole("option", { name: /Invoice Ref/ })).toBeInTheDocument();
+
+    // Answering the one open question clears the top block and unblocks Continue.
+    await userEvent.selectOptions(screen.getByLabelText(/source unit/i, { selector: "#unit-water_m3" }), "L");
+    expect(screen.queryByText("Water — Confirm the unit.")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText(/I checked each column against my file/i));
+    expect(screen.getByRole("button", { name: "Continue to confirmation" })).toBeEnabled();
   });
 
   test("choosing meter readings blocks upload until an opening reading is given", async () => {
@@ -336,19 +404,22 @@ describe("upload submission", () => {
       `${headers.join(",")}\nJan 2026,30,850000,14200\n`,
     ], "unknown.csv", { type: "text/csv" }));
     await userEvent.click(screen.getByRole("button", { name: /review file/i }));
-    await screen.findByRole("heading", { name: "Review detected columns" });
-    await userEvent.click(screen.getByLabelText(/I checked each source column/i));
+    await screen.findByRole("heading", { name: "Check what we found in your file" });
+    await userEvent.click(screen.getByLabelText(/I checked each column against my file/i));
 
     const continueButton = screen.getByRole("button", { name: "Continue to confirmation" });
     expect(continueButton).toBeEnabled();
 
+    // The row is collapsed because nothing about it needed a decision; opening it
+    // is how the uploader reaches the controls.
+    await userEvent.click(screen.getByRole("button", { name: /edit water/i }));
     await userEvent.selectOptions(screen.getByLabelText(/what the rows represent/i, { selector: "#aggregation-water_m3" }), "DIFFERENCE_CUMULATIVE");
     expect(continueButton).toBeDisabled();
 
-    await userEvent.type(screen.getByLabelText(/meter reading before this quarter/i), "23410");
+    await userEvent.type(screen.getByLabelText(/meter reading before 2026-Q1/i), "23410");
     // Every edit clears the confirmation, so the uploader re-checks what they changed.
     expect(continueButton).toBeDisabled();
-    await userEvent.click(screen.getByLabelText(/I checked each source column/i));
+    await userEvent.click(screen.getByLabelText(/I checked each column against my file/i));
     expect(continueButton).toBeEnabled();
   });
 });

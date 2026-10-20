@@ -2166,3 +2166,284 @@ nav a[aria-current="page"]::after {
   color: var(--ink-soft);
   font-size: 0.84rem;
 }
+
+/* === Mapping review =======================================================
+   Summary-first: a measurement is one line unless something about it needs the
+   uploader. All spacing stays on the 8px grid and the palette is the existing
+   leaf ramp - this is a reorganisation of the same controls, not a new look. */
+
+/* The review step carries three columns of controls and a sample table, which
+   the 720px page cap forced into a 2x2 wrap. It keeps a cap, just a wider one. */
+.upload-page-wide {
+  max-width: 1040px;
+}
+
+.upload-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.upload-steps li + li::before {
+  content: "▸";
+  margin-right: 8px;
+  color: var(--leaf-300);
+}
+
+.upload-steps li[aria-current="step"] {
+  font-weight: 600;
+  color: var(--leaf-700);
+}
+
+.upload-context {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+
+.upload-detection {
+  margin: 0 0 8px;
+}
+
+/* Blocking items get their own container at the top so they stop competing with
+   ordinary explanatory copy, which is what made every warning equally ignorable. */
+.needs-you {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #f0d9a8;
+  border-left: 4px solid #a8780b;
+  border-radius: 8px;
+  background: #fdf6e6;
+}
+
+.needs-you h3 {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #815c0b;
+}
+
+.needs-you ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.needs-you li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  color: #6b4c08;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--leaf-700);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.metric-rows {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.metric-row {
+  padding: 16px;
+  border: 1px solid var(--leaf-100);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.metric-row-attention {
+  border-color: #f0d9a8;
+  background: #fffdf7;
+}
+
+.metric-row-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.metric-state {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--leaf-100);
+  color: var(--leaf-700);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.metric-state-attention {
+  background: #f6e3b6;
+  color: #815c0b;
+}
+
+.metric-row-identity {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.metric-row-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.metric-row-source,
+.metric-row-summary {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.metric-row-toggle {
+  flex: none;
+  padding: 8px 16px;
+  border: 1px solid var(--leaf-200);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--leaf-700);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.metric-row-toggle:hover {
+  background: var(--leaf-50);
+}
+
+.metric-row-body {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--leaf-100);
+}
+
+/* Four controls across leaves each too narrow to show its own value - a picker
+   reading "Water_Readings - Wate..." cannot be checked at a glance, which is the
+   whole job of this step. Two across, two down, each wide enough to read. */
+.metric-row-body .mapping-fields {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+/* The evidence for "what do these rows represent" sits beside the question
+   rather than in a table several screens below it. */
+.metric-evidence {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--leaf-50);
+}
+
+.metric-evidence-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.metric-evidence-values {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.metric-evidence-note {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+.metric-evidence-more > summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--leaf-700);
+}
+
+.metric-evidence-more .metrics-table-wrap {
+  margin-top: 8px;
+}
+
+.mapping-field-required input {
+  border-color: #d9ad4a;
+}
+
+.mapping-filter {
+  margin: 0 0 16px;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+/* The decision stays reachable without scrolling back past three metric rows. */
+.upload-confirm-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--leaf-100);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 -2px 12px rgba(15, 42, 32, 0.06);
+}
+
+.upload-confirm-bar .decision-actions {
+  margin: 0;
+}
+
+/* The attestation sits beside the buttons rather than wrapping above them. */
+.upload-confirm-bar .mapping-review-check {
+  flex: 1 1 280px;
+  align-items: center;
+  min-width: 0;
+}
+
+.upload-confirm-bar .mapping-review-check input {
+  margin-top: 0;
+}
+
+@media (max-width: 640px) {
+  /* Wrapping the flex row left the status mark stranded on a line of its own.
+     A two-column grid keeps the mark beside the name it describes. */
+  .metric-row-head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 16px;
+  }
+
+  .metric-row-toggle {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .upload-confirm-bar {
+    position: static;
+  }
+}

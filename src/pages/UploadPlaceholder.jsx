@@ -7,6 +7,15 @@ import { createOwnedBuilding, createSubmission, getOwnedBuildings, previewSubmis
 import { parseUploadCsv, readTextFile } from "../utils/uploadPreview.js";
 
 const ACCEPTED_EXTENSIONS = [".csv", ".xlsx"];
+// What the source rows represent. This is the one question the workbook cannot
+// always answer for itself: daily consumption and cumulative meter readings look
+// identical in a spreadsheet, and summing a cumulative meter is nonsense.
+const AGGREGATIONS = [
+  ["MONTHLY", "One value per month already"],
+  ["SUM_DAILY", "Daily usage — add the days up"],
+  ["DIFFERENCE_CUMULATIVE", "Meter readings — use the rise between them"],
+];
+
 const MAPPING_FIELDS = [
   ["electricity_kwh", "Electricity", ["kWh", "MWh"]],
   ["water_m3", "Water", ["m3", "L"]],
@@ -241,8 +250,11 @@ export function UploadPlaceholder() {
   const mappingOptions = mappingPreview?.sheets.flatMap((sheet) => sheet.candidates.flatMap((candidate) =>
     candidate.columns.map((column) => ({ worksheet: sheet.worksheet, header_row: candidate.header_row, ...column })))) || [];
   const mappingReferences = mappingDraft.map((item) => `${item.worksheet}|${item.header_row}|${item.column_ref}`);
+  const needsOpening = (item) => item.aggregation === "DIFFERENCE_CUMULATIVE"
+    && !(String(item.opening_reading ?? "").trim() && Number.isFinite(Number(item.opening_reading)));
   const mappingComplete = mappingDraft.length === MAPPING_FIELDS.length
-    && mappingDraft.every((item) => item.worksheet && item.header && item.column_ref && item.source_unit && item.period_column_ref)
+    && mappingDraft.every((item) => item.worksheet && item.header && item.column_ref && item.source_unit
+      && item.period_column_ref && !needsOpening(item))
     && new Set(mappingReferences).size === MAPPING_FIELDS.length;
 
   return (
@@ -269,21 +281,43 @@ export function UploadPlaceholder() {
             const reference = mappingOptions.find((option) => option.worksheet === item.worksheet && option.header_row === item.header_row && option.column_ref === item.column_ref);
             const periodOptions = mappingOptions.filter((option) => option.worksheet === item.worksheet && option.header_row === item.header_row && /date|month|period|year/i.test(option.header));
             return <div key={field} className="upload-mapping-row">
-              <label htmlFor={`mapping-${field}`}>{label}</label>
-              <select id={`mapping-${field}`} value={reference ? JSON.stringify(reference) : ""} onChange={(event) => updateMapping(field, event.target.value ? { ...JSON.parse(event.target.value), period_column_ref: "", missing: false, ambiguous: false } : { worksheet: "", header: "", column_ref: "", period_column_ref: "", missing: true })}>
-                <option value="">Select source column</option>
-                {mappingOptions.map((option) => <option key={`${option.worksheet}-${option.header_row}-${option.column_ref}`} value={JSON.stringify(option)}>{option.worksheet} · {option.header} ({option.column_ref})</option>)}
-              </select>
-              {<><label htmlFor={`period-${field}`}>Date column on this worksheet</label>
-                <select id={`period-${field}`} value={item.period_column_ref || ""} onChange={(event) => updateMapping(field, { period_column_ref: event.target.value })}>
-                  <option value="">Select month column</option>
-                  {periodOptions.map((option) => <option key={option.column_ref} value={option.column_ref}>{option.header} ({option.column_ref})</option>)}
-                </select></>}
-              <label htmlFor={`unit-${field}`}>Source unit</label>
-              <select id={`unit-${field}`} value={units.includes(item.source_unit) ? item.source_unit : ""} onChange={(event) => updateMapping(field, { source_unit: event.target.value, ambiguous: false })}>
-                <option value="">Select source unit</option>{units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-              </select>
-              {(item.missing || item.ambiguous) && <span className="field-error">AI marked this field as uncertain. Verify the selection.</span>}
+              <h3 className="mapping-metric">{label}</h3>
+              <div className="mapping-fields">
+                <div className="mapping-field">
+                  <label htmlFor={`mapping-${field}`}>Source column</label>
+                  <select id={`mapping-${field}`} value={reference ? JSON.stringify(reference) : ""} onChange={(event) => updateMapping(field, event.target.value ? { ...JSON.parse(event.target.value), period_column_ref: "", missing: false, ambiguous: false } : { worksheet: "", header: "", column_ref: "", period_column_ref: "", missing: true })}>
+                    <option value="">Select source column</option>
+                    {mappingOptions.map((option) => <option key={`${option.worksheet}-${option.header_row}-${option.column_ref}`} value={JSON.stringify(option)}>{option.worksheet} · {option.header} ({option.column_ref})</option>)}
+                  </select>
+                </div>
+                <div className="mapping-field">
+                  <label htmlFor={`period-${field}`}>Date column on this worksheet</label>
+                  <select id={`period-${field}`} value={item.period_column_ref || ""} onChange={(event) => updateMapping(field, { period_column_ref: event.target.value })}>
+                    <option value="">Select date column</option>
+                    {periodOptions.map((option) => <option key={option.column_ref} value={option.column_ref}>{option.header} ({option.column_ref})</option>)}
+                  </select>
+                </div>
+                <div className="mapping-field">
+                  <label htmlFor={`unit-${field}`}>Source unit</label>
+                  <select id={`unit-${field}`} value={units.includes(item.source_unit) ? item.source_unit : ""} onChange={(event) => updateMapping(field, { source_unit: event.target.value, ambiguous: false })}>
+                    <option value="">Select source unit</option>{units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                  </select>
+                </div>
+                <div className="mapping-field">
+                  <label htmlFor={`aggregation-${field}`}>What the rows represent</label>
+                  <select id={`aggregation-${field}`} value={item.aggregation || "MONTHLY"} onChange={(event) => updateMapping(field, { aggregation: event.target.value, ambiguous: false })}>
+                    {AGGREGATIONS.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+                  </select>
+                </div>
+                {item.aggregation === "DIFFERENCE_CUMULATIVE" && <div className="mapping-field">
+                  <label htmlFor={`opening-${field}`}>Meter reading before this quarter</label>
+                  <input id={`opening-${field}`} inputMode="decimal" placeholder="e.g. 23410" value={item.opening_reading ?? ""}
+                    onChange={(event) => updateMapping(field, { opening_reading: event.target.value })} />
+                  <span className="mapping-hint">The first month&apos;s usage is measured from this reading, so it cannot be worked out from the file alone.</span>
+                </div>}
+              </div>
+              {item.warning && <p className="mapping-hint">{item.warning}</p>}
+              {(item.missing || item.ambiguous) && !item.warning && <p className="field-error">The AI was unsure here. Check the selection against your file.</p>}
             </div>;
           })}
         </div>
@@ -293,9 +327,9 @@ export function UploadPlaceholder() {
             <table className="metrics-table"><thead><tr>{candidate.columns.map((column) => <th key={column.column_ref}>{column.header} ({column.column_ref})</th>)}</tr></thead>
               <tbody>{candidate.sample_rows.map((row, rowIndex) => <tr key={rowIndex}>{candidate.columns.map((column) => <td key={column.column_ref}>{row[[...column.column_ref].reduce((number, letter) => number * 26 + letter.charCodeAt(0) - 64, 0) - 1] || "—"}</td>)}</tr>)}</tbody></table>
           </div>))}
-        <p className="form-warning">Daily readings and cumulative meters need explicit aggregation rules and cannot be processed by this monthly mapper. An incoming total must not be added to its submeters.</p>
-        <label className="mapping-review-check"><input type="checkbox" checked={mappingReviewed} onChange={(event) => setMappingReviewed(event.target.checked)} /> I verified the four columns and their units against my file.</label>
-        {!mappingComplete && <p className="field-error">For each metric choose a distinct source column, its unit, and the date column on the same worksheet.</p>}
+        <p className="form-warning">Daily usage and meter readings look the same in a spreadsheet but are calculated differently, so check &ldquo;What the rows represent&rdquo; for each metric. An incoming total must never be added to its own submeters.</p>
+        <label className="mapping-review-check"><input type="checkbox" checked={mappingReviewed} onChange={(event) => setMappingReviewed(event.target.checked)} /> I checked each source column, its unit and what its rows represent against my file.</label>
+        {!mappingComplete && <p className="field-error">For each metric choose a distinct source column, its unit, the date column on the same worksheet, and a meter reading before the quarter if you selected meter readings.</p>}
         <div className="decision-actions"><button type="button" className="primary-button" disabled={!mappingComplete || !mappingReviewed} onClick={() => setStage("confirm")}>Continue to confirmation</button><button type="button" className="secondary-button" onClick={() => setStage("form")}>Back / edit</button></div>
       </section>}
 

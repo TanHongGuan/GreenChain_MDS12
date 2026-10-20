@@ -268,12 +268,12 @@ nav a.active {
 }
 
 .upload-mapping-grid { display: grid; gap: 14px; margin: 18px 0; }
-.upload-mapping-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr) minmax(90px, auto) minmax(90px, 130px); gap: 10px; align-items: center; }
+.upload-mapping-row { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--leaf-100); border-radius: 12px; background: var(--surface); }
 .upload-mapping-row > * { min-width: 0; }
 .upload-mapping-row .field-error { grid-column: 1 / -1; }
 .mapping-review-check { display: flex; align-items: flex-start; gap: 10px; }
 .mapping-review-check input { width: auto; margin-top: 4px; }
-@media (max-width: 760px) { .upload-mapping-row { grid-template-columns: 1fr; } }
+
 
 .drop-zone {
   display: grid;
@@ -2061,4 +2061,50 @@ nav a[aria-current="page"]::after {
   .panel-summary::after {
     transition: none;
   }
+}
+
+/* Mapping review: explanation beneath a control, for AI warnings and for the
+   note on why a cumulative meter needs an opening reading. */
+.mapping-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  max-width: 48ch;
+}
+
+.upload-mapping-row input[inputmode="decimal"] {
+  width: 100%;
+}
+
+/* One block per metric: its name, then its controls in a grid that reflows by
+   width rather than assuming a fixed number of fields. */
+.mapping-metric {
+  margin: 0;
+  font-size: 0.98rem;
+  color: var(--ink);
+}
+
+.mapping-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+
+.mapping-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mapping-field label {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.mapping-field select,
+.mapping-field input {
+  width: 100%;
 }

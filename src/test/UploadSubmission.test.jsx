@@ -253,9 +253,53 @@ describe("upload submission", () => {
     await userEvent.click(screen.getByRole("button", { name: /review file/i }));
     expect(await screen.findByRole("heading", { name: "Review detected columns" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue to confirmation" })).toBeDisabled();
-    await userEvent.click(screen.getByLabelText(/I verified the four columns/i));
+    await userEvent.click(screen.getByLabelText(/I checked each source column/i));
     await userEvent.click(screen.getByRole("button", { name: "Continue to confirmation" }));
     await userEvent.click(screen.getByRole("button", { name: /confirm upload/i }));
     expect(await screen.findByText("Submission #56 is UNREVIEWED.")).toBeInTheDocument();
+  });
+
+  test("choosing meter readings blocks upload until an opening reading is given", async () => {
+    // Daily usage and cumulative meter readings look identical in a spreadsheet.
+    // Picking the cumulative reading means the first month's usage depends on a
+    // reading the file does not contain, so the upload must not proceed without it.
+    const headers = ["Billing Month", "TNB Usage (MWh)", "Water Bill (L)", "GHG Emissions (kgCO2e)"];
+    global.fetch = vi.fn((url, options = {}) => {
+      const request = String(url);
+      if (request.endsWith("/auth/me")) return Promise.resolve(jsonResponse(200, { user: uploader }));
+      if (request.endsWith("/projects/owned")) return Promise.resolve(jsonResponse(200, { buildings: [{ project_id: 42, project_name: "Bayview", organisation: "Acme", location: "KL" }] }));
+      if (request.endsWith("/submissions/mapping-preview")) return Promise.resolve(jsonResponse(200, {
+        kind: "ai_mapping", model: "test-model", sheets: [{ worksheet: "CSV", candidates: [
+          { header_row: 1, columns: headers.map((header, index) => ({ header, column_ref: "ABCD"[index] })), sample_rows: [["Jan 2026", "30", "850000", "14200"]] },
+        ] }], mapping: { mappings: ["reporting_period", "electricity_kwh", "water_m3", "co2_tco2e"].map((field, index) => ({
+          field, worksheet: "CSV", header_row: 1, header: headers[index], column_ref: "ABCD"[index],
+          period_column_ref: index ? "A" : "", source_unit: ["month", "MWh", "L", "kgCO2e"][index],
+          aggregation: "MONTHLY", ambiguous: false, missing: false })), warnings: [] },
+      }));
+      throw new Error(`Unexpected fetch call: ${request}`);
+    });
+    renderUploadShell();
+    await screen.findByRole("option", { name: "Bayview" });
+    await userEvent.selectOptions(screen.getByLabelText("Owned building"), "42");
+    await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
+    await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
+    await userEvent.upload(screen.getByLabelText(/submission file/i), new File([
+      `${headers.join(",")}\nJan 2026,30,850000,14200\n`,
+    ], "unknown.csv", { type: "text/csv" }));
+    await userEvent.click(screen.getByRole("button", { name: /review file/i }));
+    await screen.findByRole("heading", { name: "Review detected columns" });
+    await userEvent.click(screen.getByLabelText(/I checked each source column/i));
+
+    const continueButton = screen.getByRole("button", { name: "Continue to confirmation" });
+    expect(continueButton).toBeEnabled();
+
+    await userEvent.selectOptions(screen.getByLabelText(/what the rows represent/i, { selector: "#aggregation-water_m3" }), "DIFFERENCE_CUMULATIVE");
+    expect(continueButton).toBeDisabled();
+
+    await userEvent.type(screen.getByLabelText(/meter reading before this quarter/i), "23410");
+    // Every edit clears the confirmation, so the uploader re-checks what they changed.
+    expect(continueButton).toBeDisabled();
+    await userEvent.click(screen.getByLabelText(/I checked each source column/i));
+    expect(continueButton).toBeEnabled();
   });
 });

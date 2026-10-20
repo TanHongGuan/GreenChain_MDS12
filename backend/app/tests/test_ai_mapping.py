@@ -18,7 +18,7 @@ from backend.app.submissions.service import process_submission
 from backend.app.tests.test_submissions_service import db, settings, storage, upload, uploader_id
 
 
-UNKNOWN = b"Billing Month,TNB Usage (MWh),Water Bill (L),GHG Emissions (kgCO2e)\nJan 2026,30,850000,14200\nFeb 2026,32,910000,15100\n"
+UNKNOWN = b"Billing Month,TNB Usage (MWh),Water Bill (L),GHG Emissions (kgCO2e)\nJan 2026,30,850000,14200\nFeb 2026,32,910000,15100\nMar 2026,28,780000,13600\n"
 
 
 def suggestion(sheet="CSV"):
@@ -34,6 +34,7 @@ def test_confirmed_ai_mapping_produces_exact_canonical_measurements():
     rows = process_confirmed_mapping(UNKNOWN, ".csv", suggestion())
     assert [(row.reporting_period, str(row.electricity_kwh), str(row.water_m3), str(row.co2_tco2e)) for row in rows] == [
         ("2026-01", "30000", "850", "14.2"), ("2026-02", "32000", "910", "15.1"),
+        ("2026-03", "28000", "780", "13.6"),
     ]
 
 
@@ -194,4 +195,4 @@ async def test_ai_mapped_submission_preserves_original_and_mapping(db, storage, 
     assert submission.mapping_json
     assert storage.retrieve(submission.original_storage_key) == UNKNOWN
     assert b"2026-01,30000,850,14.2" in storage.retrieve(submission.processed_storage_key)
-    assert db.query(MonthlyRecord).count() == 2
+    assert db.query(MonthlyRecord).count() == 3

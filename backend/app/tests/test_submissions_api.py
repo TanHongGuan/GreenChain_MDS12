@@ -148,12 +148,12 @@ def test_owned_building_monthly_upload_and_visibility(client: TestClient, sessio
     response = client.post(
         "/submissions",
         data={"project_id": str(project_id), "reporting_period": "2026-Q1"},
-        files={"file": ("monthly.csv", b"reporting_period,electricity_kwh,water_m3,co2_tco2e\n2026-01,10,2,0.5\n", "text/csv")},
+        files={"file": ("monthly.csv", b"reporting_period,electricity_kwh,water_m3,co2_tco2e\n2026-01,10,2,0.5\n2026-02,11,2.5,0.6\n2026-03,12,3,0.7\n", "text/csv")},
     )
     assert response.status_code == 201, response.text
     payload = response.json()
     assert payload["project_id"] == project_id
-    assert payload["monthly_record_count"] == 1
+    assert payload["monthly_record_count"] == 3
     submission_id = payload["submission_id"]
     assert client.get(f"/submissions/{submission_id}/monthly").json()["monthly_records"][0]["reporting_period"] == "2026-01"
     downloaded = client.get(f"/submissions/{submission_id}/evidence/processed")
@@ -169,7 +169,7 @@ def test_owned_building_monthly_upload_and_visibility(client: TestClient, sessio
         submission.status = SUBMISSION_STATUS_APPROVED
         db.commit()
     assert client.get(f"/submissions/{submission_id}/monthly").status_code == 200
-    assert len(client.get(f"/projects/{project_id}/monthly").json()["monthly_records"]) == 1
+    assert len(client.get(f"/projects/{project_id}/monthly").json()["monthly_records"]) == 3
 
 
 def test_owned_building_creation_is_role_bound(client: TestClient) -> None:
@@ -205,7 +205,7 @@ def test_known_monthly_preview_does_not_call_ai(client: TestClient) -> None:
     login(client, "uploader@greenchain.test")
     with patch("backend.app.api.submissions.suggest_mapping", new_callable=AsyncMock) as ai:
         response = client.post("/submissions/mapping-preview", files={"file": (
-            "known.csv", b"reporting_period,electricity_kwh,water_m3,co2_tco2e\n2026-01,1,2,3\n", "text/csv")})
+            "known.csv", b"reporting_period,electricity_kwh,water_m3,co2_tco2e\n2026-01,1,2,3\n2026-02,1,2,3\n2026-03,1,2,3\n", "text/csv")})
     assert response.status_code == 200
     assert response.json() == {"kind": "known", "input_format": "MONTHLY_STANDARD"}
     ai.assert_not_awaited()

@@ -50,7 +50,7 @@ from backend.app.etl.errors import ETLParseError, ETLValidationError
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
-SubmissionProcessor = Callable[[UploadFile, str, str, str, str, int | None], Awaitable[SubmissionResult]]
+SubmissionProcessor = Callable[..., Awaitable[SubmissionResult]]
 
 
 def _monthly_access_allowed(submission: Submission, current_user: AuthUser, db: Session) -> bool:
@@ -106,6 +106,9 @@ async def create_submission(
     previous_submission_id: int | None = Form(default=None),
     project_id: int | None = Form(default=None),
     confirmed_mapping: str | None = Form(default=None),
+    # Opt-in, default off: an incomplete quarter is refused unless the uploader
+    # states that the shortfall is intended. Existing clients are unaffected.
+    confirm_partial_quarter: bool = Form(default=False),
     current_user: AuthUser = Depends(require_permission(Permission.UPLOAD_SUBMISSION)),
     settings: Settings = Depends(get_settings),
     processor: SubmissionProcessor = Depends(get_submission_processor),
@@ -117,11 +120,13 @@ async def create_submission(
 
     try:
         args = (upload_file, clean_project_name, clean_organisation, clean_reporting_period, current_user.id, previous_submission_id)
-        if project_id is None and confirmed_mapping is None:
-            result = await processor(*args)
-        else:
-            result = await processor(*args, project_id=project_id, organisation_id=current_user.organisation_id,
-                                     **({"mapping_json": confirmed_mapping} if confirmed_mapping is not None else {}))
+        extra: dict = {"allow_partial_quarter": confirm_partial_quarter}
+        if project_id is not None or confirmed_mapping is not None:
+            extra["project_id"] = project_id
+            extra["organisation_id"] = current_user.organisation_id
+            if confirmed_mapping is not None:
+                extra["mapping_json"] = confirmed_mapping
+        result = await processor(*args, **extra)
     except SubmissionValidationError as exc:
         raise submission_error(status.HTTP_400_BAD_REQUEST, "INVALID_FILE", str(exc)) from exc
     except SubmissionProcessingError as exc:

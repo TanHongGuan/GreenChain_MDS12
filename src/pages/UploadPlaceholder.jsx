@@ -8,7 +8,6 @@ import { parseUploadCsv, readTextFile } from "../utils/uploadPreview.js";
 
 const ACCEPTED_EXTENSIONS = [".csv", ".xlsx"];
 const MAPPING_FIELDS = [
-  ["reporting_period", "Reporting month", ["month"]],
   ["electricity_kwh", "Electricity", ["kWh", "MWh"]],
   ["water_m3", "Water", ["m3", "L"]],
   ["co2_tco2e", "CO₂ emissions", ["tCO2e", "kgCO2e"]],
@@ -42,6 +41,32 @@ function validateForm({ projectName, organisation, reportingPeriod, file }) {
   }
 
   return errors;
+}
+
+// The backend contract still carries reporting_period as a canonical field, and
+// process_confirmed_mapping uses it as the reference period set that every metric
+// must align to. The uploader no longer answers that question twice: the quarter is
+// chosen once on the form, and each metric already names the date column on its own
+// worksheet. So the reporting_period mapping is derived from the first metric rather
+// than asked for again. Backend validation is unchanged.
+function buildConfirmedMapping(draft, preview) {
+  const metrics = draft.map((item) => ({ ...item, missing: false, ambiguous: false }));
+  const first = metrics[0];
+  const period = first && {
+    field: "reporting_period",
+    worksheet: first.worksheet,
+    header_row: first.header_row,
+    header: (preview.sheets
+      .find((sheet) => sheet.worksheet === first.worksheet)?.candidates
+      .find((candidate) => candidate.header_row === first.header_row)?.columns
+      .find((column) => column.column_ref === first.period_column_ref)?.header) || "",
+    column_ref: first.period_column_ref,
+    period_column_ref: "",
+    source_unit: "month",
+    missing: false,
+    ambiguous: false,
+  };
+  return { mappings: period ? [period, ...metrics] : metrics, warnings: preview.mapping.warnings };
 }
 
 export function UploadPlaceholder() {
@@ -187,7 +212,7 @@ export function UploadPlaceholder() {
         reportingPeriod: reportingPeriod.trim(),
         file,
         projectId: projectId || null,
-        confirmedMapping: mappingPreview ? { mappings: mappingDraft.map((item) => ({ ...item, missing: false, ambiguous: false })), warnings: mappingPreview.mapping.warnings } : null,
+        confirmedMapping: mappingPreview ? buildConfirmedMapping(mappingDraft, mappingPreview) : null,
       });
       setStatus("success");
       setNotice(`Submission #${result.submission_id} is ${result.status}.`);
@@ -216,8 +241,9 @@ export function UploadPlaceholder() {
   const mappingOptions = mappingPreview?.sheets.flatMap((sheet) => sheet.candidates.flatMap((candidate) =>
     candidate.columns.map((column) => ({ worksheet: sheet.worksheet, header_row: candidate.header_row, ...column })))) || [];
   const mappingReferences = mappingDraft.map((item) => `${item.worksheet}|${item.header_row}|${item.column_ref}`);
-  const mappingComplete = mappingDraft.length === 4 && mappingDraft.every((item) => item.worksheet && item.header && item.column_ref && item.source_unit &&
-    (item.field === "reporting_period" || item.period_column_ref)) && new Set(mappingReferences).size === 4;
+  const mappingComplete = mappingDraft.length === MAPPING_FIELDS.length
+    && mappingDraft.every((item) => item.worksheet && item.header && item.column_ref && item.source_unit && item.period_column_ref)
+    && new Set(mappingReferences).size === MAPPING_FIELDS.length;
 
   return (
     <section className="page-panel upload-page">
@@ -248,14 +274,14 @@ export function UploadPlaceholder() {
                 <option value="">Select source column</option>
                 {mappingOptions.map((option) => <option key={`${option.worksheet}-${option.header_row}-${option.column_ref}`} value={JSON.stringify(option)}>{option.worksheet} · {option.header} ({option.column_ref})</option>)}
               </select>
-              {field !== "reporting_period" && <><label htmlFor={`period-${field}`}>Period column on this worksheet</label>
+              {<><label htmlFor={`period-${field}`}>Date column on this worksheet</label>
                 <select id={`period-${field}`} value={item.period_column_ref || ""} onChange={(event) => updateMapping(field, { period_column_ref: event.target.value })}>
                   <option value="">Select month column</option>
                   {periodOptions.map((option) => <option key={option.column_ref} value={option.column_ref}>{option.header} ({option.column_ref})</option>)}
                 </select></>}
               <label htmlFor={`unit-${field}`}>Source unit</label>
               <select id={`unit-${field}`} value={units.includes(item.source_unit) ? item.source_unit : ""} onChange={(event) => updateMapping(field, { source_unit: event.target.value, ambiguous: false })}>
-                <option value="">Select unit</option>{units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                <option value="">Select source unit</option>{units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
               </select>
               {(item.missing || item.ambiguous) && <span className="field-error">AI marked this field as uncertain. Verify the selection.</span>}
             </div>;
@@ -269,7 +295,7 @@ export function UploadPlaceholder() {
           </div>))}
         <p className="form-warning">Daily readings and cumulative meters need explicit aggregation rules and cannot be processed by this monthly mapper. An incoming total must not be added to its submeters.</p>
         <label className="mapping-review-check"><input type="checkbox" checked={mappingReviewed} onChange={(event) => setMappingReviewed(event.target.checked)} /> I verified the four columns and their units against my file.</label>
-        {!mappingComplete && <p className="field-error">Select four distinct columns, their units, and a month column for each metric worksheet.</p>}
+        {!mappingComplete && <p className="field-error">For each metric choose a distinct source column, its unit, and the date column on the same worksheet.</p>}
         <div className="decision-actions"><button type="button" className="primary-button" disabled={!mappingComplete || !mappingReviewed} onClick={() => setStage("confirm")}>Continue to confirmation</button><button type="button" className="secondary-button" onClick={() => setStage("form")}>Back / edit</button></div>
       </section>}
 

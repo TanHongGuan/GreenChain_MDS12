@@ -62,6 +62,7 @@ async def process_submission(
     project_id: int | None = None,
     organisation_id: str | None = None,
     mapping_json: str | None = None,
+    allow_partial_quarter: bool = False,
 ) -> SubmissionResult:
     """Sprint 2 upload pipeline: validate, transform, store, and persist."""
     settings = settings or get_settings()
@@ -90,7 +91,7 @@ async def process_submission(
             headers, raw_rows = read_input(raw_bytes, extension)
             input_format, monthly_rows = classify_and_clean(headers, raw_rows)
         if monthly_rows is not None:
-            require_submission_quarter(monthly_rows, reporting_period)
+            require_submission_quarter(monthly_rows, reporting_period, allow_partial_quarter=allow_partial_quarter)
             cleaned_rows = [
                 CanonicalMetricRow(name, float(sum(getattr(row, field) for row in monthly_rows)), unit)
                 for name, field, unit in (
@@ -246,6 +247,7 @@ def get_submission_processor(
         project_id: int | None = None,
         organisation_id: str | None = None,
         mapping_json: str | None = None,
+        allow_partial_quarter: bool = False,
     ) -> SubmissionResult:
         return await process_submission(
             file,
@@ -259,6 +261,7 @@ def get_submission_processor(
             previous_submission_id=previous_submission_id,
             project_id=project_id,
             organisation_id=organisation_id,
+            allow_partial_quarter=allow_partial_quarter,
             mapping_json=mapping_json,
         )
 

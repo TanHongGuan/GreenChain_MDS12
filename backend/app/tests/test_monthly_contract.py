@@ -6,7 +6,7 @@ import pytest
 from openpyxl import Workbook
 
 from backend.app.etl.errors import ETLValidationError
-from backend.app.etl.monthly import classify_and_clean, read_input, require_submission_quarter
+from backend.app.etl.monthly import MonthlyRow, classify_and_clean, quarter_months, read_input, require_submission_quarter
 from backend.app.models.monthly_record import MonthlyRecord
 from backend.app.models.organisation import Organisation
 from backend.app.models.project import Project
@@ -15,8 +15,8 @@ from backend.app.submissions.service import SubmissionValidationError, process_s
 from backend.app.tests.test_submissions_service import db, settings, storage, upload, uploader_id
 
 
-STANDARD = b"reporting_period,electricity_kwh,water_m3,co2_tco2e\n2026-01,1200,4.5,0.25\n2026-02,900,3.75,0.19\n"
-ALTERNATIVE = b"Month,Electricity (MWh),Water (Litres),Carbon (kgCO2e)\nJan-2026,1.2,4500,250\nFeb-2026,0.9,3750,190\n"
+STANDARD = b"reporting_period,electricity_kwh,water_m3,co2_tco2e\n2026-01,1200,4.5,0.25\n2026-02,900,3.75,0.19\n2026-03,800,3.25,0.16\n"
+ALTERNATIVE = b"Month,Electricity (MWh),Water (Litres),Carbon (kgCO2e)\nJan-2026,1.2,4500,250\nFeb-2026,0.9,3750,190\nMar-2026,0.8,3250,160\n"
 
 
 @pytest.mark.parametrize("data", [STANDARD, ALTERNATIVE])
@@ -27,6 +27,7 @@ def test_monthly_formats_normalize_to_same_values(data):
     assert [(row.reporting_period, row.electricity_kwh, row.water_m3, row.co2_tco2e) for row in rows] == [
         ("2026-01", Decimal("1200"), Decimal("4.5"), Decimal("0.25")),
         ("2026-02", Decimal("900"), Decimal("3.75"), Decimal("0.19")),
+        ("2026-03", Decimal("800"), Decimal("3.25"), Decimal("0.16")),
     ]
 
 
@@ -98,13 +99,13 @@ async def test_monthly_submission_persists_rows_and_evidence(db, storage, settin
         upload("monthly.csv", ALTERNATIVE, "text/csv"), "", "", "2026-Q1", uploader_id(db),
         db=db, storage=storage, settings=settings, project_id=project.id, organisation_id=organisation.id,
     )
-    assert result.monthly_record_count == 2
+    assert result.monthly_record_count == 3
     assert result.input_format == "MONTHLY_ALTERNATIVE"
     submission = db.get(Submission, result.submission_id)
     assert storage.retrieve(submission.original_storage_key) == ALTERNATIVE
     assert storage.retrieve(submission.processed_storage_key).startswith(b"reporting_period,electricity_kwh,water_m3,co2_tco2e")
     rows = db.query(MonthlyRecord).order_by(MonthlyRecord.reporting_period).all()
-    assert len(rows) == 2
+    assert len(rows) == 3
     assert rows[0].electricity_kwh == Decimal("1200")
     assert {metric.metric_name for metric in submission.metrics} == {"Electricity", "Water", "CO2e"}
 
@@ -136,3 +137,51 @@ async def test_monthly_submission_rejects_overlapping_month_without_correction(d
     with pytest.raises(SubmissionValidationError, match="already exist"):
         await process_submission(upload("second.csv", ALTERNATIVE, "text/csv"), "", "", "2026-Q1", uploader_id(db), **arguments)
     assert db.query(Submission).count() == 1
+
+
+# --- quarter integrity ------------------------------------------------------------
+# The quarterly figure published to viewers is the sum of the uploaded months, so
+# these guard the three ways that sum can mean something other than "this quarter".
+
+def _rows(*months):
+    return [MonthlyRow(month, Decimal("100"), Decimal("10"), Decimal("1")) for month in months]
+
+
+def test_complete_quarter_is_accepted():
+    require_submission_quarter(_rows("2026-01", "2026-02", "2026-03"), "2026-Q1")
+
+
+def test_incomplete_quarter_is_refused_and_names_the_missing_months():
+    with pytest.raises(ETLValidationError) as error:
+        require_submission_quarter(_rows("2026-01"), "2026-Q1")
+    message = str(error.value)
+    assert "2026-02" in message and "2026-03" in message
+
+
+def test_incomplete_quarter_is_allowed_only_when_explicitly_confirmed():
+    require_submission_quarter(_rows("2026-01"), "2026-Q1", allow_partial_quarter=True)
+
+
+def test_duplicate_month_is_refused_because_it_would_double_count():
+    with pytest.raises(ETLValidationError, match="more than once"):
+        require_submission_quarter(_rows("2026-01", "2026-01", "2026-02", "2026-03"), "2026-Q1")
+
+
+def test_duplicate_month_is_refused_even_when_a_partial_quarter_is_confirmed():
+    # Confirming a short quarter is a judgement about coverage, never a licence
+    # to count one month twice.
+    with pytest.raises(ETLValidationError, match="more than once"):
+        require_submission_quarter(_rows("2026-01", "2026-01"), "2026-Q1", allow_partial_quarter=True)
+
+
+def test_month_outside_the_declared_quarter_is_still_refused():
+    with pytest.raises(ETLValidationError, match="outside submission period"):
+        require_submission_quarter(_rows("2026-01", "2026-02", "2026-04"), "2026-Q1")
+
+
+@pytest.mark.parametrize("quarter,expected", [
+    ("2026-Q1", ["2026-01", "2026-02", "2026-03"]),
+    ("2026-Q4", ["2026-10", "2026-11", "2026-12"]),
+])
+def test_quarter_months_expands_correctly(quarter, expected):
+    assert quarter_months(quarter) == expected

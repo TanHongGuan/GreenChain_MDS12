@@ -118,14 +118,51 @@ def _number(raw: object, line: int, column: str) -> Decimal:
     return number
 
 
-def require_submission_quarter(rows: list[MonthlyRow], submission_period: str) -> None:
+def quarter_months(submission_period: str) -> list[str]:
+    """The three calendar months a quarter label covers, in order."""
+    year, quarter = submission_period.split("-Q")
+    first = (int(quarter) - 1) * 3 + 1
+    return [f"{int(year):04d}-{month:02d}" for month in range(first, first + 3)]
+
+
+def require_submission_quarter(
+    rows: list[MonthlyRow], submission_period: str, *, allow_partial_quarter: bool = False
+) -> None:
+    """Check that these months form a sound basis for one quarterly total.
+
+    The quarterly figure published to viewers is the sum of these rows, so three
+    things have to hold before that sum means what the chart will claim it means:
+    every month belongs to the declared quarter, no month is counted twice, and
+    the quarter is actually complete.
+
+    Partial quarters are refused rather than silently published, because a single
+    month summed alone becomes "Q1" on a chart with nothing to mark it short. A
+    genuinely partial quarter (a building commissioned mid-quarter, say) is still
+    uploadable, but the uploader has to say so deliberately.
+    """
     if not re.fullmatch(r"\d{4}-Q[1-4]", submission_period):
         raise ETLValidationError("Monthly uploads require a submission reporting period such as 2026-Q1.")
+
+    seen: set[str] = set()
     for row in rows:
         year, month = (int(part) for part in row.reporting_period.split("-"))
         expected = f"{year}-Q{(month - 1) // 3 + 1}"
         if expected != submission_period:
             raise ETLValidationError(f"Month {row.reporting_period} is outside submission period {submission_period}.")
+        if row.reporting_period in seen:
+            # Previously these were summed, so one month counted twice inflated the
+            # quarterly total with no warning anywhere.
+            raise ETLValidationError(
+                f"Month {row.reporting_period} appears more than once; each month may contribute once to a quarter."
+            )
+        seen.add(row.reporting_period)
+
+    missing = [month for month in quarter_months(submission_period) if month not in seen]
+    if missing and not allow_partial_quarter:
+        raise ETLValidationError(
+            f"{submission_period} is incomplete: {', '.join(missing)} "
+            f"{'is' if len(missing) == 1 else 'are'} missing. Upload the full quarter, or confirm a partial quarter."
+        )
 
 
 def build_monthly_csv(rows: list[MonthlyRow]) -> bytes:

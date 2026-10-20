@@ -1,4 +1,5 @@
 from io import BytesIO
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -150,8 +151,64 @@ def test_actual_bayview_daily_workbooks_are_detected_but_not_misaggregated(filen
         ColumnMapping(field="water_m3", worksheet="Water_Readings", header="Water Meter - cumulative (m3)", period_column_ref="A", source_unit="m3"),
         ColumnMapping(field="co2_tco2e", worksheet="Carbon_Register", header="Reported Scope 2 Electricity Emissions (tCO2e)", period_column_ref="A", source_unit="tCO2e"),
     ])
-    with pytest.raises(ETLValidationError, match="daily readings require an explicit aggregation rule"):
+    # Without a confirmed aggregation rule the daily rows are still refused, and the
+    # message now names the actual choice rather than stating a flat limitation.
+    with pytest.raises(ETLValidationError, match="daily consumption to be summed, or cumulative meter readings"):
         process_confirmed_mapping(content, ".xlsx", proposed)
+
+
+def test_bayview_processes_once_the_aggregation_rules_are_confirmed():
+    """The D01 workbook end to end, using the rules its own Meter_And_ETL_Rules sheet states.
+
+    Electricity is daily consumption on the inclusive main meter, water is a
+    cumulative meter needing differencing from the stated opening reading of
+    23410, and emissions are already monthly.
+    """
+    path = Path(__file__).resolve().parents[3] / "test_datasets" / "workbooks" / "D01_Bayview_2026_Q1_VALID.xlsx"
+    if not path.exists():
+        pytest.skip(f"Workbook fixture missing: {path}")
+    content = path.read_bytes()
+    confirmed = MappingSuggestion(mappings=[
+        ColumnMapping(field="reporting_period", worksheet="Carbon_Register", header="Month", source_unit="month"),
+        ColumnMapping(field="electricity_kwh", worksheet="Electricity_Log", header="Main Incoming Grid (kWh)",
+                      period_column_ref="A", source_unit="kWh", aggregation="SUM_DAILY"),
+        ColumnMapping(field="water_m3", worksheet="Water_Readings", header="Water Meter - cumulative (m3)",
+                      period_column_ref="A", source_unit="m3", aggregation="DIFFERENCE_CUMULATIVE",
+                      opening_reading=Decimal("23410")),
+        ColumnMapping(field="co2_tco2e", worksheet="Carbon_Register",
+                      header="Reported Scope 2 Electricity Emissions (tCO2e)", period_column_ref="A",
+                      source_unit="tCO2e", additional_column_refs=["C"]),
+    ])
+    rows = process_confirmed_mapping(content, ".xlsx", confirmed)
+    assert [row.reporting_period for row in rows] == ["2026-01", "2026-02", "2026-03"]
+
+    # The strongest available check: the dataset pack ships the quarterly totals it
+    # expects, written independently of this implementation.
+    expected_csv = (Path(__file__).resolve().parents[3] / "test_datasets" / "workbooks"
+                    / "expected" / "D01_expected_quarterly.csv")
+    header, values = expected_csv.read_text(encoding="utf-8-sig").strip().splitlines()
+    _, _, electricity, water, co2 = values.split(",")
+    assert sum(row.electricity_kwh for row in rows) == Decimal(electricity)
+    assert sum(row.water_m3 for row in rows) == Decimal(water)
+    assert sum(row.co2_tco2e for row in rows) == Decimal(co2)
+
+
+def test_cumulative_water_without_an_opening_reading_is_refused():
+    path = Path(__file__).resolve().parents[3] / "test_datasets" / "workbooks" / "D01_Bayview_2026_Q1_VALID.xlsx"
+    if not path.exists():
+        pytest.skip(f"Workbook fixture missing: {path}")
+    confirmed = MappingSuggestion(mappings=[
+        ColumnMapping(field="reporting_period", worksheet="Carbon_Register", header="Month", source_unit="month"),
+        ColumnMapping(field="electricity_kwh", worksheet="Electricity_Log", header="Main Incoming Grid (kWh)",
+                      period_column_ref="A", source_unit="kWh", aggregation="SUM_DAILY"),
+        ColumnMapping(field="water_m3", worksheet="Water_Readings", header="Water Meter - cumulative (m3)",
+                      period_column_ref="A", source_unit="m3", aggregation="DIFFERENCE_CUMULATIVE"),
+        ColumnMapping(field="co2_tco2e", worksheet="Carbon_Register",
+                      header="Reported Scope 2 Electricity Emissions (tCO2e)", period_column_ref="A",
+                      source_unit="tCO2e"),
+    ])
+    with pytest.raises(ETLValidationError, match="opening reading"):
+        process_confirmed_mapping(path.read_bytes(), ".xlsx", confirmed)
 
 
 @pytest.mark.anyio

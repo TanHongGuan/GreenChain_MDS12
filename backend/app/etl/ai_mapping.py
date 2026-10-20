@@ -26,6 +26,9 @@ ALLOWED_UNITS = {
 }
 
 
+Aggregation = Literal["MONTHLY", "SUM_DAILY", "DIFFERENCE_CUMULATIVE"]
+
+
 class ColumnMapping(BaseModel):
     field: FieldName
     worksheet: str = ""
@@ -34,6 +37,20 @@ class ColumnMapping(BaseModel):
     column_ref: str = ""
     period_column_ref: str = ""
     source_unit: str = ""
+    # How source rows become one value per month. MONTHLY means the column already
+    # holds one value per month. The other two are only ever applied when the
+    # uploader has confirmed the measurement's semantics: rising numbers alone do
+    # not establish whether a series is consumption or a cumulative meter.
+    aggregation: Aggregation = "MONTHLY"
+    # Required for DIFFERENCE_CUMULATIVE: the meter reading immediately before the
+    # first period in the file. Without it the earliest month cannot be computed,
+    # because its consumption depends on a reading the file does not contain.
+    opening_reading: Decimal | None = None
+    # Further columns on the same worksheet and header row to add to this one, for
+    # a metric reported as separate components (emission scopes, independent
+    # meters). Only ever populated from a confirmed decision: two columns that
+    # look addable may equally be a total and one of its own parts.
+    additional_column_refs: list[str] = Field(default_factory=list)
     ambiguous: bool = False
     missing: bool = False
     warning: str | None = None
@@ -91,27 +108,29 @@ MAX_NOTES_PER_SHEET = 20
 MAX_NOTE_CHARS = 200
 
 
-def _note_text(value: object) -> str | None:
+def _note_text(value: object, *, keep_numeric: bool = False) -> str | None:
     """A cell worth sending as evidence, or None.
 
-    Numbers, dates and short codes carry no interpretive meaning on their own;
-    sentences and definitions do. Anything containing an address-like token is
-    dropped rather than truncated.
+    Dates and short codes carry no interpretive meaning on their own; sentences
+    and definitions do. Bare numbers are dropped from measurement rows, but kept
+    when they sit beside text, because that is how a definition states a value -
+    "Water opening reading (m3) | 23410" is useless with the number removed.
+    Anything containing an address-like token is dropped rather than truncated.
     """
     text = _cell(value).strip()
     if not text or "@" in text:
         return None
-    if re.fullmatch(r"[+-]?[\d.,/:\s-]+", text):
+    if not keep_numeric and re.fullmatch(r"[+-]?[\d.,/:\s-]+", text):
         return None
     # Identifier-shaped tokens (invoice refs, meter serials, dataset ids) carry no
     # interpretive meaning and differ on every row, which would defeat the
     # de-duplication below and send the same sentence once per row.
-    if re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{3,}", text):
+    if re.search(r"[A-Za-z]", text) and re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{3,}", text):
         return None
     return text[:MAX_NOTE_CHARS]
 
 
-def sheet_notes(sheet: "SheetSnapshot", header_refs: set[str]) -> list[str]:
+def sheet_notes(sheet: "SheetSnapshot", header_refs: set[str], *, definition_sheet: bool = False) -> list[str]:
     """De-duplicated interpretive text from one worksheet.
 
     Rows are joined with " | " so a two-column definition table ("Level 01
@@ -121,7 +140,12 @@ def sheet_notes(sheet: "SheetSnapshot", header_refs: set[str]) -> list[str]:
     notes: list[str] = []
     seen: set[str] = set()
     for row in sheet.rows[:60]:
-        parts = [text for text in (_note_text(cell) for cell in row[:12]) if text]
+        cells = list(row[:12])
+        # A row with any prose in it is a statement, so its numbers are part of
+        # that statement. A row of nothing but numbers is data, and is skipped.
+        has_text = any(_note_text(cell) for cell in cells)
+        keep_numeric = definition_sheet and has_text
+        parts = [text for text in (_note_text(cell, keep_numeric=keep_numeric) for cell in cells) if text]
         if not parts:
             continue
         # A row made entirely of column headings is already in `candidates`; sending
@@ -170,7 +194,7 @@ def inspection_payload(sheets: list[SheetSnapshot]) -> list[dict]:
             # Sheets with no measurement table are never mapping options, but a
             # "Meter_And_ETL_Rules" or read-me sheet is often where the inclusive
             # meter and cumulative-reading rules are actually written down.
-            "notes": sheet_notes(sheet, header_refs),
+            "notes": sheet_notes(sheet, header_refs, definition_sheet=not candidates),
         })
     return payload
 
@@ -241,12 +265,98 @@ def _month(value: object, line: int) -> str:
     if isinstance(value, (date, datetime)):
         return f"{value.year:04d}-{value.month:02d}"
     text = str(value if value is not None else "").strip()
-    for pattern in ("%Y-%m", "%b-%Y", "%b %Y", "%Y/%m", "%Y-%m-%d"):
+    # Day-level formats are accepted so daily logs can be grouped into their month.
+    # "%d/%m/%Y" is read day-first: that is the convention declared by the source
+    # headers we support (e.g. "Reading Date (DD/MM/YYYY)") and the local
+    # convention. A day-first column whose values are genuinely month-first would
+    # be misread, so a workbook using MM/DD/YYYY must label it unambiguously or
+    # use an ISO date.
+    for pattern in ("%Y-%m", "%b-%Y", "%b %Y", "%Y/%m", "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
         try:
             return datetime.strptime(text, pattern).strftime("%Y-%m")
         except ValueError:
             continue
     raise ETLValidationError(f"Row {line}, reporting_period: unsupported month '{text}'.")
+
+
+def _collect(sheet: "SheetSnapshot", item: ColumnMapping, field: str) -> dict[str, list[tuple[int, object, object]]]:
+    """Group a column's source rows by calendar month, keeping row order."""
+    value_indexes = [column_index_from_string(ref) - 1
+                     for ref in [item.column_ref, *item.additional_column_refs]]
+    period_ref = item.column_ref if field == "reporting_period" else item.period_column_ref
+    period_index = column_index_from_string(period_ref) - 1
+    grouped: dict[str, list[tuple[int, object, object]]] = {}
+    for line, row in enumerate(sheet.rows[item.header_row:], item.header_row + 1):
+        if not any(cell is not None and str(cell).strip() for cell in row):
+            continue
+        raw_period = row[period_index] if period_index < len(row) else None
+        period = _month(raw_period, line)
+        parts = [row[index] if index < len(row) else None for index in value_indexes]
+        # One row's contribution is the sum of its confirmed component columns; a
+        # single mapped column is just the one-element case.
+        value = parts[0] if len(parts) == 1 else sum(
+            _number(part, line, item.header) for part in parts
+        )
+        grouped.setdefault(period, []).append((line, raw_period, value))
+    return grouped
+
+
+def _is_daily(grouped: dict[str, list[tuple[int, object, object]]]) -> bool:
+    return any(len(entries) > 1 for entries in grouped.values())
+
+
+def _reduce(grouped, item: ColumnMapping, field: str) -> dict[str, object]:
+    """Turn grouped source rows into exactly one value per month."""
+    if field == "reporting_period":
+        # This column only establishes which months exist; daily dates collapse
+        # to their month and carry no measurement of their own.
+        return {period: period for period in grouped}
+
+    if item.aggregation == "MONTHLY":
+        for period, entries in grouped.items():
+            if len(entries) > 1:
+                raise ETLValidationError(
+                    f"{item.worksheet} row {entries[1][0]}: {period} has {len(entries)} rows but the column is mapped "
+                    f"as already-monthly. Confirm whether these are daily consumption or cumulative meter readings."
+                )
+        return {period: entries[0][2] for period, entries in grouped.items()}
+
+    if item.aggregation == "SUM_DAILY":
+        return {
+            period: sum(_number(value, line, item.header) for line, _, value in entries)
+            for period, entries in grouped.items()
+        }
+
+    # DIFFERENCE_CUMULATIVE: a month's consumption is the rise in the meter across
+    # it, i.e. its closing reading minus the previous month's closing reading. The
+    # earliest month has no predecessor in the file, so it needs the opening
+    # reading the uploader confirmed.
+    ordered = sorted(grouped)
+    closing: dict[str, Decimal] = {}
+    previous: Decimal | None = item.opening_reading
+    for period in ordered:
+        entries = grouped[period]
+        readings = [(line, _number(value, line, item.header)) for line, _, value in entries]
+        for index in range(1, len(readings)):
+            if readings[index][1] < readings[index - 1][1]:
+                raise ETLValidationError(
+                    f"{item.worksheet} row {readings[index][0]}: meter reading falls from "
+                    f"{readings[index - 1][1]} to {readings[index][1]}. A reset or correction cannot be "
+                    f"turned into consumption automatically."
+                )
+        if previous is None:
+            raise ETLValidationError(
+                f"{item.worksheet}: {period} is the earliest period in the file, so its consumption depends on the "
+                f"meter reading immediately before it. Supply that opening reading to use cumulative differencing."
+            )
+        if readings[0][1] < previous:
+            raise ETLValidationError(
+                f"{item.worksheet} row {readings[0][0]}: reading {readings[0][1]} is below the preceding "
+                f"reading {previous}. A reset or correction cannot be turned into consumption automatically."
+            )
+        closing[period] = readings[-1][1] - previous
+        previous = readings[-1][1]
+    return closing
 
 
 def process_confirmed_mapping(raw_bytes: bytes, extension: str, suggestion: MappingSuggestion) -> list[MonthlyRow]:
@@ -256,24 +366,13 @@ def process_confirmed_mapping(raw_bytes: bytes, extension: str, suggestion: Mapp
     by_sheet = {sheet.name: sheet for sheet in sheets}
     series = {}
     for field, item in mapping.items():
-        sheet = by_sheet[item.worksheet]
-        value_index = column_index_from_string(item.column_ref) - 1
-        period_index = column_index_from_string(item.column_ref if field == "reporting_period" else item.period_column_ref) - 1
-        values = {}
-        for line, row in enumerate(sheet.rows[item.header_row:], item.header_row + 1):
-            if not any(cell is not None and str(cell).strip() for cell in row):
-                continue
-            raw_period = row[period_index] if period_index < len(row) else None
-            if isinstance(raw_period, (date, datetime)) and (field != "reporting_period" or raw_period.day != 1):
-                raise ETLValidationError(f"{item.worksheet} row {line}: daily readings require an explicit aggregation rule; upload was not processed.")
-            text_period = str(raw_period or "").strip()
-            if re.fullmatch(r"\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}", text_period):
-                raise ETLValidationError(f"{item.worksheet} row {line}: daily readings require an explicit aggregation rule; upload was not processed.")
-            period = _month(raw_period, line)
-            if period in values:
-                raise ETLValidationError(f"{item.worksheet} row {line}: duplicate reporting period {period}; daily aggregation is not supported.")
-            values[period] = row[value_index] if value_index < len(row) else None
-        series[field] = values
+        grouped = _collect(by_sheet[item.worksheet], item, field)
+        if field != "reporting_period" and item.aggregation == "MONTHLY" and _is_daily(grouped):
+            raise ETLValidationError(
+                f"{item.worksheet}: '{item.header}' has several rows per month. Confirm whether they are daily "
+                f"consumption to be summed, or cumulative meter readings to be differenced."
+            )
+        series[field] = _reduce(grouped, item, field)
     periods = set(series["reporting_period"])
     if not periods or any(set(series[field]) != periods for field in FIELDS[1:]):
         raise ETLValidationError("Reporting periods do not align across mapped worksheets; each metric needs the same monthly periods.")
@@ -301,7 +400,16 @@ async def suggest_mapping(sheets: list[SheetSnapshot], api_key: str | None, mode
         "Map spreadsheet STRUCTURE only to reporting_period, electricity_kwh, water_m3, co2_tco2e. "
         "Return a mapping for each field if identifiable. Use only detected header columns, with exact worksheet/header_row/header/column_ref. "
         "For metrics on another worksheet, provide period_column_ref from that same worksheet. Never map an individual cell or metadata sheet. "
-        "Select one inclusive electricity total, never add submeters to an incoming meter. Mark ambiguous when meter inclusion or daily aggregation is unclear. "
+        "Select one inclusive electricity total, never add submeters to an incoming meter. "
+        "Set aggregation per metric: MONTHLY when the column already holds one value per month; "
+        "SUM_DAILY when rows are daily consumption to add up; DIFFERENCE_CUMULATIVE when rows are "
+        "rising meter readings whose consumption is the rise between them. Use workbook notes as "
+        "evidence, never the fact that numbers increase. For DIFFERENCE_CUMULATIVE set "
+        "opening_reading to the meter reading immediately before the first period only when a note "
+        "states it; otherwise leave it null and warn that it is required. Set additional_column_refs only to add "
+        "separately reported components of one metric (emission scopes, independent meters) that a "
+        "note authorises; never add a total to its own parts. Mark ambiguous when meter inclusion, "
+        "granularity or component relationships are unclear. "
         'source_unit must be exactly one value copied from the source column, not a list: '
         '"month" for reporting_period; "kWh" or "MWh" for electricity; "m3" or "L" for water; '
         '"tCO2e" or "kgCO2e" for emissions. Pick the one the column actually uses. '

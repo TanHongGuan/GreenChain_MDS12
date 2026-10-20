@@ -159,6 +159,55 @@ describe("upload submission", () => {
     expect(await screen.findByText("CSV is missing required columns.")).toBeInTheDocument();
   });
 
+  test("every row-level fault in a refusal is listed against its own row", async () => {
+    // A refusal naming several faults must show all of them: stopping at the
+    // first meant one re-upload per fault.
+    mockFetchQueue([
+      { response: jsonResponse(200, { user: uploader }) },
+      {
+        response: jsonResponse(400, {
+          error: "INVALID_FILE",
+          message: "This file has 2 data problems to correct before it can be processed:\n- one\n- two",
+          issues: [
+            {
+              worksheet: "Electricity_Log", row: 20, row_date: "2026-01-19",
+              column: "Main Incoming Grid (kWh)", code: "INVALID_NUMERIC",
+              detail: "'MISSING' is not numeric.",
+            },
+            {
+              worksheet: "Water_Readings", row: 41, row_date: "2026-02-09",
+              column: "Water Meter - cumulative (m3)", code: "DECREASING_CUMULATIVE",
+              detail: "meter reading falls from 24410.55 to 24340.2.",
+            },
+          ],
+        }),
+      },
+    ]);
+    renderUploadShell();
+    await screen.findByRole("heading", { name: /upload data/i });
+
+    await userEvent.type(screen.getByLabelText(/project \/ building name/i), "Tower A");
+    await userEvent.type(screen.getByLabelText(/organisation/i), "GreenChain Demo Organisation");
+    await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
+    await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
+    await userEvent.upload(
+      screen.getByLabelText(/submission file/i),
+      new File(["metric_name,value,unit\nElectricity,10,kWh\n"], "energy.csv", { type: "text/csv" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /review file/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /confirm upload/i }));
+
+    // The headline is shown once, without the message's own bullet lines repeating
+    // the list below it.
+    expect(await screen.findByText(/2 data problems to correct/)).toBeInTheDocument();
+    expect(screen.queryByText(/- one/)).not.toBeInTheDocument();
+
+    expect(screen.getByText(/Electricity_Log .* row 20 .* 2026-01-19/)).toBeInTheDocument();
+    expect(screen.getByText(/'MISSING' is not numeric/)).toBeInTheDocument();
+    expect(screen.getByText(/Water_Readings .* row 41 .* 2026-02-09/)).toBeInTheDocument();
+    expect(screen.getByText(/meter reading falls from 24410.55/)).toBeInTheDocument();
+  });
+
   test("upload button is disabled while request is active", async () => {
     let resolveUpload;
     const uploadPromise = new Promise((resolve) => {

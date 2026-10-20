@@ -12,6 +12,9 @@ async function parseSubmissionResponse(response) {
     const message =
       payload?.message || payload?.error?.message || payload?.detail || "Unable to upload submission.";
     const error = new Error(message);
+    // A refusal can name several row-level faults at once; keep them as a list so
+    // the page can show each one against the row it came from.
+    error.issues = Array.isArray(payload?.issues) ? payload.issues : [];
     error.status = response.status;
     error.code = payload?.error?.code || payload?.error;
     throw error;

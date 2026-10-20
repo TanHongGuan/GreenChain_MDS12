@@ -13,8 +13,8 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter, column_index_from_string
 from pydantic import BaseModel, Field, ValidationError
 
-from backend.app.etl.errors import ETLParseError, ETLValidationError
-from backend.app.etl.monthly import MonthlyRow, _number
+from backend.app.etl.errors import ETLParseError, ETLValidationError, RowIssue
+from backend.app.etl.monthly import MonthlyRow, check_number
 
 FieldName = Literal["reporting_period", "electricity_kwh", "water_m3", "co2_tco2e"]
 FIELDS = ("reporting_period", "electricity_kwh", "water_m3", "co2_tco2e")
@@ -261,7 +261,32 @@ def validate_references(suggestion: MappingSuggestion, sheets: list[SheetSnapsho
     return suggestion
 
 
-def _month(value: object, line: int) -> str:
+# A fault is only fixable if the uploader can find the row that caused it, so
+# every issue carries the row's own date as written in the file, normalised to
+# ISO. Day-first is the declared convention (see _check_month below).
+DATE_PATTERNS = ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d")
+
+MAX_REPORTED_ISSUES = 50
+
+
+def _row_date(value: object) -> str:
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value if value is not None else "").strip()
+    for pattern in DATE_PATTERNS:
+        try:
+            return datetime.strptime(text, pattern).date().isoformat()
+        except ValueError:
+            continue
+    # A month-only column ("2026-01") and anything unrecognised are reported as
+    # written, which is what the uploader will search the file for.
+    return text
+
+
+def _check_month(value: object) -> str | None:
+    """The calendar month a row belongs to, or None if its period cannot be read."""
     if isinstance(value, (date, datetime)):
         return f"{value.year:04d}-{value.month:02d}"
     text = str(value if value is not None else "").strip()
@@ -276,87 +301,137 @@ def _month(value: object, line: int) -> str:
             return datetime.strptime(text, pattern).strftime("%Y-%m")
         except ValueError:
             continue
-    raise ETLValidationError(f"Row {line}, reporting_period: unsupported month '{text}'.")
+    return None
 
 
-def _collect(sheet: "SheetSnapshot", item: ColumnMapping, field: str) -> dict[str, list[tuple[int, object, object]]]:
-    """Group a column's source rows by calendar month, keeping row order."""
+RowEntry = tuple[int, str, object]
+
+
+def _collect(
+    sheet: "SheetSnapshot",
+    item: ColumnMapping,
+    field: str,
+    issues: list[RowIssue],
+) -> dict[str, list[RowEntry]]:
+    """Group a column's source rows by calendar month, keeping row order.
+
+    A row whose period or measurement cannot be read is recorded as an issue and
+    left out of the grouping, so the rest of the file is still checked and the
+    uploader is told about every fault at once.
+    """
     value_indexes = [column_index_from_string(ref) - 1
                      for ref in [item.column_ref, *item.additional_column_refs]]
     period_ref = item.column_ref if field == "reporting_period" else item.period_column_ref
     period_index = column_index_from_string(period_ref) - 1
-    grouped: dict[str, list[tuple[int, object, object]]] = {}
+    grouped: dict[str, list[RowEntry]] = {}
     for line, row in enumerate(sheet.rows[item.header_row:], item.header_row + 1):
         if not any(cell is not None and str(cell).strip() for cell in row):
             continue
         raw_period = row[period_index] if period_index < len(row) else None
-        period = _month(raw_period, line)
-        parts = [row[index] if index < len(row) else None for index in value_indexes]
+        row_date = _row_date(raw_period)
+        period = _check_month(raw_period)
+        if period is None:
+            issues.append(RowIssue(item.worksheet, line, row_date, "reporting_period", "UNSUPPORTED_PERIOD",
+                                   f"'{row_date}' is not a month or date this importer can read."))
+            continue
+        if field == "reporting_period":
+            # This column only establishes which months exist; it carries no
+            # measurement of its own, so there is nothing numeric to check.
+            grouped.setdefault(period, []).append((line, row_date, period))
+            continue
         # One row's contribution is the sum of its confirmed component columns; a
         # single mapped column is just the one-element case.
-        value = parts[0] if len(parts) == 1 else sum(
-            _number(part, line, item.header) for part in parts
-        )
-        grouped.setdefault(period, []).append((line, raw_period, value))
+        parts = []
+        unusable = False
+        for index in value_indexes:
+            value, code, detail = check_number(row[index] if index < len(row) else None)
+            if code is not None:
+                issues.append(RowIssue(item.worksheet, line, row_date, item.header, code, detail))
+                unusable = True
+                continue
+            parts.append(value)
+        if unusable:
+            continue
+        grouped.setdefault(period, []).append((line, row_date, sum(parts)))
     return grouped
 
 
-def _is_daily(grouped: dict[str, list[tuple[int, object, object]]]) -> bool:
+def _is_daily(grouped: dict[str, list[RowEntry]]) -> bool:
     return any(len(entries) > 1 for entries in grouped.values())
 
 
-def _reduce(grouped, item: ColumnMapping, field: str) -> dict[str, object]:
+def _reduce(grouped: dict[str, list[RowEntry]], item: ColumnMapping, field: str,
+            issues: list[RowIssue]) -> dict[str, object]:
     """Turn grouped source rows into exactly one value per month."""
     if field == "reporting_period":
-        # This column only establishes which months exist; daily dates collapse
-        # to their month and carry no measurement of their own.
         return {period: period for period in grouped}
 
     if item.aggregation == "MONTHLY":
         for period, entries in grouped.items():
-            if len(entries) > 1:
-                raise ETLValidationError(
-                    f"{item.worksheet} row {entries[1][0]}: {period} has {len(entries)} rows but the column is mapped "
-                    f"as already-monthly. Confirm whether these are daily consumption or cumulative meter readings."
-                )
-        return {period: entries[0][2] for period, entries in grouped.items()}
+            for line, row_date, _ in entries[1:]:
+                issues.append(RowIssue(
+                    item.worksheet, line, row_date, item.header, "MULTIPLE_ROWS_PER_MONTH",
+                    f"{period} already has a value but the column is mapped as already-monthly. Confirm whether "
+                    f"these are daily consumption or cumulative meter readings.",
+                ))
+        return {period: entries[0][2] for period, entries in grouped.items() if entries}
 
     if item.aggregation == "SUM_DAILY":
-        return {
-            period: sum(_number(value, line, item.header) for line, _, value in entries)
-            for period, entries in grouped.items()
-        }
+        return {period: sum(value for _, _, value in entries) for period, entries in grouped.items()}
 
     # DIFFERENCE_CUMULATIVE: a month's consumption is the rise in the meter across
     # it, i.e. its closing reading minus the previous month's closing reading. The
     # earliest month has no predecessor in the file, so it needs the opening
     # reading the uploader confirmed.
-    ordered = sorted(grouped)
     closing: dict[str, Decimal] = {}
     previous: Decimal | None = item.opening_reading
-    for period in ordered:
+    for period in sorted(grouped):
         entries = grouped[period]
-        readings = [(line, _number(value, line, item.header)) for line, _, value in entries]
-        for index in range(1, len(readings)):
-            if readings[index][1] < readings[index - 1][1]:
-                raise ETLValidationError(
-                    f"{item.worksheet} row {readings[index][0]}: meter reading falls from "
-                    f"{readings[index - 1][1]} to {readings[index][1]}. A reset or correction cannot be "
-                    f"turned into consumption automatically."
-                )
+        if not entries:
+            continue
+        for index in range(1, len(entries)):
+            line, row_date, reading = entries[index]
+            earlier = entries[index - 1][2]
+            if reading < earlier:
+                issues.append(RowIssue(
+                    item.worksheet, line, row_date, item.header, "DECREASING_CUMULATIVE",
+                    f"meter reading falls from {earlier} to {reading}. A reset or correction cannot be turned "
+                    f"into consumption automatically.",
+                ))
+                # Carry on from the reading as written rather than the higher one,
+                # so a single dip is reported once instead of condemning every
+                # row after it.
         if previous is None:
             raise ETLValidationError(
                 f"{item.worksheet}: {period} is the earliest period in the file, so its consumption depends on the "
                 f"meter reading immediately before it. Supply that opening reading to use cumulative differencing."
             )
-        if readings[0][1] < previous:
-            raise ETLValidationError(
-                f"{item.worksheet} row {readings[0][0]}: reading {readings[0][1]} is below the preceding "
-                f"reading {previous}. A reset or correction cannot be turned into consumption automatically."
-            )
-        closing[period] = readings[-1][1] - previous
-        previous = readings[-1][1]
+        line, row_date, opening = entries[0]
+        if opening < previous:
+            issues.append(RowIssue(
+                item.worksheet, line, row_date, item.header, "DECREASING_CUMULATIVE",
+                f"reading {opening} is below the preceding reading {previous}. A reset or correction cannot be "
+                f"turned into consumption automatically.",
+            ))
+        closing[period] = entries[-1][2] - previous
+        previous = entries[-1][2]
     return closing
+
+
+def _validation_failure(issues: list[RowIssue], sheet_order: dict[str, int]) -> ETLValidationError:
+    """One refusal naming every fault found, in the order they appear in the file."""
+    ordered = sorted(
+        dict.fromkeys(issues),
+        key=lambda issue: (sheet_order.get(issue.worksheet, 0), issue.row, issue.column),
+    )
+    total = len(ordered)
+    reported = ordered[:MAX_REPORTED_ISSUES]
+    noun = "problem" if total == 1 else "problems"
+    lines = [f"This file has {total} data {noun} to correct before it can be processed:"]
+    lines += [f"- {issue}" for issue in reported]
+    if total > len(reported):
+        lines.append(f"- ...and {total - len(reported)} more.")
+    return ETLValidationError("\n".join(lines), reported)
 
 
 def process_confirmed_mapping(raw_bytes: bytes, extension: str, suggestion: MappingSuggestion) -> list[MonthlyRow]:
@@ -364,21 +439,33 @@ def process_confirmed_mapping(raw_bytes: bytes, extension: str, suggestion: Mapp
     validate_references(suggestion, sheets, confirmed=True)
     mapping = {item.field: item for item in suggestion.mappings}
     by_sheet = {sheet.name: sheet for sheet in sheets}
-    series = {}
+    sheet_order = {sheet.name: index for index, sheet in enumerate(sheets)}
+    issues: list[RowIssue] = []
+    grouped_by_field = {
+        field: _collect(by_sheet[item.worksheet], item, field, issues)
+        for field, item in mapping.items()
+    }
+    # How a column should be read is settled before its rows are judged: until
+    # the aggregation is right, row-level faults would describe the wrong
+    # question.
     for field, item in mapping.items():
-        grouped = _collect(by_sheet[item.worksheet], item, field)
-        if field != "reporting_period" and item.aggregation == "MONTHLY" and _is_daily(grouped):
+        if field != "reporting_period" and item.aggregation == "MONTHLY" and _is_daily(grouped_by_field[field]):
             raise ETLValidationError(
                 f"{item.worksheet}: '{item.header}' has several rows per month. Confirm whether they are daily "
                 f"consumption to be summed, or cumulative meter readings to be differenced."
             )
-        series[field] = _reduce(grouped, item, field)
+    series = {
+        field: _reduce(grouped_by_field[field], item, field, issues)
+        for field, item in mapping.items()
+    }
+    if issues:
+        raise _validation_failure(issues, sheet_order)
     periods = set(series["reporting_period"])
     if not periods or any(set(series[field]) != periods for field in FIELDS[1:]):
         raise ETLValidationError("Reporting periods do not align across mapped worksheets; each metric needs the same monthly periods.")
     result = []
     for period in sorted(periods):
-        numbers = {field: _number(series[field][period], 0, mapping[field].header) for field in FIELDS[1:]}
+        numbers = {field: series[field][period] for field in FIELDS[1:]}
         electricity = numbers["electricity_kwh"] * (1000 if mapping["electricity_kwh"].source_unit == "MWh" else 1)
         water = numbers["water_m3"] / (1000 if mapping["water_m3"].source_unit == "L" else 1)
         carbon = numbers["co2_tco2e"] / (1000 if mapping["co2_tco2e"].source_unit == "kgCO2e" else 1)

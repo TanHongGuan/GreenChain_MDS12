@@ -17,6 +17,7 @@ from backend.app.repositories.users import SQLAlchemyUserRepository
 from backend.app.reviews.service import decide_submission
 from backend.app.storage.dependencies import get_storage_service
 from backend.app.storage.local import LocalStorageService
+from backend.app.etl.errors import RowIssue
 from backend.app.submissions.service import SubmissionProcessingError, SubmissionResult, SubmissionValidationError
 from backend.app.submissions.service import get_submission_processor
 from backend.app.tests.db_fixtures import build_session_factory, install_repository_override, seed_test_auth_users
@@ -289,6 +290,38 @@ def test_submission_returns_processing_validation_error(client: TestClient, app)
 
     assert response.status_code == 400
     assert response.json() == {"error": "INVALID_FILE", "message": "CSV is missing required columns."}
+
+
+def test_row_level_faults_are_returned_as_a_list(client: TestClient, app) -> None:
+    """Every fault reaches the uploader in one response, not one fault per attempt."""
+    issues = (
+        RowIssue("Electricity_Log", 20, "2026-01-19", "Main Incoming Grid (kWh)",
+                 "INVALID_NUMERIC", "'MISSING' is not numeric."),
+        RowIssue("Water_Readings", 41, "2026-02-09", "Water Meter - cumulative (m3)",
+                 "DECREASING_CUMULATIVE", "meter reading falls from 24410.55 to 24340.2."),
+    )
+
+    async def invalid_processor(*_args, **_kwargs) -> SubmissionResult:
+        raise SubmissionValidationError("This file has 2 data problems to correct.", issues)
+
+    install_processor(app, invalid_processor)
+    login(client, "uploader@greenchain.test")
+
+    response = client.post(
+        "/submissions",
+        data=valid_form(),
+        files={"file": ("energy.csv", b"meter,kwh\n", "text/csv")},
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["error"] == "INVALID_FILE"
+    assert [(item["worksheet"], item["row"], item["row_date"], item["column"], item["code"])
+            for item in payload["issues"]] == [
+        ("Electricity_Log", 20, "2026-01-19", "Main Incoming Grid (kWh)", "INVALID_NUMERIC"),
+        ("Water_Readings", 41, "2026-02-09", "Water Meter - cumulative (m3)", "DECREASING_CUMULATIVE"),
+    ]
+    assert payload["issues"][0]["message"].startswith("Electricity_Log row 20 (2026-01-19)")
 
 
 @pytest.mark.parametrize("exception", [SubmissionProcessingError("storage failed"), RuntimeError("secret path")])

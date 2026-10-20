@@ -68,8 +68,13 @@ def _require_monthly_access(submission_id: int, current_user: AuthUser, db: Sess
         raise api_error(status.HTTP_404_NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission was not found.")
 
 
-def submission_error(status_code: int, code: str, message: str) -> HTTPException:
-    return HTTPException(status_code=status_code, detail={"error": code, "message": message})
+def submission_error(status_code: int, code: str, message: str, issues: tuple = ()) -> HTTPException:
+    detail = {"error": code, "message": message}
+    if issues:
+        # The uploader needs every fault at once; the message reads them out, and
+        # this gives the UI the same list already broken into rows.
+        detail["issues"] = [issue.as_dict() for issue in issues]
+    return HTTPException(status_code=status_code, detail=detail)
 
 
 def required_text(value: str | None, field_name: str) -> str:
@@ -128,7 +133,7 @@ async def create_submission(
                 extra["mapping_json"] = confirmed_mapping
         result = await processor(*args, **extra)
     except SubmissionValidationError as exc:
-        raise submission_error(status.HTTP_400_BAD_REQUEST, "INVALID_FILE", str(exc)) from exc
+        raise submission_error(status.HTTP_400_BAD_REQUEST, "INVALID_FILE", str(exc), exc.issues) from exc
     except SubmissionProcessingError as exc:
         raise submission_error(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -182,7 +187,8 @@ async def mapping_preview(
         return {"kind": "ai_mapping", "mapping": suggestion.model_dump(), "sheets": inspection_payload(sheets),
                 "model": settings.gemini_model}
     except (ETLParseError, ETLValidationError) as exc:
-        raise submission_error(status.HTTP_400_BAD_REQUEST, "INVALID_FILE", str(exc)) from exc
+        raise submission_error(status.HTTP_400_BAD_REQUEST, "INVALID_FILE", str(exc),
+                               getattr(exc, "issues", ())) from exc
     except MappingUnavailable as exc:
         raise submission_error(status.HTTP_503_SERVICE_UNAVAILABLE, "AI_MAPPING_UNAVAILABLE", str(exc)) from exc
 

@@ -1,3 +1,4 @@
+import csv
 from io import BytesIO
 from decimal import Decimal
 from pathlib import Path
@@ -191,6 +192,74 @@ def test_bayview_processes_once_the_aggregation_rules_are_confirmed():
     assert sum(row.electricity_kwh for row in rows) == Decimal(electricity)
     assert sum(row.water_m3 for row in rows) == Decimal(water)
     assert sum(row.co2_tco2e for row in rows) == Decimal(co2)
+
+
+def test_invalid_workbook_reports_every_fault_the_pack_expects():
+    """D05 end to end against the error list the dataset pack ships.
+
+    Both faults sit in different worksheets, so stopping at the first one hid the
+    second until the uploader had fixed and re-uploaded. The refusal now names
+    every row-level fault at once, and this asserts the sheet, date, field and
+    error code against the pack's own expectations rather than against our
+    wording.
+    """
+    base = Path(__file__).resolve().parents[3] / "test_datasets" / "workbooks"
+    path = base / "D05_Bayview_2026_Q1_INVALID.xlsx"
+    expected_csv = base / "expected" / "D05_expected_validation_errors.csv"
+    if not path.exists() or not expected_csv.exists():
+        pytest.skip(f"Workbook fixture missing: {path}")
+    confirmed = MappingSuggestion(mappings=[
+        ColumnMapping(field="reporting_period", worksheet="Carbon_Register", header="Month", source_unit="month"),
+        ColumnMapping(field="electricity_kwh", worksheet="Electricity_Log", header="Main Incoming Grid (kWh)",
+                      period_column_ref="A", source_unit="kWh", aggregation="SUM_DAILY"),
+        ColumnMapping(field="water_m3", worksheet="Water_Readings", header="Water Meter - cumulative (m3)",
+                      period_column_ref="A", source_unit="m3", aggregation="DIFFERENCE_CUMULATIVE",
+                      opening_reading=Decimal("23410")),
+        ColumnMapping(field="co2_tco2e", worksheet="Carbon_Register",
+                      header="Reported Scope 2 Electricity Emissions (tCO2e)", period_column_ref="A",
+                      source_unit="tCO2e", additional_column_refs=["C"]),
+    ])
+    with pytest.raises(ETLValidationError) as raised:
+        process_confirmed_mapping(path.read_bytes(), ".xlsx", confirmed)
+
+    rows = list(csv.DictReader(expected_csv.read_text(encoding="utf-8-sig").splitlines()))
+    expected = [(row["sheet"], row["row_date"], row["field"], row["error_code"]) for row in rows]
+    assert expected, "the expected-errors fixture is empty"
+    assert [(issue.worksheet, issue.row_date, issue.column, issue.code)
+            for issue in raised.value.issues] == expected
+    # The uploader reads the message, so it must carry the whole list too.
+    message = str(raised.value)
+    assert f"{len(expected)} data problems" in message
+    assert message.count("\n- ") == len(expected)
+    assert "Electricity_Log row 20" in message and "Water_Readings row 41" in message
+
+
+def test_one_decreasing_reading_is_not_blamed_on_every_later_row():
+    """A single meter dip is one fault, not a cascade.
+
+    After the dip the readings resume rising from the lower value, so judging
+    each row against the one written before it reports the dip once. Comparing
+    against the highest reading seen would condemn the whole rest of the month.
+    """
+    base = Path(__file__).resolve().parents[3] / "test_datasets" / "workbooks"
+    path = base / "D05_Bayview_2026_Q1_INVALID.xlsx"
+    if not path.exists():
+        pytest.skip(f"Workbook fixture missing: {path}")
+    confirmed = MappingSuggestion(mappings=[
+        ColumnMapping(field="reporting_period", worksheet="Carbon_Register", header="Month", source_unit="month"),
+        ColumnMapping(field="electricity_kwh", worksheet="Electricity_Log", header="Level 01 Submeter (kWh)",
+                      period_column_ref="A", source_unit="kWh", aggregation="SUM_DAILY"),
+        ColumnMapping(field="water_m3", worksheet="Water_Readings", header="Water Meter - cumulative (m3)",
+                      period_column_ref="A", source_unit="m3", aggregation="DIFFERENCE_CUMULATIVE",
+                      opening_reading=Decimal("23410")),
+        ColumnMapping(field="co2_tco2e", worksheet="Carbon_Register",
+                      header="Reported Scope 2 Electricity Emissions (tCO2e)", period_column_ref="A",
+                      source_unit="tCO2e"),
+    ])
+    with pytest.raises(ETLValidationError) as raised:
+        process_confirmed_mapping(path.read_bytes(), ".xlsx", confirmed)
+    decreasing = [issue for issue in raised.value.issues if issue.code == "DECREASING_CUMULATIVE"]
+    assert [(issue.row, issue.row_date) for issue in decreasing] == [(41, "2026-02-09")]
 
 
 def test_cumulative_water_without_an_opening_reading_is_refused():

@@ -31,7 +31,15 @@ from backend.app.storage.models import StoredFile
 logger = logging.getLogger(__name__)
 
 class SubmissionValidationError(Exception):
-    """Raised when accepted upload data fails downstream validation."""
+    """Raised when accepted upload data fails downstream validation.
+
+    ``issues`` carries the row-level faults an ETL refusal found, so the API can
+    hand the uploader the whole list instead of one fault per attempt.
+    """
+
+    def __init__(self, message: str, issues: tuple = ()) -> None:
+        super().__init__(message)
+        self.issues = tuple(issues)
 
 
 class SubmissionProcessingError(Exception):
@@ -103,7 +111,7 @@ async def process_submission(
         else:
             cleaned_rows = clean_rows(headers, raw_rows)
     except (ETLParseError, ETLValidationError, ValidationError) as exc:
-        raise SubmissionValidationError(str(exc)) from exc
+        raise SubmissionValidationError(str(exc), getattr(exc, "issues", ())) from exc
 
     previous_submission = None
     if previous_submission_id is not None:

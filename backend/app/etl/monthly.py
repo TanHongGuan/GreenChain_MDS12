@@ -103,18 +103,30 @@ def _parse_month(raw: object, line: int, column: str, format_name: str) -> str:
     raise ETLValidationError(f"Row {line}, {column}: invalid month '{value}'. Use YYYY-MM for standard or Jan-2026 for alternative input.")
 
 
-def _number(raw: object, line: int, column: str) -> Decimal:
+def check_number(raw: object) -> tuple[Decimal | None, str | None, str]:
+    """Parse one measurement, returning either the value or why it is unusable.
+
+    Callers that must stop at the first fault use :func:`_number`; callers that
+    gather every fault in a file read the returned code instead of catching.
+    """
     value = str(raw if raw is not None else "").strip()
     if not value:
-        raise ETLValidationError(f"Row {line}, {column}: a measurement is required.")
+        return None, "MISSING_VALUE", "a measurement is required."
     try:
         number = Decimal(value)
-    except InvalidOperation as exc:
-        raise ETLValidationError(f"Row {line}, {column}: '{value}' is not numeric.") from exc
+    except InvalidOperation:
+        return None, "INVALID_NUMERIC", f"'{value}' is not numeric."
     if not number.is_finite() or number < 0:
-        raise ETLValidationError(f"Row {line}, {column}: use a finite, non-negative number.")
+        return None, "INVALID_NUMERIC", "use a finite, non-negative number."
     if number.as_tuple().exponent < -8 or number >= Decimal("1000000000000000"):
-        raise ETLValidationError(f"Row {line}, {column}: number exceeds supported precision or range.")
+        return None, "OUT_OF_RANGE", "number exceeds supported precision or range."
+    return number, None, ""
+
+
+def _number(raw: object, line: int, column: str) -> Decimal:
+    number, code, detail = check_number(raw)
+    if code is not None:
+        raise ETLValidationError(f"Row {line}, {column}: {detail}")
     return number
 
 

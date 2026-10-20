@@ -87,6 +87,7 @@ export function UploadPlaceholder() {
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState("idle");
   const [notice, setNotice] = useState("");
+  const [fileIssues, setFileIssues] = useState([]);
   const [stage, setStage] = useState("form");
   const [previewRows, setPreviewRows] = useState([]);
   const [result, setResult] = useState(null);
@@ -214,6 +215,7 @@ export function UploadPlaceholder() {
   async function confirmUpload() {
     setStatus("uploading");
     setNotice("");
+    setFileIssues([]);
     try {
       const result = await createSubmission({
         projectName: projectName.trim(),
@@ -238,7 +240,11 @@ export function UploadPlaceholder() {
       }
     } catch (error) {
       setStatus("error");
-      setNotice(error.message || "Unable to upload submission.");
+      const issues = error.issues || [];
+      setFileIssues(issues);
+      // With a list to show, the message's own bullet lines would be repeated, so
+      // only its headline is kept.
+      setNotice(issues.length ? (error.message || "").split("\n")[0] : (error.message || "Unable to upload submission."));
     }
   }
 
@@ -344,6 +350,12 @@ export function UploadPlaceholder() {
         </tbody></table></div> : <p>{mappingPreview ? "The backend will extract data using the confirmed mapping." : "XLSX preview is unavailable in the browser; backend validation runs on confirmation."}</p>}
         {previewRows.length > 10 && <p>Showing the first 10 of {previewRows.length} rows.</p>}
         {notice && <div className="form-error" role="status">{notice}</div>}
+        {fileIssues.length > 0 && <ul className="upload-issues">
+          {fileIssues.map((issue, index) => <li key={`${issue.worksheet}-${issue.row}-${issue.column}-${index}`}>
+            <span className="upload-issue-where">{issue.worksheet} &middot; row {issue.row}{issue.row_date ? ` \u00b7 ${issue.row_date}` : ""}</span>
+            <span className="upload-issue-what"><strong>{issue.column}</strong> {issue.detail}</span>
+          </li>)}
+        </ul>}
         <div className="decision-actions"><button type="button" className="primary-button" onClick={confirmUpload} disabled={isBusy}>{isBusy ? "Uploading..." : "Confirm upload"}</button><button type="button" className="secondary-button" onClick={() => { setStage("form"); setStatus("idle"); }} disabled={isBusy}>Back / edit</button><button type="button" className="secondary-button" onClick={() => { setStage("form"); selectFile(null); if (inputRef.current) inputRef.current.value = ""; }} disabled={isBusy}>Cancel</button></div>
       </section>}
 

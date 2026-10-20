@@ -2108,3 +2108,20 @@ nav a[aria-current="page"]::after {
 .mapping-field input {
   width: 100%;
 }
+
+/* --- Spacing audit fixes --------------------------------------------------
+   Several page containers cap their width but never centred, so on a wide
+   screen the content sat hard against the left edge with the balance of the
+   window empty beside it. Centring them is what the cap was for. */
+.upload-page,
+.compare-page,
+.company-page,
+.building-form {
+  margin-inline: auto;
+}
+
+/* A bordered frame with 4px of side padding reads as the chart touching its
+   own edge; bring it onto the 8px grid like every other box. */
+.chart-frame {
+  padding: 8px;
+}

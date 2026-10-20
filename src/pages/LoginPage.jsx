@@ -4,8 +4,8 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { AppLoading } from "../components/AppLoading.jsx";
 import { getLoginAccounts } from "../services/dataService.js";
+import { roleLabel } from "../auth/permissions.js";
 
-const ROLE_LABELS = { VIEWER: "Viewer", UPLOADER: "Uploader", AUDITOR: "Auditor" };
 
 function isLikelyEmail(value) {
   return value.includes("@") && !value.startsWith("@") && !value.endsWith("@");
@@ -47,7 +47,7 @@ function AccountSelectForm({ accounts, onSignedIn }) {
         <option value="">Choose an account</option>
         {accounts.map((account) => (
           <option key={account.id} value={account.id}>
-            {account.name} · {ROLE_LABELS[account.role] || account.role} ({account.email})
+            {account.name} · {roleLabel(account.role)} ({account.email})
           </option>
         ))}
       </select>

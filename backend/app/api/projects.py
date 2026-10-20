@@ -38,13 +38,68 @@ class OwnedBuildingInput(BaseModel):
     property_type: str | None = None
 
 
-def _owned_building(project: Project, organisation: Organisation) -> dict:
-    return {
+class OwnedBuildingEdit(BaseModel):
+    """The only two fields a company may change about its own building.
+
+    Country and property type are deliberately absent: they are set when the
+    building is created and are not part of what this screen may edit.
+    """
+
+    name: str
+    location: str | None = None
+
+
+def _owned_building(project: Project, organisation: Organisation, summary: dict | None = None) -> dict:
+    building = {
         "project_id": project.id, "project_name": project.name,
         "organisation_id": project.organisation_id, "organisation": organisation.name,
         "location": project.location, "country": project.country,
         "property_type": project.property_type,
     }
+    if summary is not None:
+        # Counted from the submissions actually stored, never estimated. A building
+        # with no submissions reports zero and no latest period, rather than
+        # inventing either.
+        building.update(summary)
+    return building
+
+
+def _submission_summaries(db: Session, project_ids: list[int]) -> dict[int, dict]:
+    """Submission count and most recent submission for each building, in one pass."""
+    summaries = {project_id: {"submission_count": 0, "latest_submission": None} for project_id in project_ids}
+    if not project_ids:
+        return summaries
+    rows = db.scalars(
+        select(Submission).where(Submission.project_id.in_(project_ids)).order_by(Submission.created_at, Submission.id)
+    ).all()
+    for submission in rows:
+        entry = summaries[submission.project_id]
+        entry["submission_count"] += 1
+        entry["latest_submission"] = {
+            "submission_id": submission.id,
+            "reporting_period": submission.reporting_period,
+            "status": submission.status,
+            "submitted_at": submission.created_at.isoformat() if submission.created_at else None,
+        }
+    return summaries
+
+
+def _validated_building_fields(payload: OwnedBuildingInput | OwnedBuildingEdit, organisation: Organisation,
+                               db: Session, *, project_id: int | None = None) -> tuple[str, dict]:
+    """Shared by create and edit so one set of rules governs both."""
+    name = payload.name.strip()
+    if not name or len(name) > 255:
+        raise api_error(status.HTTP_400_BAD_REQUEST, "INVALID_NAME", "Building name must be 1 to 255 characters.")
+    clash = select(Project.id).where(Project.organisation_id == organisation.id, func.lower(Project.name) == name.lower())
+    if project_id is not None:
+        clash = clash.where(Project.id != project_id)
+    if db.scalar(clash) is not None:
+        raise api_error(status.HTTP_409_CONFLICT, "DUPLICATE_BUILDING", "This organisation already has a building with that name.")
+    fields = {key: (value.strip() or None) if value is not None else None
+              for key, value in payload.model_dump(exclude={"name"}).items()}
+    if any(value and len(value) > (255 if key == "location" else 128) for key, value in fields.items()):
+        raise api_error(status.HTTP_400_BAD_REQUEST, "INVALID_METADATA", "Building metadata is too long.")
+    return name, fields
 
 
 @router.get("/owned")
@@ -58,7 +113,8 @@ def owned_buildings(
     if organisation is None:
         return {"buildings": []}
     projects = db.scalars(select(Project).where(Project.organisation_id == organisation.id).order_by(Project.name, Project.id)).all()
-    return {"buildings": [_owned_building(project, organisation) for project in projects]}
+    summaries = _submission_summaries(db, [project.id for project in projects])
+    return {"buildings": [_owned_building(project, organisation, summaries[project.id]) for project in projects]}
 
 
 @router.post("/owned", status_code=status.HTTP_201_CREATED)
@@ -70,20 +126,44 @@ def create_owned_building(
     organisation = db.get(Organisation, current_user.organisation_id) if current_user.organisation_id else None
     if organisation is None:
         raise api_error(status.HTTP_403_FORBIDDEN, "ORGANISATION_REQUIRED", "An organisation is required.")
-    name = payload.name.strip()
-    if not name or len(name) > 255:
-        raise api_error(status.HTTP_400_BAD_REQUEST, "INVALID_NAME", "Building name must be 1 to 255 characters.")
-    existing = db.scalar(select(Project.id).where(Project.organisation_id == organisation.id, func.lower(Project.name) == name.lower()))
-    if existing is not None:
-        raise api_error(status.HTTP_409_CONFLICT, "DUPLICATE_BUILDING", "This organisation already has a building with that name.")
-    fields = {key: (value.strip() or None) if value is not None else None for key, value in payload.model_dump(exclude={"name"}).items()}
-    if any(value and len(value) > (255 if key == "location" else 128) for key, value in fields.items()):
-        raise api_error(status.HTTP_400_BAD_REQUEST, "INVALID_METADATA", "Building metadata is too long.")
+    name, fields = _validated_building_fields(payload, organisation, db)
     project = Project(name=name, organisation_id=organisation.id, **fields)
     db.add(project)
     db.commit()
     db.refresh(project)
-    return {"building": _owned_building(project, organisation)}
+    return {"building": _owned_building(project, organisation, {"submission_count": 0, "latest_submission": None})}
+
+
+@router.patch("/owned/{project_id}")
+def update_owned_building(
+    project_id: int,
+    payload: OwnedBuildingEdit,
+    current_user: AuthUser = Depends(require_permission(Permission.UPLOAD_SUBMISSION)),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Rename a building or correct its address. Nothing else about it may change.
+
+    Only the two editable fields are written. Submissions, evidence, monthly
+    records and review history reference the building by id, so they are
+    untouched by a rename - and nothing here deletes anything.
+
+    A building belonging to another organisation reports as not found rather than
+    forbidden, so this cannot be used to discover that it exists.
+    """
+    organisation = db.get(Organisation, current_user.organisation_id) if current_user.organisation_id else None
+    if organisation is None:
+        raise api_error(status.HTTP_403_FORBIDDEN, "ORGANISATION_REQUIRED", "An organisation is required.")
+    project = db.get(Project, project_id)
+    if project is None or project.organisation_id != organisation.id:
+        raise api_error(status.HTTP_404_NOT_FOUND, "PROJECT_NOT_FOUND", "Building was not found.")
+
+    name, fields = _validated_building_fields(payload, organisation, db, project_id=project_id)
+    project.name = name
+    project.location = fields["location"]
+    db.commit()
+    db.refresh(project)
+    summaries = _submission_summaries(db, [project.id])
+    return {"building": _owned_building(project, organisation, summaries[project.id])}
 
 
 @router.get("")

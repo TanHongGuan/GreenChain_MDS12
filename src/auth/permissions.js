@@ -4,6 +4,19 @@ export const ROLES = Object.freeze({
   AUDITOR: "AUDITOR",
 });
 
+// What each role is called in the interface. The stored role, the JWT claim and
+// every permission check still use UPLOADER - renaming those would mean a data
+// migration and new token values for a change that is only ever read by a person.
+export const ROLE_LABELS = Object.freeze({
+  [ROLES.VIEWER]: "Viewer",
+  [ROLES.UPLOADER]: "Company",
+  [ROLES.AUDITOR]: "Auditor",
+});
+
+export function roleLabel(role) {
+  return ROLE_LABELS[role] || role || "";
+}
+
 export const PERMISSIONS = Object.freeze({
   VIEW_SHARED: "VIEW_SHARED",
   UPLOAD_SUBMISSION: "UPLOAD_SUBMISSION",

@@ -271,3 +271,127 @@ def test_no_approved_data_returns_empty_metrics(client: TestClient, session_fact
 
     assert response.status_code == 200
     assert response.json()["metrics"] == []
+
+
+def _create_building(client: TestClient, name: str = "Engineering Building",
+                     location: str | None = "Bandar Sunway") -> dict:
+    response = client.post("/projects/owned", json={"name": name, "location": location})
+    assert response.status_code == 201, response.text
+    return response.json()["building"]
+
+
+def test_company_can_rename_its_building_and_correct_the_address(client: TestClient) -> None:
+    login(client, "uploader@greenchain.test")
+    building = _create_building(client)
+
+    response = client.patch(f"/projects/owned/{building['project_id']}",
+                            json={"name": "Engineering Building A", "location": "Jalan Lagoon Selatan"})
+
+    assert response.status_code == 200, response.text
+    updated = response.json()["building"]
+    assert updated["project_name"] == "Engineering Building A"
+    assert updated["location"] == "Jalan Lagoon Selatan"
+    assert updated["project_id"] == building["project_id"]
+    # The edit is persisted, not just echoed back.
+    listed = {item["project_id"]: item for item in client.get("/projects/owned").json()["buildings"]}
+    assert listed[building["project_id"]]["project_name"] == "Engineering Building A"
+
+
+def test_editing_a_building_cannot_change_anything_but_its_name_and_address(client: TestClient) -> None:
+    """Fields outside the two editable ones are ignored, not written."""
+    login(client, "uploader@greenchain.test")
+    building = _create_building(client)
+    assert building["country"] is None
+
+    response = client.patch(
+        f"/projects/owned/{building['project_id']}",
+        json={"name": "Engineering Building", "location": "Bandar Sunway",
+              "country": "Malaysia", "property_type": "Campus",
+              "organisation_id": "someone-else", "project_id": 9999},
+    )
+
+    assert response.status_code == 200, response.text
+    updated = response.json()["building"]
+    assert updated["country"] is None
+    assert updated["property_type"] is None
+    assert updated["project_id"] == building["project_id"]
+    assert updated["organisation_id"] == building["organisation_id"]
+
+
+def test_a_rename_leaves_the_buildings_submissions_untouched(session_factory, storage, client: TestClient) -> None:
+    """A building is referenced by id, so renaming it must not disturb its history."""
+    project_id = seed_submission(session_factory, storage, project_name="Pharmacy Building",
+                                 organisation="GreenChain Demo Organisation")
+    login(client, "uploader@greenchain.test")
+    before = client.get(f"/submissions/projects/{project_id}").json()["submissions"]
+    assert before, "expected the seeded submission to be visible"
+
+    response = client.patch(f"/projects/owned/{project_id}",
+                            json={"name": "Pharmacy Building B", "location": "Block B"})
+    assert response.status_code == 200, response.text
+
+    after = client.get(f"/submissions/projects/{project_id}").json()["submissions"]
+    assert [item["submission_id"] for item in after] == [item["submission_id"] for item in before]
+    assert [item["reporting_period"] for item in after] == [item["reporting_period"] for item in before]
+    assert [item["status"] for item in after] == [item["status"] for item in before]
+
+
+def test_a_company_cannot_touch_another_organisations_building(session_factory, storage, client: TestClient) -> None:
+    other = seed_submission(session_factory, storage, project_name="Rival Tower", organisation="Rival Holdings")
+    login(client, "uploader@greenchain.test")
+
+    assert all(item["project_id"] != other for item in client.get("/projects/owned").json()["buildings"])
+    response = client.patch(f"/projects/owned/{other}", json={"name": "Taken Over", "location": "Nowhere"})
+    # Not found rather than forbidden: a refusal that confirms existence is a leak.
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "PROJECT_NOT_FOUND"
+
+
+def test_a_rename_cannot_collide_with_another_building_in_the_same_organisation(client: TestClient) -> None:
+    login(client, "uploader@greenchain.test")
+    first = _create_building(client, "Engineering Building")
+    second = _create_building(client, "Pharmacy Building")
+
+    response = client.patch(f"/projects/owned/{second['project_id']}",
+                            json={"name": "engineering building", "location": None})
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "DUPLICATE_BUILDING"
+
+    # Renaming a building to the name it already holds is allowed.
+    same = client.patch(f"/projects/owned/{first['project_id']}",
+                        json={"name": "Engineering Building", "location": "Updated"})
+    assert same.status_code == 200, same.text
+
+
+@pytest.mark.parametrize("email", ["viewer@greenchain.test", "auditor@greenchain.test"])
+def test_only_company_accounts_may_manage_buildings(client: TestClient, email: str) -> None:
+    login(client, email)
+    assert client.get("/projects/owned").status_code == 403
+    assert client.post("/projects/owned", json={"name": "Anything"}).status_code == 403
+    assert client.patch("/projects/owned/1", json={"name": "Anything"}).status_code == 403
+
+
+def test_buildings_report_their_real_submission_counts(session_factory, storage, client: TestClient) -> None:
+    """Counted from stored submissions; a building with none says so rather than guessing."""
+    project_id = seed_submission(session_factory, storage, project_name="Engineering Building",
+                                 organisation="GreenChain Demo Organisation", reporting_period="2026-Q1")
+    seed_submission(session_factory, storage, project_name="Engineering Building",
+                    organisation="GreenChain Demo Organisation", reporting_period="2026-Q2",
+                    status="UNREVIEWED")
+    login(client, "uploader@greenchain.test")
+    empty = _create_building(client, "Brand New Building")
+
+    buildings = {item["project_id"]: item for item in client.get("/projects/owned").json()["buildings"]}
+    assert buildings[project_id]["submission_count"] == 2
+    assert buildings[project_id]["latest_submission"]["reporting_period"] == "2026-Q2"
+    assert buildings[project_id]["latest_submission"]["status"] == "UNREVIEWED"
+    assert buildings[empty["project_id"]]["submission_count"] == 0
+    assert buildings[empty["project_id"]]["latest_submission"] is None
+
+
+def test_there_is_no_way_to_delete_a_building_or_a_submission(app) -> None:
+    """A deletion route added later would fail here before it could ship."""
+    paths = app.openapi()["paths"]
+    deletable = sorted(path for path, methods in paths.items() if "delete" in methods)
+    # The only delete in the API removes a highlight from a watchlist.
+    assert deletable == ["/highlighted/projects/{project_id}"]

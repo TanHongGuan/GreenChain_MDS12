@@ -18,6 +18,7 @@ export const getProjectCatalogue = realProjects.getProjectCatalogue;
 export const getProjectDetail = realProjects.getProjectDetail;
 export const getOwnedBuildings = realProjects.getOwnedBuildings;
 export const createOwnedBuilding = realProjects.createOwnedBuilding;
+export const updateOwnedBuilding = realProjects.updateOwnedBuilding;
 export const getApprovedMonthlyHistory = realProjects.getApprovedMonthlyHistory;
 export const getMetricHistory = realProjects.getMetricHistory;
 export const getProjectSubmissions = realSubmissions.getProjectSubmissions;

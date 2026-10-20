@@ -54,7 +54,7 @@ export function MetricMappingRow({
 
       {expanded && <div className="metric-row-body">
         <div className="mapping-fields">
-          <div className="mapping-field">
+          <div className="mapping-field mapping-field-wide">
             <label htmlFor={`mapping-${field}`}>Which column holds this figure</label>
             <select id={`mapping-${field}`} value={item.column_ref ? JSON.stringify(
               options.find((option) => option.worksheet === item.worksheet
@@ -82,7 +82,7 @@ export function MetricMappingRow({
               {units.map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit] || unit}</option>)}
             </select>
           </div>
-          <div className="mapping-field">
+          <div className="mapping-field mapping-field-wide">
             <label htmlFor={`aggregation-${field}`}>What the rows represent</label>
             <select id={`aggregation-${field}`} value={item.aggregation || "MONTHLY"}
               onChange={(event) => onChange({ aggregation: event.target.value, ambiguous: false })}>

@@ -219,7 +219,10 @@ describe("login", () => {
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
 
     expect(await screen.findByText("GreenChain Uploader")).toBeInTheDocument();
-    expect(screen.getByText("UPLOADER")).toBeInTheDocument();
+    // The stored role is still UPLOADER; only what a person reads changed.
+    expect(screen.getByText("COMPANY")).toBeInTheDocument();
+    expect(screen.queryByText("UPLOADER")).not.toBeInTheDocument();
+    expect(screen.getByText("uploader@greenchain.test")).toBeInTheDocument();
   });
 });
 

@@ -24,7 +24,11 @@ function jsonResponse(status, payload) {
 function mockFetchQueue(responses) {
   global.fetch = vi.fn((url, options = {}) => {
     if (String(url).endsWith("/projects/owned") && !options.method) {
-      return Promise.resolve(jsonResponse(200, { buildings: [] }));
+      // Uploading now requires one of the organisation's own buildings; the name
+      // and organisation on the submission come from it rather than being typed.
+      return Promise.resolve(jsonResponse(200, { buildings: [
+        { project_id: 42, project_name: "Tower A", organisation: "GreenChain Demo Organisation" },
+      ] }));
     }
     const next = responses.shift();
     if (!next) {
@@ -87,8 +91,7 @@ describe("upload submission", () => {
     await screen.findByRole("heading", { name: /upload data/i });
     expect(screen.getByRole("link", { name: /download legacy sample csv/i })).toHaveAttribute("href", "/greenchain-sample.csv");
 
-    await userEvent.type(screen.getByLabelText(/project \/ building name/i), "Tower A");
-    await userEvent.type(screen.getByLabelText(/organisation/i), "GreenChain Demo Organisation");
+    await userEvent.selectOptions(await screen.findByLabelText("Building"), "42");
     await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
     await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(
@@ -107,8 +110,11 @@ describe("upload submission", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /review file/i }));
 
-    expect(screen.getByText("Project / Building name is required.")).toBeInTheDocument();
-    expect(screen.getByText("Organisation is required.")).toBeInTheDocument();
+    expect(screen.getByText("Select one of your buildings.")).toBeInTheDocument();
+    // The free-text name and organisation fields are gone, so a submission can no
+    // longer name a building this account does not own.
+    expect(screen.queryByLabelText(/project \/ building name/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /create building/i })).not.toBeInTheDocument();
     expect(screen.getByText("Reporting period is required.")).toBeInTheDocument();
     expect(screen.getByText("Choose a CSV or XLSX file.")).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -117,8 +123,7 @@ describe("upload submission", () => {
   test("frontend validation blocks unsupported file type", async () => {
     await renderUpload();
 
-    await userEvent.type(screen.getByLabelText(/project \/ building name/i), "Tower A");
-    await userEvent.type(screen.getByLabelText(/organisation/i), "GreenChain Demo Organisation");
+    await userEvent.selectOptions(await screen.findByLabelText("Building"), "42");
     await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
     await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(
@@ -145,13 +150,12 @@ describe("upload submission", () => {
     renderUploadShell();
     await screen.findByRole("heading", { name: /upload data/i });
 
-    await userEvent.type(screen.getByLabelText(/project \/ building name/i), "Tower A");
-    await userEvent.type(screen.getByLabelText(/organisation/i), "GreenChain Demo Organisation");
+    await userEvent.selectOptions(await screen.findByLabelText("Building"), "42");
     await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
     await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(
       screen.getByLabelText(/submission file/i),
-      new File(["invalid workbook"], "energy.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      new File(["metric_name,value,unit\nElectricity,10,kWh\n"], "energy.csv", { type: "text/csv" }),
     );
     await userEvent.click(screen.getByRole("button", { name: /review file/i }));
     await userEvent.click(await screen.findByRole("button", { name: /confirm upload/i }));
@@ -186,8 +190,7 @@ describe("upload submission", () => {
     renderUploadShell();
     await screen.findByRole("heading", { name: /upload data/i });
 
-    await userEvent.type(screen.getByLabelText(/project \/ building name/i), "Tower A");
-    await userEvent.type(screen.getByLabelText(/organisation/i), "GreenChain Demo Organisation");
+    await userEvent.selectOptions(await screen.findByLabelText("Building"), "42");
     await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
     await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(
@@ -217,15 +220,12 @@ describe("upload submission", () => {
     renderUploadShell();
     await screen.findByRole("heading", { name: /upload data/i });
 
-    await userEvent.type(screen.getByLabelText(/project \/ building name/i), "Tower A");
-    await userEvent.type(screen.getByLabelText(/organisation/i), "GreenChain Demo Organisation");
+    await userEvent.selectOptions(await screen.findByLabelText("Building"), "42");
     await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
     await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(
       screen.getByLabelText(/submission file/i),
-      new File(["meter,kwh\n"], "energy.xlsx", {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      }),
+      new File(["metric_name,value,unit\nElectricity,10,kWh\n"], "energy.csv", { type: "text/csv" }),
     );
     await userEvent.click(screen.getByRole("button", { name: /review file/i }));
     await userEvent.click(await screen.findByRole("button", { name: /confirm upload/i }));
@@ -257,7 +257,7 @@ describe("upload submission", () => {
     });
     renderUploadShell();
     await screen.findByRole("option", { name: "Bayview" });
-    await userEvent.selectOptions(screen.getByLabelText("Owned building"), "42");
+    await userEvent.selectOptions(screen.getByLabelText("Building"), "42");
     await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
     await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(screen.getByLabelText(/submission file/i), new File([
@@ -293,7 +293,7 @@ describe("upload submission", () => {
     });
     renderUploadShell();
     await screen.findByRole("option", { name: "Bayview" });
-    await userEvent.selectOptions(screen.getByLabelText("Owned building"), "42");
+    await userEvent.selectOptions(screen.getByLabelText("Building"), "42");
     await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
     await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(screen.getByLabelText(/submission file/i), new File([
@@ -339,7 +339,7 @@ describe("upload submission", () => {
     });
     renderUploadShell();
     await screen.findByRole("option", { name: "Bayview" });
-    await userEvent.selectOptions(screen.getByLabelText("Owned building"), "42");
+    await userEvent.selectOptions(screen.getByLabelText("Building"), "42");
     await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
     await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(screen.getByLabelText(/submission file/i), new File([
@@ -397,7 +397,7 @@ describe("upload submission", () => {
     });
     renderUploadShell();
     await screen.findByRole("option", { name: "Bayview" });
-    await userEvent.selectOptions(screen.getByLabelText("Owned building"), "42");
+    await userEvent.selectOptions(screen.getByLabelText("Building"), "42");
     await userEvent.type(screen.getByLabelText(/reporting year/i), "2026");
     await userEvent.selectOptions(screen.getByLabelText(/quarter/i), "Q1");
     await userEvent.upload(screen.getByLabelText(/submission file/i), new File([

@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext.jsx";
-import { canAccess, PERMISSIONS } from "../auth/permissions.js";
+import { canAccess, PERMISSIONS, roleLabel } from "../auth/permissions.js";
 
 const baseLinks = [
   { to: "/", label: "Home" },
@@ -17,6 +17,7 @@ export function Navbar() {
   const links = [...baseLinks];
   if (canAccess(user, PERMISSIONS.UPLOAD_SUBMISSION)) {
     links.push({ to: "/upload", label: "Upload Data" });
+    links.push({ to: "/buildings", label: "Manage Buildings" });
   }
   if (canAccess(user, PERMISSIONS.REVIEW_SUBMISSION)) {
     links.push({ to: "/review", label: "Review" });
@@ -41,7 +42,7 @@ export function Navbar() {
         <div>
           <strong>{user?.name}</strong>
           <span>{user?.email}</span>
-          <span>{user?.role}</span>
+          <span>{roleLabel(user?.role).toUpperCase()}</span>
         </div>
         <button className="secondary-button" type="button" onClick={handleLogout}>
           Log out

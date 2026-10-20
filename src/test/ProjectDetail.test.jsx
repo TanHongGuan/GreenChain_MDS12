@@ -344,14 +344,13 @@ describe("project detail page", () => {
       "href",
       `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/submissions/10/evidence/original`,
     );
-    expect(screen.getByRole("link", { name: "Processed data" })).toHaveAttribute(
-      "href",
-      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/submissions/10/evidence/processed`,
-    );
-    expect(screen.getByRole("link", { name: "Audit report" })).toHaveAttribute(
-      "href",
-      `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/submissions/10/evidence/audit_report`,
-    );
+    // Only the original file is downloadable. The processed records and the audit
+    // trail are still held and still reported - just not as download buttons.
+    expect(screen.queryByRole("link", { name: "Processed data" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Audit report" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Audit report unavailable")).not.toBeInTheDocument();
+    expect(screen.getByText("Review and integrity")).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader", { name: "Metric" }).length).toBeGreaterThan(0);
   });
   test("renders Sprint 8 insights sections from the real API payloads", async () => {
     await renderProjectDetail();

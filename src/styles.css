@@ -1073,13 +1073,13 @@ textarea:focus {
 }
 
 .discovery-card .project-card-header {
-  padding-right: 40px;
+  padding-right: 48px;
 }
 
 .discovery-card-actions {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 16px;
+  right: 24px;
   z-index: 1;
 }
 
@@ -1127,7 +1127,7 @@ textarea:focus {
 
 .discovery-card-link {
   min-height: 0;
-  padding: 16px 0;
+  padding: 16px 24px;
 }
 
 @media (max-width: 760px) {
@@ -2341,11 +2341,22 @@ nav a[aria-current="page"]::after {
   border-top: 1px solid var(--leaf-100);
 }
 
-/* Four controls across leaves each too narrow to show its own value - a picker
-   reading "Water_Readings - Wate..." cannot be checked at a glance, which is the
-   whole job of this step. Two across, two down, each wide enough to read. */
+/* The source column carries the longest value on the page - worksheet, header and
+   column letter - so it gets the full width to itself. The date column and unit
+   are short and pair naturally underneath, and the aggregation sentence is long
+   again, so it takes a row of its own. Below 640px every control is full width. */
 .metric-row-body .mapping-fields {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.metric-row-body .mapping-field-wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .metric-row-body .mapping-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* The evidence for "what do these rows represent" sits beside the question
@@ -2446,4 +2457,104 @@ nav a[aria-current="page"]::after {
   .upload-confirm-bar {
     position: static;
   }
+}
+
+/* === Manage Buildings =====================================================
+   Building administration, separate from uploading evidence. Reuses the panel,
+   table, pill and button styles already in use; only layout is new. */
+
+.manage-buildings-page {
+  max-width: 1040px;
+  margin-inline: auto;
+}
+
+.building-edit-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.building-create-form,
+.building-edit-form {
+  display: grid;
+  gap: 8px;
+}
+
+.building-edit-note {
+  margin: 0 0 8px;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.building-list {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.building-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border: 1px solid var(--leaf-100);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.building-row-identity {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.building-row-identity h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.building-row-identity p {
+  margin: 4px 0 0;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.building-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.building-detail {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 24px;
+  border: 1px solid var(--leaf-100);
+  border-radius: 12px;
+  background: var(--surface-alt);
+}
+
+.building-detail h3 {
+  margin: 0;
+}
+
+.upload-building-chosen {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

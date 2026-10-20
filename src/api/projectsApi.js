@@ -66,6 +66,16 @@ export async function createOwnedBuilding({ name, location }) {
   return (await parseProjectResponse(response)).building;
 }
 
+// Name and address only. The backend ignores anything else sent here, so this
+// cannot become a general building editor by accident.
+export async function updateOwnedBuilding(projectId, { name, location }) {
+  const response = await fetch(`${API_BASE_URL}/projects/owned/${projectId}`, {
+    method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, location }),
+  });
+  return (await parseProjectResponse(response)).building;
+}
+
 export async function getApprovedMonthlyHistory(projectId) {
   const response = await fetch(`${API_BASE_URL}/projects/${projectId}/monthly`, { credentials: "include" });
   return parseProjectResponse(response);

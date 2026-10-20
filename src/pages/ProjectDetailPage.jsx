@@ -201,7 +201,6 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
 
   const original = detail.evidence?.original;
   const processed = detail.evidence?.processed;
-  const auditReport = detail.evidence?.audit_report;
 
   return (
     <article className="submission-detail-panel">
@@ -262,20 +261,12 @@ function SubmissionDetailPanel({ detail, status, error, canInspectEvidence }) {
       <h3 className="detail-subheading">Evidence and processed metrics</h3>
       <div className="evidence-actions">
         {!canInspectEvidence && <p>Evidence access is restricted for this submission.</p>}
-        {canInspectEvidence && <>
-        <EvidenceLink submissionId={detail.submission_id} type="original" label="Original uploaded file" evidence={original} />
-        <EvidenceLink
-          submissionId={detail.submission_id}
-          type="processed"
-          label="Processed data"
-          evidence={processed}
-        />
-        </>}
+        {/* Only the original file is offered for download. The processed records
+            and the audit history are still kept and still shown on this page -
+            the metrics table below, and the review and integrity block above. */}
         {canInspectEvidence && <EvidenceLink
-          submissionId={detail.submission_id}
-          type="audit_report"
-          label="Audit report"
-          evidence={auditReport}
+          submissionId={detail.submission_id} type="original"
+          label="Original uploaded file" evidence={original}
         />}
       </div>
 

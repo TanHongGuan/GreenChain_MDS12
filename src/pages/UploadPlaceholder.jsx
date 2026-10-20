@@ -8,7 +8,7 @@ import {
   measurementOptionKeys, optionKey, reviewReasons,
 } from "../utils/mappingReview.js";
 
-import { createOwnedBuilding, createSubmission, getOwnedBuildings, previewSubmissionMapping } from "../services/dataService.js";
+import { createSubmission, getOwnedBuildings, previewSubmissionMapping } from "../services/dataService.js";
 import { parseUploadCsv, readTextFile } from "../utils/uploadPreview.js";
 
 const ACCEPTED_EXTENSIONS = [".csv", ".xlsx"];
@@ -18,14 +18,14 @@ function fileExtension(filename) {
   return dotIndex === -1 ? "" : filename.slice(dotIndex).toLowerCase();
 }
 
-function validateForm({ projectName, organisation, reportingPeriod, file }) {
+function validateForm({ projectId, reportingPeriod, file }) {
   const errors = {};
 
-  if (!projectName.trim()) {
-    errors.projectName = "Project / Building name is required.";
-  }
-  if (!organisation.trim()) {
-    errors.organisation = "Organisation is required.";
+  // The building is chosen from the ones this organisation owns. A free-text
+  // name used to be accepted here, which let a submission name a building the
+  // uploader does not own.
+  if (!projectId) {
+    errors.projectId = "Select one of your buildings.";
   }
   if (!reportingPeriod.trim()) {
     errors.reportingPeriod = "Reporting period is required.";
@@ -85,9 +85,6 @@ export function UploadPlaceholder() {
   const [buildings, setBuildings] = useState([]);
   const [buildingsStatus, setBuildingsStatus] = useState("loading");
   const [projectId, setProjectId] = useState("");
-  const [newBuildingName, setNewBuildingName] = useState("");
-  const [newBuildingLocation, setNewBuildingLocation] = useState("");
-  const [showNewBuilding, setShowNewBuilding] = useState(false);
   const [buildingError, setBuildingError] = useState("");
   const [preview, setPreview] = useState({ kind: "legacy", rows: [] });
   const [mappingPreview, setMappingPreview] = useState(null);
@@ -122,22 +119,6 @@ export function UploadPlaceholder() {
     }
   }
 
-  async function addBuilding() {
-    setBuildingError("");
-    try {
-      const building = await createOwnedBuilding({ name: newBuildingName.trim(), location: newBuildingLocation.trim() });
-      setBuildings((items) => [...items, building]);
-      setProjectId(String(building.project_id));
-      setProjectName(building.project_name);
-      setOrganisation(building.organisation);
-      setShowNewBuilding(false);
-      setNewBuildingName("");
-      setNewBuildingLocation("");
-    } catch (error) {
-      setBuildingError(error.message || "Building could not be created.");
-    }
-  }
-
   function selectFile(nextFile) {
     setFile(nextFile || null);
     setNotice("");
@@ -166,7 +147,7 @@ export function UploadPlaceholder() {
 
     setStatus("validating");
     setNotice("");
-    const nextErrors = validateForm({ projectName, organisation, reportingPeriod, file });
+    const nextErrors = validateForm({ projectId, reportingPeriod, file });
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -279,7 +260,7 @@ export function UploadPlaceholder() {
   return (
     <section className={`page-panel upload-page${stage === "mapping" ? " upload-page-wide" : ""}`}>
       <div className="page-heading">
-        <p className="eyebrow">Uploader Workspace</p>
+        <p className="eyebrow">Company Workspace</p>
         <h1>Upload Data</h1>
       </div>
 
@@ -384,41 +365,23 @@ export function UploadPlaceholder() {
           </div>
         )}
 
-        <label htmlFor="owned-building">Owned building</label>
+        {/* Buildings are created and corrected in Manage Buildings. This page
+            picks one and uploads evidence against it. The project name and
+            organisation the submission API still expects are taken from the
+            chosen building, so a submission can no longer name a building this
+            account does not own. */}
+        <label htmlFor="owned-building">Building</label>
         <select id="owned-building" value={projectId} onChange={(event) => chooseBuilding(event.target.value)} disabled={isBusy || buildingsStatus === "loading"}>
-          <option value="">Use legacy project name below</option>
+          <option value="">Select a building</option>
           {buildings.map((building) => <option key={building.project_id} value={building.project_id}>{building.project_name}</option>)}
         </select>
-        {buildingsStatus === "loading" && <p>Loading owned buildings...</p>}
+        {errors.projectId && <span className="field-error">{errors.projectId}</span>}
+        {buildingsStatus === "loading" && <p>Loading your buildings...</p>}
         {buildingsStatus === "error" && <p className="form-error" role="status">{buildingError}</p>}
-        {buildingsStatus === "ready" && !buildings.length && <p>No owned buildings yet. Create one to upload monthly data.</p>}
-        <button type="button" className="secondary-button" onClick={() => setShowNewBuilding((value) => !value)}>Create building</button>
-        {showNewBuilding && <div className="upload-building-fields">
-          <label htmlFor="new-building-name">Building name</label><input id="new-building-name" value={newBuildingName} onChange={(event) => setNewBuildingName(event.target.value)} />
-          <label htmlFor="new-building-location">Location</label><input id="new-building-location" value={newBuildingLocation} onChange={(event) => setNewBuildingLocation(event.target.value)} />
-          <button type="button" className="secondary-button" onClick={addBuilding} disabled={!newBuildingName.trim()}>Save building</button>
-          {buildingError && <p className="form-error" role="status">{buildingError}</p>}
-        </div>}
-
-        <label htmlFor="project-name">Project / Building name</label>
-        <input
-          id="project-name"
-          name="project-name"
-          value={projectName}
-          onChange={(event) => setProjectName(event.target.value)}
-          disabled={isBusy || Boolean(projectId)}
-        />
-        {errors.projectName && <span className="field-error">{errors.projectName}</span>}
-
-        <label htmlFor="organisation">Organisation</label>
-        <input
-          id="organisation"
-          name="organisation"
-          value={organisation}
-          onChange={(event) => setOrganisation(event.target.value)}
-          disabled={isBusy || Boolean(projectId)}
-        />
-        {errors.organisation && <span className="field-error">{errors.organisation}</span>}
+        {buildingsStatus === "ready" && !buildings.length && (
+          <p>You have no buildings yet. <Link to="/buildings">Add one in Manage Buildings</Link> to start uploading.</p>
+        )}
+        {projectId && <p className="upload-building-chosen">{projectName} &middot; {organisation}</p>}
 
         <div className="period-fields"><label htmlFor="reporting-year">Reporting year<input id="reporting-year" inputMode="numeric" type="number" min="2000" max="2100" value={year} onChange={(event) => setYear(event.target.value)} disabled={isBusy} placeholder="2026" /></label><label htmlFor="reporting-quarter">Quarter<select id="reporting-quarter" value={quarter} onChange={(event) => setQuarter(event.target.value)} disabled={isBusy}><option value="">Select quarter</option>{[1, 2, 3, 4].map((number) => <option key={number} value={`Q${number}`}>Q{number}</option>)}</select></label></div>
         {reportingPeriod && <p>Reporting period: {reportingPeriod}</p>}

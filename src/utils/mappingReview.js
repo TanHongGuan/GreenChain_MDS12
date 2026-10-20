@@ -19,6 +19,18 @@ export const AGGREGATION_SUMMARY = {
   DIFFERENCE_CUMULATIVE: "meter readings",
 };
 
+// The abbreviations are what the file uses and what the backend expects, so the
+// stored value never changes - the spelled-out name is only what the uploader
+// reads while choosing.
+export const UNIT_LABELS = {
+  kWh: "kWh (kilowatt-hours)",
+  MWh: "MWh (megawatt-hours)",
+  m3: "m³ (cubic metres)",
+  L: "L (litres)",
+  tCO2e: "tCO₂e (tonnes of CO₂ equivalent)",
+  kgCO2e: "kgCO₂e (kilograms of CO₂ equivalent)",
+};
+
 export const MAPPING_FIELDS = [
   ["electricity_kwh", "Electricity", ["kWh", "MWh"]],
   ["water_m3", "Water", ["m3", "L"]],

@@ -27,6 +27,9 @@ ALLOWED_UNITS = {
 
 
 Aggregation = Literal["MONTHLY", "SUM_DAILY", "DIFFERENCE_CUMULATIVE"]
+# AUTO lets the column's own values decide; the explicit values are for the rare
+# column whose dates are all on or before the 12th and so prove nothing.
+DateOrder = Literal["AUTO", "DAY_FIRST", "MONTH_FIRST"]
 
 
 class ColumnMapping(BaseModel):
@@ -42,6 +45,7 @@ class ColumnMapping(BaseModel):
     # uploader has confirmed the measurement's semantics: rising numbers alone do
     # not establish whether a series is consumption or a cumulative meter.
     aggregation: Aggregation = "MONTHLY"
+    date_order: DateOrder = "AUTO"
     # Required for DIFFERENCE_CUMULATIVE: the meter reading immediately before the
     # first period in the file. Without it the earliest month cannot be computed,
     # because its consumption depends on a reading the file does not contain.
@@ -269,12 +273,20 @@ DATE_PATTERNS = ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d")
 MAX_REPORTED_ISSUES = 50
 
 
-def _row_date(value: object) -> str:
+def _row_date(value: object, day_first: bool = True) -> str:
     if isinstance(value, datetime):
         return value.date().isoformat()
     if isinstance(value, date):
         return value.isoformat()
     text = str(value if value is not None else "").strip()
+    match = TWO_NUMBER_DATE.match(text)
+    if match:
+        first, second, year = (int(part) for part in match.groups())
+        day, month = (first, second) if day_first else (second, first)
+        try:
+            return date(year, month, day).isoformat()
+        except ValueError:
+            return text
     for pattern in DATE_PATTERNS:
         try:
             return datetime.strptime(text, pattern).date().isoformat()
@@ -285,23 +297,90 @@ def _row_date(value: object) -> str:
     return text
 
 
-def _check_month(value: object) -> str | None:
+# Formats that mean the same thing however they are read: the year comes first,
+# or the month is spelled out.
+UNAMBIGUOUS_PATTERNS = ("%Y-%m", "%b-%Y", "%b %Y", "%Y/%m", "%Y-%m-%d", "%Y/%m/%d")
+
+# "01/02/2026" is 1 February to half the world and 2 January to the other half.
+# The two numbers are read in whichever order the column itself proves.
+TWO_NUMBER_DATE = re.compile(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$")
+
+
+def _check_month(value: object, day_first: bool = True) -> str | None:
     """The calendar month a row belongs to, or None if its period cannot be read."""
     if isinstance(value, (date, datetime)):
         return f"{value.year:04d}-{value.month:02d}"
     text = str(value if value is not None else "").strip()
-    # Day-level formats are accepted so daily logs can be grouped into their month.
-    # "%d/%m/%Y" is read day-first: that is the convention declared by the source
-    # headers we support (e.g. "Reading Date (DD/MM/YYYY)") and the local
-    # convention. A day-first column whose values are genuinely month-first would
-    # be misread, so a workbook using MM/DD/YYYY must label it unambiguously or
-    # use an ISO date.
-    for pattern in ("%Y-%m", "%b-%Y", "%b %Y", "%Y/%m", "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+    for pattern in UNAMBIGUOUS_PATTERNS:
         try:
             return datetime.strptime(text, pattern).strftime("%Y-%m")
         except ValueError:
             continue
+    match = TWO_NUMBER_DATE.match(text)
+    if match:
+        first, second, year = (int(part) for part in match.groups())
+        day, month = (first, second) if day_first else (second, first)
+        try:
+            return date(year, month, day).strftime("%Y-%m")
+        except ValueError:
+            return None
     return None
+
+
+def detect_date_order(values: list[object]) -> str:
+    """Which way round a column's numeric dates are written, decided by the column.
+
+    A value whose second number exceeds 12 can only be month-first ("01/13/2026"),
+    and one whose first number exceeds 12 can only be day-first ("31/01/2026"). A
+    column containing both is not a date column we can read. A column holding only
+    values at or below the 12th is genuinely ambiguous - every one is valid both
+    ways - and the uploader has to say which it is rather than have us pick.
+
+    A column with no two-number dates in it at all (ISO dates, spelled months,
+    real date cells) has no order to resolve and reports NOT_APPLICABLE.
+    """
+    day_first = month_first = ambiguous = False
+    for value in values:
+        if isinstance(value, (date, datetime)):
+            continue
+        match = TWO_NUMBER_DATE.match(str(value if value is not None else "").strip())
+        if not match:
+            continue
+        ambiguous = True
+        first, second, _ = (int(part) for part in match.groups())
+        if first > 12:
+            day_first = True
+        if second > 12:
+            month_first = True
+    if day_first and month_first:
+        return "CONTRADICTORY"
+    if day_first:
+        return "DAY_FIRST"
+    if month_first:
+        return "MONTH_FIRST"
+    return "UNDETERMINED" if ambiguous else "NOT_APPLICABLE"
+
+
+def resolve_date_order(values: list[object], worksheet: str, header: str, confirmed: str = "AUTO") -> bool:
+    """True when the column is day-first. Refuses rather than guessing."""
+    if confirmed in ("DAY_FIRST", "MONTH_FIRST"):
+        return confirmed == "DAY_FIRST"
+    detected = detect_date_order(values)
+    if detected == "NOT_APPLICABLE":
+        return True
+    if detected == "CONTRADICTORY":
+        raise ETLValidationError(
+            f"{worksheet}: '{header}' contains dates that read both ways round - some can only be "
+            f"DD/MM/YYYY and others only MM/DD/YYYY. Correct the column or use ISO dates (YYYY-MM-DD)."
+        )
+    if detected == "UNDETERMINED":
+        # Every value is at or below the 12th, so the file cannot settle it and
+        # neither can we. Guessing here moves rows between months in silence.
+        raise ETLValidationError(
+            f"{worksheet}: every date in '{header}' is on or before the 12th, so DD/MM/YYYY and MM/DD/YYYY "
+            f"cannot be told apart. Use ISO dates (YYYY-MM-DD) in this column, or say which order it uses."
+        )
+    return detected == "DAY_FIRST"
 
 
 RowEntry = tuple[int, str, object]
@@ -323,13 +402,23 @@ def _collect(
                      for ref in [item.column_ref, *item.additional_column_refs]]
     period_ref = item.column_ref if field == "reporting_period" else item.period_column_ref
     period_index = column_index_from_string(period_ref) - 1
+    body = [row for row in sheet.rows[item.header_row:]
+            if any(cell is not None and str(cell).strip() for cell in row)]
+    # Which way round "01/02/2026" reads is a property of the column, not of one
+    # cell, so it is settled once from every value before any row is read.
+    header_row = sheet.rows[item.header_row - 1] if item.header_row <= len(sheet.rows) else []
+    period_header = _cell(header_row[period_index]).strip() if period_index < len(header_row) else period_ref
+    day_first = resolve_date_order(
+        [row[period_index] if period_index < len(row) else None for row in body],
+        item.worksheet, period_header or period_ref, item.date_order,
+    )
     grouped: dict[str, list[RowEntry]] = {}
     for line, row in enumerate(sheet.rows[item.header_row:], item.header_row + 1):
         if not any(cell is not None and str(cell).strip() for cell in row):
             continue
         raw_period = row[period_index] if period_index < len(row) else None
-        row_date = _row_date(raw_period)
-        period = _check_month(raw_period)
+        row_date = _row_date(raw_period, day_first)
+        period = _check_month(raw_period, day_first)
         if period is None:
             issues.append(RowIssue(item.worksheet, line, row_date, "reporting_period", "UNSUPPORTED_PERIOD",
                                    f"'{row_date}' is not a month or date this importer can read."))

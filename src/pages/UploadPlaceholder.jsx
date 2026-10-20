@@ -97,7 +97,6 @@ export function UploadPlaceholder() {
   // suggestion arrives, then controlled by them - a row never closes itself
   // while it is being edited.
   const [openRows, setOpenRows] = useState([]);
-  const [showAllColumns, setShowAllColumns] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -197,7 +196,6 @@ export function UploadPlaceholder() {
           setMappingPreview(proposed);
           setMappingDraft(draft);
           setOpenRows(attentionFields(draft, { period: reportingPeriod }));
-          setShowAllColumns(false);
           setStatus("idle");
           setStage("mapping");
           return;
@@ -254,13 +252,13 @@ export function UploadPlaceholder() {
 
   const allOptions = mappingOptionsFrom(mappingPreview);
   // Columns that hold no number in any sampled row cannot be measurements, so
-  // they are hidden by default - roughly half of a typical workbook is record
-  // ids, invoice refs and notes. Whatever is already chosen stays listed, and
-  // the full list is one click away.
+  // they are left out - roughly half of a typical workbook is record ids,
+  // invoice refs and notes. Whatever is already chosen stays listed, and the
+  // date picker draws on the unfiltered list because dates are not numbers.
   const measurementKeys = measurementOptionKeys(mappingPreview);
   const chosenKeys = new Set(mappingDraft.map(optionKey));
-  const mappingOptions = showAllColumns ? allOptions
-    : allOptions.filter((option) => measurementKeys.has(optionKey(option)) || chosenKeys.has(optionKey(option)));
+  const mappingOptions = allOptions.filter((option) => measurementKeys.has(optionKey(option))
+    || chosenKeys.has(optionKey(option)));
   const duplicates = duplicateLabels(mappingDraft, MAPPING_FIELDS);
   const metricRows = MAPPING_FIELDS.map(([field, label, units]) => {
     const item = mappingDraft.find((entry) => entry.field === field)
@@ -344,13 +342,6 @@ export function UploadPlaceholder() {
             onChange={(changes) => updateMapping(row.field, changes)}
           />)}
         </div>
-
-        {allOptions.length > mappingOptions.length || showAllColumns ? <p className="mapping-filter">
-          Showing {mappingOptions.length} of {allOptions.length} columns.{" "}
-          <button type="button" className="link-button" onClick={() => setShowAllColumns((shown) => !shown)}>
-            {showAllColumns ? "Hide columns with no numbers" : "Show all columns"}
-          </button>
-        </p> : null}
 
         <div className="upload-confirm-bar">
           <label className="mapping-review-check">

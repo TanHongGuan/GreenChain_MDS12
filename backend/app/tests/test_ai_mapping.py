@@ -8,7 +8,7 @@ import pytest
 from openpyxl import Workbook
 
 from backend.app.etl.ai_mapping import (
-    ColumnMapping, MappingSuggestion, MappingUnavailable, inspect_sheets,
+    ColumnMapping, MappingSuggestion, MappingUnavailable, detect_date_order, inspect_sheets,
     inspection_payload, process_confirmed_mapping, suggest_mapping, validate_references,
 )
 from backend.app.etl.errors import ETLValidationError
@@ -260,6 +260,86 @@ def test_one_decreasing_reading_is_not_blamed_on_every_later_row():
         process_confirmed_mapping(path.read_bytes(), ".xlsx", confirmed)
     decreasing = [issue for issue in raised.value.issues if issue.code == "DECREASING_CUMULATIVE"]
     assert [(issue.row, issue.row_date) for issue in decreasing] == [(41, "2026-02-09")]
+
+
+@pytest.mark.parametrize("values,expected", [
+    # "01/13/2026" has no 13th month, so the column can only be month-first.
+    (["01/01/2026", "01/13/2026"], "MONTH_FIRST"),
+    # "31/01/2026" has no 31st month, so it can only be day-first.
+    (["01/01/2026", "31/01/2026"], "DAY_FIRST"),
+    # Year first: the order of the other two is fixed by the format itself.
+    (["2026/01/01", "2026/02/14"], "NOT_APPLICABLE"),
+    (["2026-01", "2026-02"], "NOT_APPLICABLE"),
+    # Every value is valid both ways round, so the file cannot settle it.
+    (["01/02/2026", "03/04/2026"], "UNDETERMINED"),
+    (["13/01/2026", "01/13/2026"], "CONTRADICTORY"),
+])
+def test_date_order_is_decided_by_the_column_not_by_convention(values, expected):
+    assert detect_date_order(values) == expected
+
+
+def _meranti_mapping(**overrides) -> MappingSuggestion:
+    electricity = {"period_column_ref": "B", "source_unit": "kWh", "aggregation": "SUM_DAILY"}
+    electricity.update(overrides)
+    return MappingSuggestion(mappings=[
+        ColumnMapping(field="reporting_period", worksheet="Emissions_Data", header="Measurement Date", source_unit="month"),
+        ColumnMapping(field="electricity_kwh", worksheet="Electricity_Accounts", header="Qty", **electricity),
+        ColumnMapping(field="water_m3", worksheet="Water_Bills", header="Water Used (Litres)",
+                      period_column_ref="A", source_unit="L", aggregation="SUM_DAILY"),
+        ColumnMapping(field="co2_tco2e", worksheet="Emissions_Data", header="Emissions_kgCO2e",
+                      period_column_ref="A", source_unit="kgCO2e", aggregation="SUM_DAILY"),
+    ])
+
+
+def test_meranti_month_first_and_slashed_iso_dates_are_read_correctly():
+    """D03 writes each sheet's dates differently, as its own rules sheet states.
+
+    Electricity is MM/DD/YYYY and water is YYYY/MM/DD. Reading the first day-first
+    refused every date after the 12th and silently moved the rest into the wrong
+    month; the second was not a supported format at all. Both now resolve, and the
+    quarter matches the totals the dataset pack ships.
+    """
+    base = Path(__file__).resolve().parents[3] / "test_datasets" / "workbooks"
+    path = base / "D03_Meranti_2026_Q1_VALID.xlsx"
+    expected_csv = base / "expected" / "D03_expected_quarterly.csv"
+    if not path.exists() or not expected_csv.exists():
+        pytest.skip(f"Workbook fixture missing: {path}")
+
+    rows = process_confirmed_mapping(path.read_bytes(), ".xlsx", _meranti_mapping())
+    assert [row.reporting_period for row in rows] == ["2026-01", "2026-02", "2026-03"]
+
+    _, values = expected_csv.read_text(encoding="utf-8-sig").strip().splitlines()
+    _, _, _electricity, water, co2 = values.split(",")
+    assert sum(row.water_m3 for row in rows) == Decimal(water)
+    assert sum(row.co2_tco2e for row in rows) == Decimal(co2)
+    # Electricity is deliberately not asserted here. Its column mixes MWh and kWh
+    # rows, and a mapping carries one unit for the whole column, so the total is
+    # still wrong for a reason that has nothing to do with dates.
+
+
+def test_a_column_that_cannot_settle_its_own_date_order_is_refused():
+    """Every date on or before the 12th reads the same both ways, so we ask."""
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "Usage"
+    sheet.append(["Reading Date", "Grid (kWh)", "Water (m3)", "Carbon (tCO2e)"])
+    for day in (1, 2, 3):
+        sheet.append([f"0{day}/01/2026", 10, 3, 1])
+    buffer = BytesIO()
+    book.save(buffer)
+    proposed = MappingSuggestion(mappings=[
+        ColumnMapping(field="reporting_period", worksheet="Usage", header="Reading Date", source_unit="month"),
+        ColumnMapping(field="electricity_kwh", worksheet="Usage", header="Grid (kWh)", period_column_ref="A", source_unit="kWh", aggregation="SUM_DAILY"),
+        ColumnMapping(field="water_m3", worksheet="Usage", header="Water (m3)", period_column_ref="A", source_unit="m3", aggregation="SUM_DAILY"),
+        ColumnMapping(field="co2_tco2e", worksheet="Usage", header="Carbon (tCO2e)", period_column_ref="A", source_unit="tCO2e", aggregation="SUM_DAILY"),
+    ])
+    with pytest.raises(ETLValidationError, match="cannot be told apart"):
+        process_confirmed_mapping(buffer.getvalue(), ".xlsx", proposed)
+
+    # Saying which order it uses resolves it without changing the file.
+    for mapping in proposed.mappings:
+        mapping.date_order = "DAY_FIRST"
+    assert [row.reporting_period for row in process_confirmed_mapping(buffer.getvalue(), ".xlsx", proposed)] == ["2026-01"]
 
 
 def test_cumulative_water_without_an_opening_reading_is_refused():

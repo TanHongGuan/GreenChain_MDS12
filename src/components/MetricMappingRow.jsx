@@ -1,5 +1,5 @@
 import {
-  AGGREGATIONS, AGGREGATION_SUMMARY, candidateFor, needsOpening,
+  AGGREGATIONS, AGGREGATION_SUMMARY, UNIT_LABELS, candidateFor, needsOpening,
   risesSteadily, sampleValues, siblingColumns,
 } from "../utils/mappingReview.js";
 
@@ -79,7 +79,7 @@ export function MetricMappingRow({
             <select id={`unit-${field}`} value={units.includes(item.source_unit) ? item.source_unit : ""}
               onChange={(event) => onChange({ source_unit: event.target.value, ambiguous: false })}>
               <option value="">Select source unit</option>
-              {units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+              {units.map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit] || unit}</option>)}
             </select>
           </div>
           <div className="mapping-field">

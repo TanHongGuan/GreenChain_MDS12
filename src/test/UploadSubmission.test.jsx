@@ -365,12 +365,12 @@ describe("upload submission", () => {
     expect(within(screen.getByLabelText(/date column on this worksheet/i))
       .getByRole("option", { name: /Billing Month/ })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /show all columns/i }));
-    expect(within(screen.getByLabelText(/which column holds this figure/i))
-      .getByRole("option", { name: /Invoice Ref/ })).toBeInTheDocument();
-
     // Answering the one open question clears the top block and unblocks Continue.
-    await userEvent.selectOptions(screen.getByLabelText(/source unit/i, { selector: "#unit-water_m3" }), "L");
+    // Units are spelled out for the reader; the value sent to the backend is not.
+    const unitPicker = screen.getByLabelText(/source unit/i, { selector: "#unit-water_m3" });
+    expect(within(unitPicker).getByRole("option", { name: "L (litres)" })).toHaveValue("L");
+    expect(within(unitPicker).getByRole("option", { name: "m³ (cubic metres)" })).toHaveValue("m3");
+    await userEvent.selectOptions(unitPicker, "L");
     expect(screen.queryByText("Water — Confirm the unit.")).not.toBeInTheDocument();
     await userEvent.click(screen.getByLabelText(/I checked each column against my file/i));
     expect(screen.getByRole("button", { name: "Continue to confirmation" })).toBeEnabled();

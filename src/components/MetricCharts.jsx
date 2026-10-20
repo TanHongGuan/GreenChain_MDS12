@@ -5,8 +5,8 @@ import { displayUnit } from "../utils/display.js";
 function format(value) { return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 
 export function TrendChart({ definition, points, onSelectSubmission }) {
-  if (!points.length) return <p className="chart-empty">No approved values are available for this metric.</p>;
-  if (points.length < 2) return <p className="chart-empty">Only one approved period is available. A trend needs at least two periods.</p>;
+  if (!points.length) return <p className="chart-empty">No values are available for this metric under the selected review states.</p>;
+  if (points.length < 2) return <p className="chart-empty">Only one period is available. A trend needs at least two.</p>;
   const width = 680, height = 220, left = 72, top = 30, innerWidth = width - left - 24, innerHeight = height - top - 44;
   const values = points.map((point) => point.value);
   const low = Math.min(...values), high = Math.max(...values);
@@ -24,9 +24,19 @@ export function TrendChart({ definition, points, onSelectSubmission }) {
       <text x={left - 6} y={top + 5} textAnchor="end">{format(max)}</text>
       <text x={left - 6} y={top + innerHeight / 2 + 5} textAnchor="end">{format((min + max) / 2)}</text>
       <text x={left - 6} y={top + innerHeight} textAnchor="end">{format(min)}</text>
-      <polyline points={coordinates} fill="none" stroke="#176b4d" strokeWidth="2.5" strokeLinejoin="round" />
+      {points.slice(1).map((point, index) => {
+        // A segment is dashed when either end is unreviewed, so an unreviewed
+        // value never reads as a confirmed part of the trend.
+        const previous = points[index];
+        const provisional = previous.status !== "APPROVED" || point.status !== "APPROVED";
+        return <line key={`seg-${point.reporting_period}-${point.submission_id}`}
+          x1={x(index)} y1={y(previous.value)} x2={x(index + 1)} y2={y(point.value)}
+          className={provisional ? "chart-line chart-line-dashed" : "chart-line"} strokeWidth="2.5" />;
+      })}
       {points.map((point, index) => <g key={`${point.reporting_period}-${point.submission_id}`}>
-        <circle cx={x(index)} cy={y(point.value)} r="5" fill="#176b4d"><title>{`${point.reporting_period}: ${format(point.value)} ${displayUnit(definition.unit)}, approved, source submission #${point.submission_id}`}</title></circle>
+        <circle cx={x(index)} cy={y(point.value)} r="5"
+          className={point.status === "APPROVED" ? "chart-point-approved" : "chart-point-unreviewed"}>
+          <title>{`${point.reporting_period}: ${format(point.value)} ${displayUnit(definition.unit)}, ${point.status === "APPROVED" ? "approved" : "unreviewed"}, source submission #${point.submission_id}`}</title></circle>
         <text x={x(index)} y={height - 6} textAnchor="middle">{point.reporting_period}</text>
       </g>)}
     </svg>

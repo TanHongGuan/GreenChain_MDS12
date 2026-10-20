@@ -8,8 +8,24 @@ export function metricDefinition(name) {
   return CORE_METRICS.find((item) => item.names.some((alias) => alias.toLowerCase() === String(name).toLowerCase()));
 }
 
-export function normalizedPoint(point, definition) {
-  if (!point || point.status !== "APPROVED" || !Number.isFinite(Number(point.value))) return null;
+// Which review states a chart may draw. REJECTED is deliberately absent and is
+// not offered as a choice: rejected data failed review, and plotting it beside
+// approved figures would present it as evidence. The history endpoint does not
+// return it either.
+export const CHART_STATUS_FILTERS = [
+  ["APPROVED", "Approved only"],
+  ["UNREVIEWED", "Unreviewed only"],
+  ["BOTH", "Approved and unreviewed"],
+];
+
+export function statusesFor(filter) {
+  if (filter === "UNREVIEWED") return ["UNREVIEWED"];
+  if (filter === "BOTH") return ["APPROVED", "UNREVIEWED"];
+  return ["APPROVED"];
+}
+
+export function normalizedPoint(point, definition, statuses = ["APPROVED"]) {
+  if (!point || !statuses.includes(point.status) || !Number.isFinite(Number(point.value))) return null;
   const unit = String(point.unit || "").toLowerCase();
   const expected = definition.unit.toLowerCase();
   const multiplier = definition.key === "co2" && unit === "kgco2e" ? 0.001 : unit === expected ? 1 : null;
@@ -18,7 +34,11 @@ export function normalizedPoint(point, definition) {
 }
 
 export function approvedSeries(points, definition) {
-  return (points || []).map((point) => normalizedPoint(point, definition)).filter(Boolean)
+  return seriesForStatuses(points, definition, ["APPROVED"]);
+}
+
+export function seriesForStatuses(points, definition, statuses) {
+  return (points || []).map((point) => normalizedPoint(point, definition, statuses)).filter(Boolean)
     .sort((a, b) => a.reporting_period.localeCompare(b.reporting_period));
 }
 

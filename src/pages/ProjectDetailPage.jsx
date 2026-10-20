@@ -8,7 +8,7 @@ import {
   getSubmissionEvidenceUrl,
 } from "../services/dataService.js";
 
-import { CORE_METRICS, approvedSeries, metricDefinition, normalizedPoint } from "../utils/metrics.js";
+import { CHART_STATUS_FILTERS, CORE_METRICS, metricDefinition, normalizedPoint, seriesForStatuses, statusesFor } from "../utils/metrics.js";
 import { PeriodComparison, TrendChart, VerificationChart } from "../components/MetricCharts.jsx";
 import { BenchmarkComparisonChart } from "../components/BenchmarkComparisonChart.jsx";
 import { ConsistencyMatrix } from "../components/ConsistencyMatrix.jsx";
@@ -341,6 +341,9 @@ export function ProjectDetailPage() {
   const [submissionDetail, setSubmissionDetail] = useState(null);
   const [submissionDetailStatus, setSubmissionDetailStatus] = useState("idle");
   const [submissionDetailError, setSubmissionDetailError] = useState("");
+  // Approved-only by default: a chart shown to a viewer should carry reviewed
+  // figures unless they deliberately ask to see what is still pending.
+  const [statusFilter, setStatusFilter] = useState("APPROVED");
   const [historyByKey, setHistoryByKey] = useState({});
   const [historyStatus, setHistoryStatus] = useState("loading");
   const [chartMetricKey, setChartMetricKey] = useState(CORE_METRICS[0].key);
@@ -366,12 +369,15 @@ export function ProjectDetailPage() {
     Promise.all(CORE_METRICS.map(async (definition) => {
       const existing = detail.metrics.find((metric) => metricDefinition(metric.metric_name)?.key === definition.key);
       try {
-        const response = await getMetricHistory(projectId, existing?.metric_name || definition.names[0]);
-        return [definition.key, approvedSeries(response.points, definition)];
+        const statuses = statusesFor(statusFilter);
+        // The endpoint returns approved rows always, and unreviewed ones only when
+        // asked. Rejected rows are never returned by it at all.
+        const response = await getMetricHistory(projectId, existing?.metric_name || definition.names[0], statuses.includes("UNREVIEWED"));
+        return [definition.key, seriesForStatuses(response.points, definition, statuses)];
       } catch { return [definition.key, []]; }
     })).then((entries) => { if (active) { setHistoryByKey(Object.fromEntries(entries)); setHistoryStatus("success"); } });
     return () => { active = false; };
-  }, [detail, projectId]);
+  }, [detail, projectId, statusFilter]);
 
   useEffect(() => {
     let isMounted = true;
@@ -547,8 +553,19 @@ export function ProjectDetailPage() {
         </div>
       )}
 
-      <Panel id="performance-heading" title="Approved performance" note="By quarter · approved values only" defaultOpen>
-        {historyStatus === "loading" && <p>Loading approved history...</p>}
+      <Panel id="performance-heading" title="Performance by quarter"
+             note={CHART_STATUS_FILTERS.find(([value]) => value === statusFilter)?.[1]} defaultOpen>
+        <div className="chart-status-filter">
+          <label htmlFor="chart-status">Review state shown</label>
+          <select id="chart-status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            {CHART_STATUS_FILTERS.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+          </select>
+        </div>
+        {statusFilter !== "APPROVED" && <p className="chart-status-note">
+          Unreviewed figures have not passed auditor review and are drawn with a dashed line and hollow points.
+          Rejected submissions are never charted.
+        </p>}
+        {historyStatus === "loading" && <p>Loading history...</p>}
         {historyStatus === "success" && <>
           <div className="metric-tabs" role="tablist" aria-label="Performance metric">
             {CORE_METRICS.map((definition) => <button key={definition.key} role="tab" type="button" id={`metric-tab-${definition.key}`} aria-selected={chartMetricKey === definition.key} aria-controls="metric-trend-panel" className={`metric-tab${chartMetricKey === definition.key ? " metric-tab-active" : ""}`} onClick={() => setChartMetricKey(definition.key)}>{definition.label}</button>)}

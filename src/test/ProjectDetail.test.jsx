@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -215,7 +215,7 @@ describe("project detail page", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Water" }));
     expect(screen.getByRole("tab", { name: "Water" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("img", { name: /Electricity approved trend/ })).not.toBeInTheDocument();
-    expect(screen.getByText("No approved values are available for this metric.")).toBeInTheDocument();
+    expect(screen.getByText("No values are available for this metric under the selected review states.")).toBeInTheDocument();
   });
 
   test("loads real project header and latest approved metric", async () => {
@@ -364,4 +364,41 @@ describe("project detail page", () => {
     expect(screen.getByText("100%")).toBeInTheDocument();
   });
 
+  test("review-state selector controls what is requested and how it is drawn", async () => {
+    // Approved-only must not ask the backend for unreviewed rows at all, and
+    // unreviewed values must never be drawn as a confirmed part of the trend.
+    const requested = [];
+    const mixed = {
+      metric_name: "Electricity",
+      points: [
+        { submission_id: 9, reporting_period: "2026-Q1", value: 100, unit: "kWh", status: "APPROVED" },
+        { submission_id: 10, reporting_period: "2026-Q2", value: 150, unit: "kWh", status: "APPROVED" },
+        { submission_id: 11, reporting_period: "2026-Q3", value: 180, unit: "kWh", status: "UNREVIEWED" },
+      ],
+    };
+    const original = global.fetch;
+    await renderProjectDetail();
+    const previous = global.fetch;
+    global.fetch = vi.fn((url, options) => {
+      const request = String(url);
+      if (request.includes("/metrics/")) {
+        requested.push(request.includes("include_unreviewed=true"));
+        const approvedOnly = { ...mixed, points: mixed.points.filter((p) => p.status === "APPROVED") };
+        return Promise.resolve(jsonResponse(200, request.includes("include_unreviewed=true") ? mixed : approvedOnly));
+      }
+      return previous(url, options);
+    });
+
+    await screen.findByRole("heading", { name: "Performance by quarter" });
+    const selector = await screen.findByLabelText(/review state shown/i);
+
+    await userEvent.selectOptions(selector, "BOTH");
+    await waitFor(() => expect(requested.some(Boolean)).toBe(true));
+    expect(await screen.findByText(/drawn with a dashed line/i)).toBeInTheDocument();
+
+    await userEvent.selectOptions(selector, "APPROVED");
+    await waitFor(() => expect(requested.at(-1)).toBe(false));
+    expect(screen.queryByText(/drawn with a dashed line/i)).not.toBeInTheDocument();
+    global.fetch = original;
+  });
 });

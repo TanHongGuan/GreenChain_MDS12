@@ -26,7 +26,8 @@ Last updated: 2026-10-09
 - Login is implemented with an HttpOnly JWT cookie.
 - Seeded local accounts exist:
   - `viewer@greenchain.test`
-  - `uploader@greenchain.test`
+  - `sonwoy@greenchain.test` (company account for the Sonwoy organisation)
+  - `monosh@greenchain.test` (company account for the Monosh organisation)
   - `auditor@greenchain.test`
 - Local test password is `123`.
 - Role-based routing is implemented:

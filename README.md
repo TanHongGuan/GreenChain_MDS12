@@ -187,17 +187,22 @@ You should see the GreenChain sign-in page (or be redirected there). `http://127
 
 With `ACCOUNT_SELECT_LOGIN=true`, choose an account from the dropdown and press **Log In**; no password is needed.
 
-Otherwise use email and password with one of the accounts seeded in step 7. All three use **the value currently set in your `.env` as `DEV_SEED_PASSWORD`**, not a universal password:
+Otherwise use email and password with one of the accounts seeded in step 7. All four use **the value currently set in your `.env` as `DEV_SEED_PASSWORD`**, not a universal password:
 
-| Email | Role |
-|---|---|
-| `viewer@greenchain.test` | VIEWER |
-| `uploader@greenchain.test` | UPLOADER |
-| `auditor@greenchain.test` | AUDITOR |
+| Email | Role | Organisation |
+|---|---|---|
+| `viewer@greenchain.test` | VIEWER | — |
+| `sonwoy@greenchain.test` | COMPANY | Sonwoy |
+| `monosh@greenchain.test` | COMPANY | Monosh |
+| `auditor@greenchain.test` | AUDITOR | — |
+
+Each company account uploads only for its own organisation's buildings, so the two of them show
+tenant isolation working rather than asserting it. The role is stored as `UPLOADER`; `COMPANY` is
+what the interface calls it.
 
 The unchanged `.env.example` value is `change-this-local-password`; `123` is **not** its default. These are local development accounts only.
 
-Upload data as the uploader (**Upload Data**): CSV or XLSX with columns `metric_name`, `value`, `unit` and optional `category`, one reporting period (for example `2026-Q1`) per file. The auditor approves or rejects it under **Review**; only approved data appears in charts and comparisons.
+Create buildings under **Manage Buildings**, then upload against one of them (**Upload Data**): CSV or XLSX with columns `metric_name`, `value`, `unit` and optional `category`, one reporting period (for example `2026-Q1`) per file. The auditor approves or rejects it under **Review**; only approved data appears in charts and comparisons.
 
 ## Shared team demo: one host, everyone else uses a browser
 
@@ -277,7 +282,7 @@ Request (the password is illustrative; use your configured `DEV_SEED_PASSWORD`):
 
 ```json
 {
-  "email": "uploader@greenchain.test",
+  "email": "sonwoy@greenchain.test",
   "password": "change-this-local-password"
 }
 ```
@@ -289,7 +294,7 @@ Success:
   "user": {
     "id": "...",
     "name": "GreenChain Uploader",
-    "email": "uploader@greenchain.test",
+    "email": "sonwoy@greenchain.test",
     "role": "UPLOADER",
     "organisation_id": "..."
   }

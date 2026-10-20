@@ -58,10 +58,10 @@ check "projects rejects anonymous"   401 "$(code GET /projects)"
 check "pending queue rejects anon"   401 "$(code GET /reviews/submissions/pending)"
 
 step '3. Login'
-check "uploader can log in" 200 "$(login uploader@greenchain.test)"
+check "company can log in" 200 "$(login sonwoy@greenchain.test)"
 
 step '4. Role boundaries'
-check "uploader cannot review" 403 "$(code GET /reviews/submissions/pending)"
+check "company cannot review" 403 "$(code GET /reviews/submissions/pending)"
 
 step '5. Malformed upload is rejected'
 printf 'not,a,valid\nsustainability,file,here\n' > "$WORK/bad.csv"

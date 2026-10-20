@@ -6,36 +6,49 @@ This repository has a FastAPI/PostgreSQL backend and a React/Vite frontend. The 
 
 ## Quick Start: Run GreenChain Locally
 
-There are two ways to run GreenChain:
+Two processes have to be running at the end of this: the **backend** on port 8000 and the
+**frontend** on port 5173. Part A sets up the backend, Part B the frontend, Part C walks the app.
+Do them in order — the frontend is useless without the backend, and the backend needs its database
+before it starts.
 
-- **A. Local development (steps 1–12 below):** backend and frontend on your own machine, evidence stored on local disk by default (or in the S3 Object Lock bucket if you have AWS access).
-- **B. Shared team demo:** one host machine runs everything in Docker and teammates just open a URL; every upload goes to the S3 Object Lock bucket. See [Shared team demo](#shared-team-demo-one-host-everyone-else-uses-a-browser).
+Every command runs from the repository root. Each step ends with a check; if the check fails, stop
+there rather than continuing.
 
-Run commands from the repository root.
+If you would rather one machine ran everything in Docker for the whole team, skip to
+[Shared team demo](#shared-team-demo-one-host-everyone-else-uses-a-browser).
 
-### 1. Install prerequisites
+---
 
-- Git
-- Python 3.12 or newer (the existing project setup target; no Python version is pinned in a manifest)
-- Node.js 20.19+ or 22.12+ (required by the installed Vite 7 package), with npm
-- Docker Desktop
+### Step 0 — Prerequisites
 
-Start Docker Desktop before starting PostgreSQL. Confirm the commands `git`, `python`, `node`, `npm` and `docker` are available in your terminal. On systems where Python 3 is named `python3`, use that command in the Python steps.
+| Tool | Version | Check |
+|---|---|---|
+| Git | any recent | `git --version` |
+| Python | 3.12+ | `python --version` |
+| Node.js | 20.19+ or 22.12+ | `node --version` |
+| npm | ships with Node | `npm --version` |
+| Docker Desktop | any recent, **running** | `docker ps` |
 
-### 2. Clone the repository
+On systems where Python 3 is `python3`, use that everywhere below. Start Docker Desktop now —
+`docker ps` must return without error before Step A3.
 
-The repository is `https://github.com/TanHongGuan/GreenChain_MDS12` and the working branch is `main`:
+### Step 0b — Get the code
 
 ```bash
 git clone https://github.com/TanHongGuan/GreenChain_MDS12.git
 cd GreenChain_MDS12
 ```
 
-Already cloned? Update with `git switch main && git pull --ff-only origin main`.
+Already cloned: `git switch main && git pull --ff-only origin main`.
 
-Clone into a normal folder such as `~/Projects`, **not** an iCloud-synced folder (`~/Documents` or `~/Desktop` with iCloud Drive). iCloud offloads files, including Git's own, and Git commands then hang.
+Clone into a normal folder such as `~/Projects`, **not** an iCloud-synced folder (`~/Documents` or
+`~/Desktop` with iCloud Drive). iCloud offloads files, including Git's own, and Git commands hang.
 
-### 3. Configure environment variables
+---
+
+## Part A — Backend
+
+### A1. Create `.env`
 
 macOS/Linux:
 
@@ -49,30 +62,31 @@ Windows PowerShell:
 Copy-Item .env.example .env
 ```
 
-Edit `.env` for your machine. Keep `POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_PASSWORD` aligned with `DATABASE_URL`; use an explicit port number in `DATABASE_URL`. Set `DEV_SEED_PASSWORD` to the local development password you intend to use. Replace the example `JWT_SECRET` outside throwaway local development. For the URLs in this guide, set:
+Then open `.env` and set these five values. The rest of the file can stay as shipped.
 
 ```env
 FRONTEND_ORIGIN=http://127.0.0.1:5173
 VITE_API_BASE_URL=http://127.0.0.1:8000
 ACCOUNT_SELECT_LOGIN=true
+DEV_SEED_PASSWORD=change-this-local-password
+GEMINI_API_KEY=
 ```
 
-`ACCOUNT_SELECT_LOGIN=true` shows every active database account in a dropdown and signs in without a password. Use it only for a trusted local demo: anyone who can reach the API can select any listed account. The checked-in `.env.example` keeps this disabled, and the backend refuses to start with it enabled in production. Set `ACCOUNT_SELECT_LOGIN=false` to require email and password again; restart the backend after changing this setting.
+- **Use `127.0.0.1` in both URLs, not `localhost`.** They must match exactly or the browser will
+  send credentialed requests the backend's CORS rejects.
+- `ACCOUNT_SELECT_LOGIN=true` turns the login page into an account picker with no password. Local
+  demo only — anyone who can reach the API can select any listed account. The backend refuses to
+  start with this enabled in production.
+- `GEMINI_API_KEY` is only needed to upload a spreadsheet whose layout GreenChain does not already
+  recognise; see [Gemini ETL setup](docs/ETL_GEMINI_INTEGRATION.md). Leave it blank for now.
+  **Never** put it in a `VITE_` variable — those are compiled into the browser bundle.
+- Keep `POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_PASSWORD` consistent with `DATABASE_URL`.
 
-Optional S3 storage settings:
+`.env` is Git-ignored. Never commit it.
 
-```env
-# Store evidence in the S3 Object Lock bucket instead of ./var/storage (needs AWS access,
-# see step 8). Credentials stay in ~/.aws; never put access keys in .env.
-STORAGE_BACKEND=s3
-S3_BUCKET=greenchain-evidence-test
-AWS_REGION=ap-southeast-1
-AWS_PROFILE=greenchain-dev
-```
+**Check:** `.env` exists in the repository root.
 
-Use the same hostname (`127.0.0.1`) in both URLs so the credentialed frontend requests match the backend CORS origin. The other supplied defaults are `ENVIRONMENT=development`, `JWT_ALGORITHM=HS256`, `JWT_EXPIRE_MINUTES=60`, `COOKIE_SECURE=false`, `POSTGRES_PORT=5432`, `STORAGE_BACKEND=local`, `LOCAL_STORAGE_ROOT=./var/storage` and `MAX_UPLOAD_SIZE_MB=25`. Never commit `.env`; it is Git-ignored. If you change a `VITE_` value, restart the frontend server.
-
-### 4. Install backend dependencies
+### A2. Create the virtual environment and install Python dependencies
 
 macOS/Linux:
 
@@ -90,119 +104,189 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-Keep the virtual environment active for the migration, seed, storage and backend commands. In new terminals, activate it again.
+**Keep this terminal and its activated environment for A3–A6.** Every new terminal needs the
+activation line again.
 
-### 5. Install frontend dependencies
+**Check:** `python -c "import fastapi, alembic, sqlalchemy; print('ok')"` prints `ok`.
 
-```bash
-npm ci
-```
-
-The repository has a `package-lock.json`, so `npm ci` installs the locked dependency set.
-
-### 6. Start PostgreSQL
+### A3. Start PostgreSQL
 
 ```bash
 docker compose up -d postgres
 docker compose ps
 ```
 
-The `postgres` service should show as running. If port 5432 is occupied, set `POSTGRES_PORT=5433` and change the port in `DATABASE_URL` to `5433`, then start the service again. Do not use `docker compose down -v` to fix a port conflict; it removes local database volumes.
+**Check:** the `postgres` service shows as `running` (or `healthy`).
 
-### 7. Initialise the database
+If port 5432 is already taken, set `POSTGRES_PORT=5433` in `.env` *and* change the port inside
+`DATABASE_URL` to `5433`, then run the two commands again. Do **not** use `docker compose down -v`
+to resolve a port conflict — it deletes the database volume.
 
-With the Python virtual environment active:
+### A4. Create the database tables
 
 ```bash
 alembic upgrade head
+```
+
+**Check:** `alembic current` prints a revision id and the word `(head)`.
+
+### A5. Create the login accounts
+
+```bash
 python -m backend.app.scripts.seed_auth
 ```
 
-The seed script creates or updates the local development accounts and sets their password from `DEV_SEED_PASSWORD`. Re-running it does not create duplicate users, but it **does update their passwords** to the current setting.
+It prints what it did, one line per account. Expect four accounts:
 
-**Optional, not for real datasets:** load the Sprint 8 demonstration benchmark set:
+| Email | Role shown in the UI | Organisation |
+|---|---|---|
+| `sonwoy@greenchain.test` | COMPANY | Sonwoy |
+| `monosh@greenchain.test` | COMPANY | Monosh |
+| `viewer@greenchain.test` | VIEWER | — |
+| `auditor@greenchain.test` | AUDITOR | — |
 
-```bash
-python -m backend.app.scripts.seed_benchmarks
-```
+All four use whatever `DEV_SEED_PASSWORD` is currently set to — there is no universal password.
+Re-running the script is safe: it does not duplicate users, but it **does reset their passwords**
+to the current setting.
 
-Skip this when working with real data. These are **placeholder figures** attributed to `GreenChain Demo Benchmark Set demo-2026.1`, not to any real standards body. The provider and version are shown beside every comparison in the UI. Replace them with licensed data and bump `SOURCE_VERSION` before showing a comparison outside the project team.
+The two company accounts belong to different organisations on purpose. Each can only create
+buildings and upload for its own, which is how tenant isolation is demonstrated rather than
+asserted. The role is stored as `UPLOADER`; `COMPANY` is only what the interface calls it.
 
-Benchmarks are matched on a project's country and property type, which no earlier sprint collects. Set them explicitly for any project you want benchmarked:
+**Check:** the output ends with `Seeded development auth accounts.`
 
-```bash
-python -m backend.app.scripts.set_project_scope "Your Project Name" Malaysia Office
-```
-
-A project without a scope reports `PROJECT_SCOPE_UNKNOWN` rather than being compared against a guessed target.
-
-### 8. Initialise local storage
-
-With the Python virtual environment active:
+### A6. Prepare evidence storage
 
 ```bash
 python -m backend.app.scripts.setup_storage
 ```
 
-- **Local storage (default, `STORAGE_BACKEND=local`):** prepares and checks `var/storage/original/` and `var/storage/processed/`. This is plain disk storage with no tamper protection.
-- **S3 Object Lock (`STORAGE_BACKEND=s3`):** checks that the bucket is reachable with versioning and Object Lock enabled. Every upload is then stored as a locked S3 version (GOVERNANCE mode). This needs an AWS profile with the evidence-bucket policy; ask the storage owner (Hui Zern) for access. Setup, IAM policy and verification: `docs/STORAGE_S3_OBJECT_LOCK.md`.
+With the default `STORAGE_BACKEND=local` this creates and checks `var/storage/original/` and
+`var/storage/processed/`. That is plain disk storage with no tamper protection, which is fine
+locally. For the S3 Object Lock backend see [Optional extras](#optional-extras) below.
 
-### 9. Start the backend
+**Check:** `var/storage/original` and `var/storage/processed` exist.
 
-For optional Gemini-assisted mapping of unfamiliar CSV/XLSX structures, see [Gemini ETL setup](docs/ETL_GEMINI_INTEGRATION.md). Known upload formats work without an API key. Never put `GEMINI_API_KEY` in a `VITE_` variable or commit it.
+### A7. Run the backend
 
-**Terminal 1 — Backend.** From the repository root, activate the virtual environment if needed, then keep this terminal running:
-
-macOS/Linux:
+Leave this terminal running for as long as you are using GreenChain.
 
 ```bash
-source .venv/bin/activate
 uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Windows PowerShell:
+**Check:** in a second terminal, `curl http://127.0.0.1:8000/health` returns a JSON body.
+`http://127.0.0.1:8000` is the API, not the website.
 
-```powershell
-.venv\Scripts\Activate.ps1
-uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+---
+
+## Part B — Frontend
+
+Open a **new terminal** in the repository root. It does not need the Python environment.
+
+### B1. Install frontend dependencies
+
+```bash
+npm ci
 ```
 
-### 10. Start the frontend
+`npm ci` installs exactly the locked set from `package-lock.json`. Use it rather than
+`npm install`.
 
-**Terminal 2 — Frontend.** From the repository root, keep this terminal running:
+**Check:** a `node_modules/` folder exists.
+
+### B2. Run the frontend
+
+Leave this terminal running too.
 
 ```bash
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-### 11. Open GreenChain in the browser
+**Check:** Vite prints `Local: http://127.0.0.1:5173/`.
+
+If Vite reports 5173 is occupied it will choose another port. Either free 5173, or use the port it
+printed and change `FRONTEND_ORIGIN` in `.env` to match — then restart the backend, since it reads
+`.env` only at startup.
+
+Changing any `VITE_` value also requires restarting this frontend server.
+
+### B3. Open the site
 
 ```text
 http://127.0.0.1:5173
 ```
 
-You should see the GreenChain sign-in page (or be redirected there). `http://127.0.0.1:8000` is the backend API, not the website. If Vite reports that 5173 is occupied, use the port it actually prints and update `FRONTEND_ORIGIN` to that exact frontend origin; restart the backend after changing `.env`.
+**Check:** the GreenChain sign-in page loads, showing an account dropdown.
 
-### 12. Log in with a development account
+A blank page or network errors in the browser console almost always mean the backend is not
+running, or `FRONTEND_ORIGIN` and `VITE_API_BASE_URL` do not match the addresses actually in use.
 
-With `ACCOUNT_SELECT_LOGIN=true`, choose an account from the dropdown and press **Log In**; no password is needed.
+---
 
-Otherwise use email and password with one of the accounts seeded in step 7. All four use **the value currently set in your `.env` as `DEV_SEED_PASSWORD`**, not a universal password:
+## Part C — First run through the app
 
-| Email | Role | Organisation |
-|---|---|---|
-| `viewer@greenchain.test` | VIEWER | — |
-| `sonwoy@greenchain.test` | COMPANY | Sonwoy |
-| `monosh@greenchain.test` | COMPANY | Monosh |
-| `auditor@greenchain.test` | AUDITOR | — |
+With both servers running:
 
-Each company account uploads only for its own organisation's buildings, so the two of them show
-tenant isolation working rather than asserting it. The role is stored as `UPLOADER`; `COMPANY` is
-what the interface calls it.
+1. **Sign in** as `sonwoy@greenchain.test` from the dropdown (no password with
+   `ACCOUNT_SELECT_LOGIN=true`).
+2. **Manage Buildings → Add a building.** Give it a name and address. Buildings are created here,
+   not on the upload page.
+3. **Upload Data.** Pick that building, choose the reporting year and quarter, and select a
+   spreadsheet. Ready-made files are in [`test_datasets/sonwoy/`](test_datasets/sonwoy) — start
+   with `SONWOY_TOWER_2026_Q1.xlsx`, and read that folder's `README.md` first, because its water
+   meter is cumulative and needs an opening reading.
+4. **Check what we found in your file.** For an unfamiliar layout, Gemini proposes which column is
+   which; anything it could not settle is flagged and opened for you. Correct anything wrong, tick
+   the confirmation and continue. *(This step needs `GEMINI_API_KEY`. A spreadsheet already in a
+   recognised format skips it entirely.)*
+5. **Sign out, sign in as `auditor@greenchain.test`, open Review** and approve the submission.
+   Nothing appears in charts, Projects or Compare until an auditor approves it.
+6. **Sign in as `monosh@greenchain.test`** and repeat with
+   [`test_datasets/monosh/`](test_datasets/monosh) to see two organisations side by side.
 
-The unchanged `.env.example` value is `change-this-local-password`; `123` is **not** its default. These are local development accounts only.
+---
 
-Create buildings under **Manage Buildings**, then upload against one of them (**Upload Data**): CSV or XLSX with columns `metric_name`, `value`, `unit` and optional `category`, one reporting period (for example `2026-Q1`) per file. The auditor approves or rejects it under **Review**; only approved data appears in charts and comparisons.
+## Optional extras
+
+**Demonstration benchmarks.** Not for real datasets:
+
+```bash
+python -m backend.app.scripts.seed_benchmarks
+```
+
+These are **placeholder figures** attributed to `GreenChain Demo Benchmark Set demo-2026.1`, not to
+any real standards body. The provider and version are shown beside every comparison. Replace them
+with licensed data and bump `SOURCE_VERSION` before showing a comparison outside the project team.
+
+Benchmarks match on a project's country and property type, which uploads do not collect, so set
+them explicitly for any project you want benchmarked:
+
+```bash
+python -m backend.app.scripts.set_project_scope "Your Building Name" Malaysia Office
+```
+
+A project without a scope reports `PROJECT_SCOPE_UNKNOWN` rather than being compared against a
+guess.
+
+**S3 Object Lock evidence storage.** Instead of local disk, in `.env`:
+
+```env
+STORAGE_BACKEND=s3
+S3_BUCKET=greenchain-evidence-test
+AWS_REGION=ap-southeast-1
+AWS_PROFILE=greenchain-dev
+```
+
+Then re-run `python -m backend.app.scripts.setup_storage`, which verifies the bucket has versioning
+and Object Lock enabled. Every upload is stored as a locked S3 version. Credentials stay in
+`~/.aws`; never put access keys in `.env`. Setup, IAM policy and verification:
+[`docs/STORAGE_S3_OBJECT_LOCK.md`](docs/STORAGE_S3_OBJECT_LOCK.md).
+
+**Password login instead of the account picker.** Set `ACCOUNT_SELECT_LOGIN=false` and restart the
+backend. Sign in with an email from the table in A5 and the value of `DEV_SEED_PASSWORD`.
+
+---
 
 ## Shared team demo: one host, everyone else uses a browser
 
@@ -236,6 +320,11 @@ Teammates open `http://<host Wi-Fi IP>:8080`, pick an account from the dropdown 
 | Login shows a password form, not a dropdown | `ACCOUNT_SELECT_LOGIN` is not `true` in the backend's environment; set it and restart the backend. |
 | Git commands hang | The clone is in an iCloud-synced folder; clone again into `~/Projects`. |
 | `evidence_storage: unavailable` in `/health/ready` | S3 bucket unreachable or misconfigured; check `AWS_PROFILE`, `S3_BUCKET`, `AWS_REGION` and run `python -m backend.app.scripts.setup_storage`. |
+| "The AI did not answer within N seconds" on upload | The model was slow, not broken. Retry; if it persists, set a faster `GEMINI_MODEL` in `.env` and restart the backend. The backend log records the underlying error. |
+| "AI mapping is not configured correctly on the backend" | `GEMINI_API_KEY` is missing or rejected. Only spreadsheets in an unrecognised layout need it. |
+| Upload is refused listing several row problems | Working as intended: every bad row is reported at once, each naming its worksheet, row, date and column. Correct them all and upload again. |
+| Nothing appears in Projects, Compare or the charts after uploading | The submission is still `UNREVIEWED`. Sign in as `auditor@greenchain.test` and approve it; those views show approved data only. |
+| Upload page shows "You have no buildings yet" | Buildings are created under **Manage Buildings**, not on the upload page. |
 
 ## Current Implementation Status
 

@@ -130,9 +130,12 @@ def test_monthly_metrics_align_across_separate_worksheets():
 
 @pytest.mark.parametrize("filename", ["D01_Bayview_2026_Q1_VALID.xlsx", "D02_Bayview_2026_Q2_VALID.xlsx", "D05_Bayview_2026_Q1_INVALID.xlsx"])
 def test_actual_bayview_daily_workbooks_are_detected_but_not_misaggregated(filename):
-    path = Path("/Users/hgtan/Desktop/GreenChain_Realistic_Raw_Datasets_ETL_Pack (1)/raw_workbooks") / filename
+    # The workbooks live in the repository so this runs for everyone, including CI.
+    # They were previously read from one developer's Desktop, so the test skipped
+    # silently everywhere else and never actually guarded anything.
+    path = Path(__file__).resolve().parents[3] / "test_datasets" / "workbooks" / filename
     if not path.exists():
-        pytest.skip("External Bayview workbook is not available on this machine")
+        pytest.skip(f"Workbook fixture missing: {path}")
     content = path.read_bytes()
     payload = inspection_payload(inspect_sheets(content, ".xlsx", sample_only=True))
     assert [sheet["worksheet"] for sheet in payload if sheet["candidates"]] == [

@@ -70,15 +70,24 @@ function setupFetch({ highlighted = false, highlightedProjects = [] } = {}) {
     if (requestUrl.endsWith("/discovery/home")) {
       return Promise.resolve(jsonResponse(200, discoveryPayload(isHighlighted)));
     }
-    if (requestUrl.endsWith("/projects/7") && method === "GET") {
+    if (requestUrl.endsWith("/projects/7") && !requestUrl.includes("/highlighted/") && method === "GET") {
       return Promise.resolve(jsonResponse(200, { project: baseProject, metrics: [
         { metric_name: "Electricity", latest: { value: 120, unit: "kWh" } },
         { metric_name: "Water", latest: { value: 42, unit: "m3" } },
         { metric_name: "CO2e", latest: { value: 18, unit: "kgCO2e" } },
       ] }));
     }
-    if (requestUrl.includes("/projects?") && method === "GET") {
-      return Promise.resolve(jsonResponse(200, { projects: [], page: 1, page_size: 12, total_items: 0, total_pages: 0, filters: {} }));
+    if (requestUrl.endsWith("/highlighted/projects") && method === "GET") {
+      const projects = highlightedProjects.length ? highlightedProjects : isHighlighted ? [{ ...baseProject, highlighted: true }] : [];
+      return Promise.resolve(jsonResponse(200, { projects }));
+    }
+    if (requestUrl.endsWith("/highlighted/projects/7") && method === "POST") {
+      isHighlighted = true;
+      return Promise.resolve(jsonResponse(200, { project: { ...baseProject, highlighted: true } }));
+    }
+    if (requestUrl.endsWith("/highlighted/projects/7") && method === "DELETE") {
+      isHighlighted = false;
+      return Promise.resolve(jsonResponse(200, { project_id: 7, highlighted: false, removed: true }));
     }
     throw new Error(`Unexpected fetch call: ${requestUrl}`);
   });
@@ -102,7 +111,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("Sprint 7 discovery workflow", () => {
+describe("Sprint 7 discovery and highlighted workflow", () => {
   test("home shows recently updated projects and nothing else", async () => {
     setupFetch();
     renderApp("/");
@@ -139,21 +148,60 @@ describe("Sprint 7 discovery workflow", () => {
     expect(screen.getAllByRole("link", { name: "View all" })).toHaveLength(1);
   });
 
-  test("project card links to its detail page and has no highlight star", async () => {
+  test("project card link opens detail while star toggles without navigation", async () => {
     setupFetch();
     renderApp("/");
     await screen.findByRole("heading", { name: "Home" });
+    expect((await screen.findAllByText("Discovery Solar")).length).toBeGreaterThan(0);
 
-    const cardLink = (await screen.findAllByRole("link", { name: /Discovery Solar/ }))[0];
+    const cardLink = screen.getAllByRole("link", { name: /Discovery Solar/ })[0];
     expect(cardLink).toHaveAttribute("href", "/projects/7");
-    expect(screen.queryByRole("button", { name: /Highlighted/ })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Add Discovery Solar to Highlighted" })[0]);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/highlighted/projects/7`,
+        expect.objectContaining({ method: "POST", credentials: "include" }),
+      );
+    });
+    expect(screen.getByRole("heading", { name: "Home" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Submission Records" })).not.toBeInTheDocument();
+    expect((await screen.findAllByRole("button", { name: "Remove Discovery Solar from Highlighted" })).length).toBeGreaterThan(0);
   });
 
-  test("the Highlighted tab and page are gone", async () => {
-    setupFetch();
+  test("highlighted page lists saved projects and removes them", async () => {
+    setupFetch({ highlighted: true });
     renderApp("/highlighted");
 
-    expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Highlighted" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Highlighted" })).toBeInTheDocument();
+    expect(await screen.findByText("Discovery Solar")).toBeInTheDocument();
+    // The Highlighted page keeps the full card.
+    expect(screen.getAllByText("Location").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Latest approved metric").length).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove Discovery Solar from Highlighted" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("No highlighted projects yet.")).toBeInTheDocument();
+    });
+  });
+
+  test("highlighted page has an empty state", async () => {
+    setupFetch({ highlighted: false });
+    renderApp("/highlighted");
+
+    expect(await screen.findByText("No highlighted projects yet.")).toBeInTheDocument();
+  });
+
+  test("refresh reloads highlighted state from the server", async () => {
+    setupFetch({ highlighted: true });
+    const firstRender = renderApp("/");
+    expect((await screen.findAllByRole("button", { name: "Remove Discovery Solar from Highlighted" })).length).toBeGreaterThan(0);
+
+    firstRender.unmount();
+    renderApp("/");
+
+    expect((await screen.findAllByRole("button", { name: "Remove Discovery Solar from Highlighted" })).length).toBeGreaterThan(0);
   });
 });

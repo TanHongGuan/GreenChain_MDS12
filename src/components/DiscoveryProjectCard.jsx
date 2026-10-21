@@ -14,14 +14,31 @@ function formatMetric(metric) {
   })} ${displayUnit(metric.unit)}`;
 }
 
-// showLocation / showLatestMetric let the home page keep its cards short.
+// showLocation / showLatestMetric let the home page keep its cards short; the
+// Highlighted page still shows both.
 export function DiscoveryProjectCard({
-  project, showLatestDecision = true, showLocation = true, showLatestMetric = true,
+  project, onToggleHighlight, isUpdating = false, showLatestDecision = true,
+  showLocation = true, showLatestMetric = true,
 }) {
   const detailUrl = `/projects/${project.project_id}`;
+  const starLabel = project.highlighted
+    ? `Remove ${project.project_name} from Highlighted`
+    : `Add ${project.project_name} to Highlighted`;
 
   return (
     <article className="discovery-card">
+      <div className="discovery-card-actions">
+        <button
+          type="button"
+          className={`star-button${project.highlighted ? " star-button-active" : ""}`}
+          aria-pressed={project.highlighted}
+          aria-label={starLabel}
+          disabled={isUpdating}
+          onClick={() => onToggleHighlight(project)}
+        >
+          {project.highlighted ? "★" : "☆"}
+        </button>
+      </div>
       <Link to={detailUrl} className="discovery-card-link">
         <div className="project-card-header">
           <h2>{project.project_name}</h2>

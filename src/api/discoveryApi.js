@@ -24,3 +24,24 @@ export async function getHomeDiscovery() {
   const response = await fetch(`${API_BASE_URL}/discovery/home`, { credentials: "include" });
   return parseDiscoveryResponse(response);
 }
+
+export async function getHighlightedProjects() {
+  const response = await fetch(`${API_BASE_URL}/highlighted/projects`, { credentials: "include" });
+  return parseDiscoveryResponse(response);
+}
+
+export async function addHighlightedProject(projectId) {
+  const response = await fetch(`${API_BASE_URL}/highlighted/projects/${projectId}`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return parseDiscoveryResponse(response);
+}
+
+export async function removeHighlightedProject(projectId) {
+  const response = await fetch(`${API_BASE_URL}/highlighted/projects/${projectId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return parseDiscoveryResponse(response);
+}

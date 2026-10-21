@@ -5,6 +5,7 @@ import { canAccess, PERMISSIONS, roleLabel } from "../auth/permissions.js";
 
 const baseLinks = [
   { to: "/", label: "Home" },
+  { to: "/highlighted", label: "Highlighted" },
   { to: "/projects", label: "Projects" },
   { to: "/compare", label: "Compare" },
 ];

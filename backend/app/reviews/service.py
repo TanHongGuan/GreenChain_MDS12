@@ -187,6 +187,40 @@ def list_pending_reviews(*, db: Session, auditor_id: str | None = None) -> list[
     return [_to_pending_summary(submission) for submission in submissions]
 
 
+@dataclass(frozen=True)
+class DecisionSummary:
+    submission_id: int
+    project_name: str
+    organisation_name: str
+    reporting_period: str
+    decision: str
+    reason: str | None
+    reviewed_at: datetime
+
+
+def list_decisions_by(auditor_id: str, *, db: Session) -> list[DecisionSummary]:
+    """Every decision this auditor has recorded, newest first.
+
+    Only their own reviews: the history of who approved what on other people's
+    assignments is not theirs to browse from here.
+    """
+    reviews = db.scalars(
+        select(Review).where(Review.reviewer_id == auditor_id).order_by(Review.reviewed_at.desc(), Review.id.desc())
+    ).all()
+    return [
+        DecisionSummary(
+            submission_id=review.submission.id,
+            project_name=review.submission.project.name,
+            organisation_name=review.submission.project.organisation.name,
+            reporting_period=review.submission.reporting_period,
+            decision=review.decision,
+            reason=review.reason,
+            reviewed_at=review.reviewed_at,
+        )
+        for review in reviews
+    ]
+
+
 def get_review_detail(submission_id: int, *, db: Session, auditor_id: str | None = None) -> ReviewDetail:
     submission = _require_submission(db, submission_id)
     _require_assignment(db, submission, auditor_id)

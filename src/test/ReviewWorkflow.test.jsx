@@ -53,8 +53,20 @@ function jsonResponse(status, payload) {
   });
 }
 
-function mockFetchQueue(responses) {
+// The page also loads the auditor's own past decisions. That request is answered
+// here, outside the ordered queue, so each test only lists the calls it is about.
+const isDecisionsCall = (url) => String(url).endsWith("/reviews/submissions/decided");
+
+// Requests other than the past-decisions list, which every render makes.
+function workflowCalls() {
+  return global.fetch.mock.calls.filter(([url]) => !isDecisionsCall(url)).length;
+}
+
+function mockFetchQueue(responses, decisions = []) {
   global.fetch = vi.fn((url, options = {}) => {
+    if (isDecisionsCall(url)) {
+      return Promise.resolve(jsonResponse(200, { decisions }));
+    }
     const next = responses.shift();
     if (!next) {
       throw new Error(`Unexpected fetch call: ${url}`);
@@ -66,8 +78,8 @@ function mockFetchQueue(responses) {
   });
 }
 
-async function renderReview(responses) {
-  mockFetchQueue([{ response: jsonResponse(200, { user: auditor }) }, ...responses]);
+async function renderReview(responses, decisions = []) {
+  mockFetchQueue([{ response: jsonResponse(200, { user: auditor }) }, ...responses], decisions);
   render(
     <MemoryRouter initialEntries={["/review"]}>
       <AuthProvider>
@@ -115,7 +127,7 @@ describe("auditor review workflow", () => {
     await userEvent.click(screen.getByRole("button", { name: /^approve$/i }));
     await userEvent.click(screen.getByRole("button", { name: /confirm approval/i }));
     expect(screen.getByText("Acknowledge the integrity warning before approving.")).toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(workflowCalls()).toBe(3);
   });
 
   test("auditor can load pending review queue", async () => {
@@ -126,7 +138,7 @@ describe("auditor review workflow", () => {
     const row = within(queue).getByRole("article");
     expect(within(row).getByText("Acme Corp")).toBeInTheDocument();
     expect(within(row).getByText("2026-Q1")).toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(workflowCalls()).toBe(2);
   });
 
   test("auditor can open detail with processed metrics and evidence actions", async () => {
@@ -220,7 +232,7 @@ describe("auditor review workflow", () => {
 
     expect(screen.getByRole("button", { name: /saving/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /reject/i })).toBeDisabled();
-    expect(global.fetch).toHaveBeenCalledTimes(4);
+    expect(workflowCalls()).toBe(4);
 
     resolveDecision(
       jsonResponse(200, {
@@ -232,4 +244,16 @@ describe("auditor review workflow", () => {
     );
     await waitFor(() => expect(screen.getByText("APPROVED")).toBeInTheDocument());
   });
+
+  test("lists the auditor's own past decisions under the queue", async () => {
+    await renderReview([{ response: jsonResponse(200, { submissions: [] }) }], [{
+      submission_id: 3, project_name: "Monosh Science Building", organisation: "Monosh",
+      reporting_period: "2026-Q2", decision: "APPROVED", reason: "Simulated approval",
+      reviewed_at: "2026-10-21T07:37:00Z",
+    }]);
+    expect(await screen.findByRole("heading", { name: /your past decisions/i })).toHaveTextContent("(1)");
+    expect(screen.getByRole("heading", { name: /Monosh Science Building/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
+  });
 });
+

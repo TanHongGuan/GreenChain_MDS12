@@ -83,4 +83,34 @@ describe("comparison aggregation", () => {
     // A single-quarter range has nothing to compare against.
     expect(organisationRangeSummary(projects, submissions, "Org A", ["2025-Q4"], "electricity").matchedChangePercent).toBeNull();
   });
+
+  it("adds up the seeded Monosh demo correctly: two buildings in Q1-Q2, one in Q3, nothing counted twice", () => {
+    const demoProjects = [
+      { project_id: 1, project_name: "Monosh Science Building", organisation: "Monosh" },
+      { project_id: 2, project_name: "Monosh Engineering Hall", organisation: "Monosh" },
+    ];
+    const seeded = [
+      [1, 1, "2026-Q1", 587595.96], [2, 2, "2026-Q1", 489984.50], [3, 1, "2026-Q2", 641618.97],
+      [4, 2, "2026-Q2", 526975.12], [5, 1, "2026-Q3", 653112.34],
+    ].map(([id, project, period, kwh]) => ({
+      submission_id: id, project_id: project, reporting_period: period, status: "APPROVED",
+      submitted_at: `2026-10-21T00:00:0${id}Z`, metrics: [{ metric_name: "Electricity", value: kwh, unit: "kWh" }],
+    }));
+    const q1 = organisationSummary(demoProjects, seeded, "Monosh", "2026-Q1", "electricity");
+    const q3 = organisationSummary(demoProjects, seeded, "Monosh", "2026-Q3", "electricity");
+    expect(q1.total).toBeCloseTo(1077580.46, 2);
+    expect(q1.contributorCount).toBe(2);
+    // Engineering has no Q3: it is left out, not counted as zero.
+    expect(q3.total).toBeCloseTo(653112.34, 2);
+    expect(q3.contributorCount).toBe(1);
+    expect(q3.buildingCount).toBe(2);
+
+    const range = organisationRangeSummary(demoProjects, seeded, "Monosh", ["2026-Q1", "2026-Q2", "2026-Q3"], "electricity");
+    expect(range.total).toBeCloseTo(587595.96 + 489984.50 + 641618.97 + 526975.12 + 653112.34, 2);
+    expect(range.contributors.find((row) => row.project.project_id === 2).value).toBeCloseTo(489984.50 + 526975.12, 2);
+    // Only Science reported in both Q1 and Q3, so only it is in the change.
+    expect(range.matchedCount).toBe(1);
+    expect(range.matchedChangePercent).toBeCloseTo((653112.34 - 587595.96) / 587595.96 * 100, 6);
+  });
 });
+

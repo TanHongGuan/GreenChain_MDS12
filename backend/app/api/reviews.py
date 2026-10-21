@@ -24,6 +24,7 @@ from backend.app.reviews.service import (
     get_original_evidence,
     get_processed_evidence,
     get_review_detail,
+    list_decisions_by,
     list_pending_reviews,
     verify_original_integrity,
 )
@@ -112,6 +113,27 @@ def pending_submissions(
     # on the platform.
     summaries = list_pending_reviews(db=db, auditor_id=current_user.id)
     return {"submissions": [_serialize_pending(summary) for summary in summaries]}
+
+
+@router.get("/submissions/decided")
+def decided_submissions(
+    current_user: AuthUser = Depends(require_permission(Permission.REVIEW_SUBMISSION)),
+    db: Session = Depends(get_db),
+) -> dict:
+    """This auditor's own past decisions. Declared before /submissions/{id} so
+    "decided" is not read as a submission id."""
+    return {"decisions": [
+        {
+            "submission_id": item.submission_id,
+            "project_name": item.project_name,
+            "organisation": item.organisation_name,
+            "reporting_period": item.reporting_period,
+            "decision": item.decision,
+            "reason": item.reason,
+            "reviewed_at": item.reviewed_at.isoformat(),
+        }
+        for item in list_decisions_by(current_user.id, db=db)
+    ]}
 
 
 @router.get("/submissions/{submission_id}")

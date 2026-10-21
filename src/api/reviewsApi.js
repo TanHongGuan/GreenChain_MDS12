@@ -28,6 +28,14 @@ export async function getPendingReviews() {
   return payload.submissions;
 }
 
+export async function getMyDecisions() {
+  const response = await fetch(`${API_BASE_URL}/reviews/submissions/decided`, {
+    credentials: "include",
+  });
+  const payload = await parseReviewResponse(response);
+  return payload.decisions;
+}
+
 export async function getReviewDetail(submissionId) {
   const response = await fetch(`${API_BASE_URL}/reviews/submissions/${submissionId}`, {
     credentials: "include",

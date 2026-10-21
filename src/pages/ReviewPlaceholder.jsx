@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Link } from "react-router-dom";
 
-import { decideSubmission, evidenceUrl, getPendingReviews, getReviewDetail } from "../services/dataService.js";
+import { decideSubmission, evidenceUrl, getMyDecisions, getPendingReviews, getReviewDetail } from "../services/dataService.js";
 import { metricDefinition } from "../utils/metrics.js";
 import { displayDate, displayUnit } from "../utils/display.js";
 
@@ -24,6 +24,8 @@ export function ReviewPlaceholder() {
   const [pendingDecision, setPendingDecision] = useState(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [filters, setFilters] = useState({ project: "", organisation: "", period: "", search: "" });
+  // This auditor's own past decisions, so earlier approvals can be found again.
+  const [decisions, setDecisions] = useState([]);
 
   const filteredQueue = useMemo(() => queue.filter((item) =>
     (!filters.project || item.project_name === filters.project) &&
@@ -72,6 +74,14 @@ export function ReviewPlaceholder() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    getMyDecisions()
+      .then((items) => { if (isMounted) setDecisions(items || []); })
+      .catch(() => { if (isMounted) setDecisions([]); });
+    return () => { isMounted = false; };
+  }, [decisionStatus]);
 
   async function openSubmission(submissionId) {
     setSelectedId(submissionId);
@@ -213,6 +223,38 @@ export function ReviewPlaceholder() {
                   </div>
                 </article>
               ))}
+            </div>
+          )}
+
+          {decisions.length > 0 && (
+            <div className="review-decisions">
+              <h2>Your past decisions <small>({decisions.length})</small></h2>
+              <div className="review-list">
+                {decisions.map((item) => (
+                  <article className="review-list-item" key={item.submission_id} data-selected={selectedId === item.submission_id}>
+                    <div>
+                      <h3>{item.project_name} <small>#{item.submission_id}</small></h3>
+                      <p>{item.organisation}</p>
+                      <dl>
+                        <div>
+                          <dt>Period</dt>
+                          <dd>{item.reporting_period}</dd>
+                        </div>
+                        <div>
+                          <dt>Decided</dt>
+                          <dd>{displayDate(item.reviewed_at, true)}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                    <div className="review-list-actions">
+                      <span className={statusClass(item.decision)}>{item.decision}</span>
+                      <button className="secondary-button" type="button" onClick={() => openSubmission(item.submission_id)}>
+                        View
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
           )}
         </section>

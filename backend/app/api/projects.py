@@ -335,9 +335,14 @@ def metric_history(
     project_id: int,
     metric_name: str,
     include_unreviewed: bool = False,
-    _: AuthUser = Depends(get_current_user),
+    current_user: AuthUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
+    # Viewers see reviewed performance only. Unreviewed figures are for the
+    # company that filed them and the auditors reviewing them, so a viewer's
+    # request for them is answered with approved points alone.
+    if current_user.role == UserRole.VIEWER:
+        include_unreviewed = False
     try:
         points = get_metric_history(project_id, metric_name, db=db, include_unreviewed=include_unreviewed)
     except ProjectNotFound as exc:

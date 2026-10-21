@@ -29,6 +29,7 @@ export const createSubmission = realSubmissions.createSubmission;
 export const previewSubmissionMapping = realSubmissions.previewSubmissionMapping;
 export const getPendingReviews = realReviews.getPendingReviews;
 export const getReviewDetail = realReviews.getReviewDetail;
+export const getMyDecisions = realReviews.getMyDecisions;
 export const decideSubmission = realReviews.decideSubmission;
 export const getHighlightedProjects = realDiscovery.getHighlightedProjects;
 export const addHighlightedProject = realDiscovery.addHighlightedProject;

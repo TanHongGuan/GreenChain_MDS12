@@ -19,12 +19,34 @@ teammate browser ──http──▶ host:8080 nginx ──/api──▶ api (ST
    * `AWS_CONFIG_DIR=/Users/<you>/.aws`.
    `deploy/.env.demo` is Git-ignored. Never commit it.
 
-## Host: start / stop
+## Host: start / stop / reset
 
 ```bash
 ./deploy/demo_up.sh        # build, start, migrate, seed, verify bucket, print URL
 ./deploy/demo_up.sh down   # stop; database volume and S3 evidence are kept
+./deploy/demo_up.sh reset  # stop and EMPTY the demo database + local evidence volume (type RESET)
 ```
+
+`reset` reads the stack's volume names from the resolved Compose configuration, lists them, and
+only removes those two after you type `RESET`. It never touches S3: locked evidence stays until its
+retention ends, so give the fresh deployment a new `S3_KEY_PREFIX` in `deploy/.env.demo`.
+
+### Demo data (`DEMO_SEED_DATA=true`)
+
+Startup then also runs `python -m backend.app.scripts.seed_demo_monosh`, which loads the Monosh
+demonstration: **Monosh Science Building** (2026-Q1, Q2, Q3) and **Monosh Engineering Hall**
+(2026-Q1, Q2), five quarterly submissions, all approved, under the `monosh@greenchain.test` company.
+
+* The five workbooks are in `backend/app/demo/files/` with their SHA-256 pinned in
+  `backend/app/demo/monosh.py`. **Synthetic data**: every figure was generated from a fixed seed.
+* The seeder drives the application's own API in-process: the company creates the buildings and
+  uploads each workbook with a fixed, hand-written confirmed column mapping (no model is called),
+  so the deterministic ETL, evidence storage and SHA-256 recording run exactly as for a manual upload.
+* Each submission gets one auditor from a fixed seed (Aisyah 1, Daniel 2, Priya 2), and that
+  auditor signs in and approves it with the reason "Simulated approval ... not independent
+  sustainability assurance". **These approvals are simulated for the demo.**
+* Idempotent: a restart reuses what exists and changes no approval or appointment. Refused when
+  `ENVIRONMENT=production`.
 
 The readiness check must report `{"database":"ok","evidence_storage":"ok"}`. `evidence_storage`
 confirms the bucket is reachable with versioning and Object Lock enabled.
@@ -52,8 +74,9 @@ press **Log In**. No password, setup, AWS account or repo checkout is needed.
 * **Passwordless login.** `docker-compose.lan.yml` sets `ACCOUNT_SELECT_LOGIN=true`, so anyone who
   can reach the address can sign in as any account, including the auditor. The backend refuses this
   setting when `ENVIRONMENT=production`.
-* **No placeholder data.** `demo_up.sh` seeds only the accounts, so projects and submissions come
-  only from real uploads.
+* **Demo data is synthetic.** With `DEMO_SEED_DATA=true` the Monosh buildings, figures and approvals
+  are generated demonstration data, not real measurements or real assurance. Set it to `false` for a
+  stack that starts with accounts only.
 * **Same network required.** University and guest Wi-Fi often block device-to-device traffic
   (client isolation). If teammates cannot reach the host, use a phone hotspot or present from the
   host machine.

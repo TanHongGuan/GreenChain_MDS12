@@ -246,12 +246,23 @@ def test_history_excludes_unreviewed_by_default(client: TestClient, session_fact
 def test_history_includes_unreviewed_when_requested(client: TestClient, session_factory, storage) -> None:
     project_id = seed_submission(session_factory, storage, reporting_period="2026-Q1", status="APPROVED")
     seed_submission(session_factory, storage, reporting_period="2026-Q2", status="UNREVIEWED")
-    login(client, "viewer@greenchain.test")
+    login(client, "auditor@greenchain.test")
 
     response = client.get(f"/projects/{project_id}/metrics/Electricity/history?include_unreviewed=true")
 
     statuses = {point["status"] for point in response.json()["points"]}
     assert statuses == {"APPROVED", "UNREVIEWED"}
+
+
+def test_viewer_gets_approved_history_only_even_when_asking_for_unreviewed(
+        client: TestClient, session_factory, storage) -> None:
+    project_id = seed_submission(session_factory, storage, reporting_period="2026-Q1", status="APPROVED")
+    seed_submission(session_factory, storage, reporting_period="2026-Q2", status="UNREVIEWED")
+    login(client, "viewer@greenchain.test")
+
+    response = client.get(f"/projects/{project_id}/metrics/Electricity/history?include_unreviewed=true")
+
+    assert {point["status"] for point in response.json()["points"]} == {"APPROVED"}
 
 
 def test_missing_project_returns_404(client: TestClient) -> None:

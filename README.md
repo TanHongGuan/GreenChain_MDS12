@@ -290,6 +290,8 @@ cp deploy/demo.env.example deploy/.env.demo   # fill in secrets, FRONTEND_ORIGIN
 ./deploy/demo_up.sh down                      # stop (database and S3 evidence are kept)
 ```
 
+With `DEMO_SEED_DATA=true` (the default in `demo.env.example`) the stack starts with the Monosh demonstration already loaded: 2 buildings and 5 approved quarterly submissions (synthetic data, simulated approvals). `./deploy/demo_up.sh reset` empties the demo database first, after you type `RESET`. Details: `docs/SHARED_DEMO_BACKEND.md`.
+
 Teammates open `http://<host Wi-Fi IP>:8080`, pick an account from the dropdown and press **Log In**. The host must stay awake on the same network; campus Wi-Fi may block laptop-to-laptop traffic (use a phone hotspot if so). Login is passwordless on this stack, so only run it on a trusted network. Full details: `docs/SHARED_DEMO_BACKEND.md`.
 
 ## Common Setup Problems

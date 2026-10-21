@@ -16,11 +16,20 @@ export function ComparisonBarChart({ rows, metric, sort = "desc", showShare = fa
   </div>;
 }
 
+// Put a point's value label below it when its neighbours sit higher, so the label
+// never lands on the line running into a dip.
+function labelBelow(points, index) {
+  const neighbours = [points[index - 1], points[index + 1]].filter((item) => item && item.total !== null);
+  if (!neighbours.length) return false;
+  const average = neighbours.reduce((sum, item) => sum + item.total, 0) / neighbours.length;
+  return points[index].total < average;
+}
+
 export function OrganisationTrend({ points, metric }) {
   const available = points.filter((point) => point.total !== null);
-  if (!available.length) return <p className="comparison-empty">No approved values are available for this metric.</p>;
-  if (available.length < 2) return <p className="comparison-empty">Only one quarter has approved data. At least two are needed for a trend.</p>;
-  const width = 680, height = 230, left = 76, top = 28, innerWidth = width - left - 28, innerHeight = height - top - 58;
+  if (!available.length) return <p className="comparison-empty">No values are available for this metric in the selected range.</p>;
+  if (available.length < 2) return <p className="comparison-empty">Only one quarter in the range has data. At least two are needed for a trend.</p>;
+  const width = 680, height = 262, left = 76, top = 44, innerWidth = width - left - 44, innerHeight = height - top - 74;
   const values = available.map((point) => point.total);
   const low = Math.min(...values), high = Math.max(...values);
   const padding = Math.max((high - low) * 0.25, Math.abs(high) * 0.02, 1);
@@ -37,10 +46,15 @@ export function OrganisationTrend({ points, metric }) {
       {points.slice(1).map((point, index) => points[index].total !== null && point.total !== null ?
         <line key={`${point.period}-line`} x1={x(index)} y1={y(points[index].total)} x2={x(index + 1)} y2={y(point.total)} className="comparison-trend-line" /> : null)}
       {points.map((point, index) => <g key={point.period}>
-        {point.total !== null ? <circle cx={x(index)} cy={y(point.total)} r="5" className="comparison-trend-point"><title>{`${point.period}: ${format(point.total)} ${displayUnit(metric.unit)} from ${point.contributorCount} building(s)`}</title></circle> : null}
-        <text x={x(index)} y={height - 6} textAnchor="middle">{point.period}</text>
+        {point.total !== null ? <>
+          <circle cx={x(index)} cy={y(point.total)} r="5" className="comparison-trend-point"><title>{`${point.period}: ${format(point.total)} ${displayUnit(metric.unit)} from ${point.contributorCount} building(s)`}</title></circle>
+          {/* Value label on every point, so the chart can be read without hovering. */}
+          <text x={x(index)} y={y(point.total) + (labelBelow(points, index) ? 22 : -12)} textAnchor="middle" className="comparison-trend-value">{format(point.total)}</text>
+        </> : null}
+        <text x={x(index)} y={height - 24} textAnchor="middle">{point.period}</text>
+        <text x={x(index)} y={height - 6} textAnchor="middle" className="comparison-trend-count">{point.total === null ? "No data" : `${point.contributorCount} of ${point.buildingCount} ${point.buildingCount === 1 ? "building" : "buildings"}`}</text>
       </g>)}
     </svg>
-    <p className="chart-axis-note">Vertical axis: {format(min)}–{format(max)} {displayUnit(metric.unit)}. Missing quarters break the line; totals reflect available approved data.</p>
+    <p className="chart-axis-note">Vertical axis: {format(min)}–{format(max)} {displayUnit(metric.unit)}. Each point is the organisation's total for that quarter; the line below each quarter shows how many buildings it includes. Missing quarters break the line.</p>
   </div>;
 }

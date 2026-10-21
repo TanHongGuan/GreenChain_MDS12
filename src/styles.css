@@ -1313,6 +1313,8 @@ textarea:focus {
 .organisation-trend svg text { fill: #566f61; font-size: 12px; }
 .comparison-trend-line { stroke: #176b4d; stroke-width: 2.5; }
 .comparison-trend-point { fill: #176b4d; }
+.organisation-trend svg .comparison-trend-value { fill: #153024; font-size: 12px; font-weight: 700; }
+.organisation-trend svg .comparison-trend-count { fill: #6a8678; font-size: 10.5px; }
 .compare-page button:focus-visible, .compare-page select:focus-visible, .compare-page input:focus-visible { outline: 2px solid #176b4d; outline-offset: 2px; }
 @media (max-width: 720px) {
   .comparison-bar-row { grid-template-columns: minmax(0, 1fr) minmax(90px, auto); gap: 0.2rem 0.6rem; }

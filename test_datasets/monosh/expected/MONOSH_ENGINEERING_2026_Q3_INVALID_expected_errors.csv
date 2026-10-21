@@ -1,0 +1,4 @@
+severity,sheet,row_date,field,error_code,expected_handling
+ERROR,Power_Log,2026-07-16,Main Incoming Supply (kWh),INVALID_NUMERIC,Refuse the upload; publish nothing
+ERROR,Power_Log,2026-08-23,Main Incoming Supply (kWh),MISSING_VALUE,Refuse the upload; publish nothing
+ERROR,Water_Meter,2026-08-02,Site Meter - cumulative (m3),DECREASING_CUMULATIVE,Refuse the upload; publish nothing

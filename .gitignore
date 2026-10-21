@@ -46,3 +46,6 @@ deploy/.demo-dist/
 coverage/
 .env.local
 .env.*.local
+
+# Zipped copies of folders already tracked here; derived, not sources.
+test_datasets/*.zip

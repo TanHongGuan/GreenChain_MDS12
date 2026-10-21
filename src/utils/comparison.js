@@ -21,10 +21,14 @@ export function previousQuarter(period) {
   return quarter === 1 ? `${year - 1}-Q4` : `${year}-Q${quarter - 1}`;
 }
 
-export function approvedRecords(submissions) {
+// The latest submission per building and quarter, among the review states the
+// viewer asked for. With unreviewed included, a later unreviewed correction can
+// outrank an approved one for the same quarter - which is what "show me
+// everything" means, and why each row says which state it is showing.
+export function latestRecords(submissions, statuses = ["APPROVED"]) {
   const latest = new Map();
   for (const item of submissions) {
-    if (item.status !== "APPROVED") continue;
+    if (!statuses.includes(item.status)) continue;
     const key = `${item.project_id}:${item.reporting_period}`;
     const prior = latest.get(key);
     if (!prior || String(item.submitted_at || "").localeCompare(String(prior.submitted_at || "")) > 0 ||
@@ -33,34 +37,38 @@ export function approvedRecords(submissions) {
   return latest;
 }
 
-export function metricValue(record, metricKey) {
+export function metricValue(record, metricKey, statuses = ["APPROVED"]) {
   if (!record) return null;
   const definition = CORE_METRICS.find((item) => item.key === metricKey);
   if (!definition) return null;
   const candidate = (record.metrics || []).find((item) => metricDefinition(item.metric_name)?.key === metricKey);
-  return candidate ? normalizedPoint({ ...candidate, status: record.status }, definition)?.value ?? null : null;
+  return candidate
+    ? normalizedPoint({ ...candidate, status: record.status }, definition, statuses)?.value ?? null
+    : null;
 }
 
-export function comparisonRows(projects, submissions, projectIds, period) {
-  const records = approvedRecords(submissions);
+export function comparisonRows(projects, submissions, projectIds, period, statuses = ["APPROVED"]) {
+  const records = latestRecords(submissions, statuses);
   return projectIds.map((id) => {
     const project = projects.find((item) => item.project_id === Number(id));
     if (!project) return null;
     const record = records.get(`${id}:${period}`);
     return {
       project, period, submissionId: record?.submission_id ?? null,
-      values: Object.fromEntries(CORE_METRICS.map((metric) => [metric.key, metricValue(record, metric.key)])),
+      status: record?.status ?? null,
+      values: Object.fromEntries(CORE_METRICS.map((metric) => [metric.key, metricValue(record, metric.key, statuses)])),
     };
   }).filter(Boolean);
 }
 
-export function organisationSummary(projects, submissions, organisation, period, metricKey) {
+export function organisationSummary(projects, submissions, organisation, period, metricKey,
+                                    statuses = ["APPROVED"]) {
   const members = buildingsByOrganisation(projects, organisation);
-  const rows = comparisonRows(projects, submissions, members.map((item) => item.project_id), period);
+  const rows = comparisonRows(projects, submissions, members.map((item) => item.project_id), period, statuses);
   const contributors = rows.filter((row) => row.values[metricKey] !== null);
   const total = contributors.reduce((sum, row) => sum + row.values[metricKey], 0);
   const prior = previousQuarter(period);
-  const priorRows = prior ? comparisonRows(projects, submissions, members.map((item) => item.project_id), prior) : [];
+  const priorRows = prior ? comparisonRows(projects, submissions, members.map((item) => item.project_id), prior, statuses) : [];
   const priorById = new Map(priorRows.map((row) => [row.project.project_id, row.values[metricKey]]));
   const matched = contributors.filter((row) => priorById.get(row.project.project_id) !== null && priorById.has(row.project.project_id));
   const currentMatched = matched.reduce((sum, row) => sum + row.values[metricKey], 0);

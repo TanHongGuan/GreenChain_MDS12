@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { approvedRecords, comparisonRows, organisationSummary, previousQuarter } from "../utils/comparison.js";
+import { comparisonRows, latestRecords, organisationSummary, previousQuarter } from "../utils/comparison.js";
 
 const projects = [
   { project_id: 1, project_name: "Alpha", organisation: "Org A" },
@@ -21,8 +21,22 @@ const submissions = [
 
 describe("comparison aggregation", () => {
   it("keeps only the latest approved building-quarter submission", () => {
-    expect(approvedRecords(submissions).get("1:2026-Q1").submission_id).toBe(4);
+    expect(latestRecords(submissions).get("1:2026-Q1").submission_id).toBe(4);
     expect(comparisonRows(projects, submissions, [1, 2, 3], "2026-Q1").map((row) => row.values.electricity)).toEqual([130, null, null]);
+  });
+
+  it("includes unreviewed submissions only when they are asked for", () => {
+    const both = ["APPROVED", "UNREVIEWED"];
+    // Gamma's only 2026-Q1 submission is unreviewed, so it is absent by default
+    // and present when the viewer asks for unreviewed work too.
+    expect(comparisonRows(projects, submissions, [3], "2026-Q1")[0].values.electricity).toBeNull();
+    const row = comparisonRows(projects, submissions, [3], "2026-Q1", both)[0];
+    expect(row.values.electricity).toBe(800);
+    expect(row.status).toBe("UNREVIEWED");
+
+    // Rejected data stays out whatever is asked for: it failed review, and
+    // showing it beside approved figures would present it as evidence.
+    expect(comparisonRows(projects, submissions, [2], "2026-Q1", both)[0].values.electricity).toBeNull();
   });
 
   it("does not treat missing metrics, rejected, or unreviewed values as zero", () => {

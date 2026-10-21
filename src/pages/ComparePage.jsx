@@ -24,33 +24,49 @@ export function ComparePage() {
   const [organisation, setOrganisation] = useState("");
   const [orgMetricKey, setOrgMetricKey] = useState("electricity");
   const [sort, setSort] = useState("desc");
+  // Which review states to compare. Approved only by default - that is what a
+  // viewer should see unless they deliberately ask for work still in review.
+  const [statuses, setStatuses] = useState(["APPROVED"]);
+
+  function toggleStatus(status) {
+    setStatuses((current) => current.includes(status)
+      ? current.filter((item) => item !== status) : [...current, status]);
+  }
 
   useEffect(() => {
     let active = true;
-    getComparisonSnapshot().then((data) => {
+    setSnapshot(null);
+    setError("");
+    getComparisonSnapshot(statuses).then((data) => {
       if (!active) return;
       setSnapshot(data);
       const periods = reportingPeriods(data.submissions);
-      setPeriod(periods.includes("2026-Q1") ? "2026-Q1" : periods.at(-1) || "");
-      setSelectedIds(data.projects.slice(0, 3).map((project) => project.project_id));
-      setOrganisation(organisations(data.projects)[0] || "");
+      setPeriod((current) => (current && periods.includes(current)) ? current
+        : (periods.includes("2026-Q1") ? "2026-Q1" : periods.at(-1) || ""));
+      setSelectedIds((current) => {
+        const stillThere = current.filter((id) => data.projects.some((p) => p.project_id === id));
+        return stillThere.length ? stillThere
+          : data.projects.slice(0, 3).map((project) => project.project_id);
+      });
+      setOrganisation((current) => organisations(data.projects).includes(current)
+        ? current : organisations(data.projects)[0] || "");
     }).catch((cause) => { if (active) setError(cause.message || "Unable to load comparison data."); });
     return () => { active = false; };
-  }, []);
+  }, [statuses]);
 
   const projects = snapshot?.projects || [];
   const submissions = snapshot?.submissions || [];
   const periods = useMemo(() => reportingPeriods(submissions), [submissions]);
   const orgNames = useMemo(() => organisations(projects), [projects]);
-  const rows = useMemo(() => comparisonRows(projects, submissions, selectedIds, period), [projects, submissions, selectedIds, period]);
+  const rows = useMemo(() => comparisonRows(projects, submissions, selectedIds, period, statuses), [projects, submissions, selectedIds, period, statuses]);
   const metric = CORE_METRICS.find((item) => item.key === metricKey);
   const orgMetric = CORE_METRICS.find((item) => item.key === orgMetricKey);
   const available = rows.filter((row) => row.values[metricKey] !== null);
   const chartRows = available.map((row) => ({ id: row.project.project_id, name: row.project.project_name, value: row.values[metricKey] }));
   const ranked = [...chartRows].sort((a, b) => a.value - b.value);
-  const summaries = CORE_METRICS.map((item) => ({ metric: item, result: organisationSummary(projects, submissions, organisation, period, item.key) }));
+  const summaries = CORE_METRICS.map((item) => ({ metric: item, result: organisationSummary(projects, submissions, organisation, period, item.key, statuses) }));
   const selectedSummary = summaries.find((item) => item.metric.key === orgMetricKey)?.result;
-  const trend = periods.map((quarter) => organisationSummary(projects, submissions, organisation, quarter, orgMetricKey));
+  const trend = periods.map((quarter) => organisationSummary(projects, submissions, organisation, quarter, orgMetricKey, statuses));
 
   function toggleBuilding(id) {
     setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : current.length < MAX_VISIBLE_BUILDINGS ? [...current, id] : current);
@@ -58,14 +74,31 @@ export function ComparePage() {
 
   return <section className="page-panel compare-page">
     <div className="page-heading"><h1>Compare</h1></div>
-    <p className="compare-intro">Compare reported building values and organisation totals from approved quarterly submissions.</p>
+    <p className="compare-intro">Compare reported building values and organisation totals from quarterly submissions.</p>
+    <fieldset className="compare-status-filter">
+      <legend>Include submissions that are</legend>
+      {[["APPROVED", "Approved"], ["UNREVIEWED", "Unreviewed"]].map(([value, label]) => (
+        <label key={value}>
+          <input type="checkbox" checked={statuses.includes(value)} onChange={() => toggleStatus(value)} />
+          {label}
+        </label>
+      ))}
+      {statuses.includes("UNREVIEWED") && (
+        <span className="compare-status-note">
+          Unreviewed figures have not been checked by an auditor.
+        </span>
+      )}
+    </fieldset>
+    {!statuses.length && (
+      <p className="form-warning" role="status">Tick at least one review state to compare.</p>
+    )}
     <div className="compare-tabs" role="tablist" aria-label="Comparison view">
       <button type="button" role="tab" aria-selected={view === "buildings"} onClick={() => setView("buildings")}>Building Comparison</button>
       <button type="button" role="tab" aria-selected={view === "organisation"} onClick={() => setView("organisation")}>Organisation Performance</button>
     </div>
     {error ? <div className="error-message" role="alert">{error}</div> : null}
-    {!snapshot && !error ? <p>Loading comparison data…</p> : null}
-    {snapshot && <div role="tabpanel" className="compare-content">
+    {!snapshot && !error && statuses.length > 0 ? <p>Loading comparison data…</p> : null}
+    {snapshot && statuses.length > 0 && <div role="tabpanel" className="compare-content">
       {view === "buildings" ? <>
         <div className="compare-toolbar">
           <label className="compare-field">Reporting quarter<select value={period} onChange={(event) => setPeriod(event.target.value)}>{periods.map((item) => <option key={item}>{item}</option>)}</select></label>
@@ -102,7 +135,7 @@ export function ComparePage() {
           <label className="compare-field">Organisation<select value={organisation} onChange={(event) => setOrganisation(event.target.value)}>{orgNames.map((name) => <option key={name}>{name}</option>)}</select></label>
           <label className="compare-field">Reporting quarter<select value={period} onChange={(event) => setPeriod(event.target.value)}>{periods.map((item) => <option key={item}>{item}</option>)}</select></label>
         </div>
-        <div className="compare-org-heading"><h2>{organisation}</h2><p>{selectedSummary?.buildingCount || 0} buildings · {selectedSummary?.contributorCount || 0} with approved {orgMetric.label.toLowerCase()} data · {period}</p></div>
+        <div className="compare-org-heading"><h2>{organisation}</h2><p>{selectedSummary?.buildingCount || 0} buildings · {selectedSummary?.contributorCount || 0} with {orgMetric.label.toLowerCase()} data · {period}</p></div>
         <div className="compare-kpis">{summaries.map(({ metric: item, result }) => <section key={item.key} className="compare-kpi">
           <h3>Total {item.label.toLowerCase()}</h3><strong>{result.total === null ? "Not available" : format(result.total)} {result.total === null ? "" : <small>{displayUnit(item.unit)}</small>}</strong>
           <p>{period} · {result.contributorCount} of {result.buildingCount} buildings reporting</p>

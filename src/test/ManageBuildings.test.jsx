@@ -143,9 +143,14 @@ describe("manage buildings", () => {
     await userEvent.click(within(screen.getByText("Engineering Building").closest("li")).getByRole("button", { name: "Open" }));
     await screen.findByRole("table");
 
-    for (const label of [/delete/i, /remove/i, /archive/i]) {
+    for (const label of [/delete/i, /archive/i]) {
       expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
       expect(screen.queryByRole("link", { name: label })).not.toBeInTheDocument();
+    }
+    // "Remove" exists, but only ever to un-assign an auditor from a submission.
+    // Nothing here removes a building, a submission or any evidence.
+    for (const control of screen.queryAllByRole("button", { name: /remove/i })) {
+      expect(control).toHaveAccessibleName(/^Remove .+ from submission \d+$/);
     }
   });
 
@@ -179,18 +184,16 @@ describe("assigning auditors to a submission", () => {
     return within(table).getByText(`#${submissionId}`).closest("tr");
   }
 
-  test("each submission carries its own auditors, and one with none says so", async () => {
+  test("each submission shows its own auditors, and one with none says so", async () => {
     mockApi();
     const table = await openEngineering();
 
-    // #11 already has one; #12 has nobody, which is why it cannot be reviewed.
-    expect(within(rowFor(table, 11)).getByRole("checkbox", { name: "Dana Auditor" })).toBeChecked();
-    expect(within(rowFor(table, 12)).getByRole("checkbox", { name: "Dana Auditor" })).not.toBeChecked();
-    expect(within(rowFor(table, 12)).getByText(/Nobody assigned/)).toBeInTheDocument();
+    expect(within(rowFor(table, 11)).getByText("Dana Auditor")).toBeInTheDocument();
     expect(within(rowFor(table, 11)).queryByText(/Nobody assigned/)).not.toBeInTheDocument();
+    expect(within(rowFor(table, 12)).getByText(/Nobody assigned/)).toBeInTheDocument();
   });
 
-  test("a submission can be given more than one auditor", async () => {
+  test("an auditor is chosen from a list and added, and is then not offered again", async () => {
     const sent = [];
     mockApi({
       onAssign: (request, options) => {
@@ -203,22 +206,60 @@ describe("assigning auditors to a submission", () => {
       },
     });
     const table = await openEngineering();
+    const row = rowFor(table, 12);
 
-    await userEvent.click(within(rowFor(table, 12)).getByRole("checkbox", { name: "Dana Auditor" }));
-    await userEvent.click(within(rowFor(table, 12)).getByRole("checkbox", { name: "Sam Auditor" }));
+    // The dropdown identifies auditors by name and email, so the right one can be
+    // told from a namesake.
+    const picker = within(row).getByLabelText(/Add an auditor to submission 12/);
+    expect(within(picker).getByRole("option", { name: /Dana Auditor \(dana@greenchain.test\)/ }))
+      .toHaveValue("aud-1");
+
+    // Nothing is sent until Add is pressed.
+    await userEvent.selectOptions(picker, "aud-1");
+    expect(sent).toHaveLength(0);
+
+    await userEvent.click(within(row).getByRole("button", { name: "Add as auditor" }));
 
     expect(sent.at(-1).url).toMatch(/\/submissions\/12\/auditors$/);
-    expect(sent.at(-1).ids).toEqual(["aud-1", "aud-2"]);
-    expect(within(rowFor(table, 12)).getByRole("checkbox", { name: "Dana Auditor" })).toBeChecked();
-    expect(within(rowFor(table, 12)).getByRole("checkbox", { name: "Sam Auditor" })).toBeChecked();
-    expect(within(rowFor(table, 12)).queryByText(/Nobody assigned/)).not.toBeInTheDocument();
+    expect(sent.at(-1).ids).toEqual(["aud-1"]);
+    expect(await within(rowFor(table, 12)).findByText("Dana Auditor")).toBeInTheDocument();
+    // Already assigned, so no longer offered to add again.
+    expect(within(within(rowFor(table, 12)).getByLabelText(/Add an auditor to submission 12/))
+      .queryByRole("option", { name: /Dana Auditor/ })).toBeNull();
   });
 
-  test("unticking the last auditor says the submission can no longer be reviewed", async () => {
+  test("a submission can be given more than one auditor", async () => {
+    const sent = [];
+    mockApi({
+      onAssign: (_request, options) => {
+        const body = JSON.parse(options.body);
+        sent.push(body.auditor_ids);
+        return jsonResponse(200, {
+          submission_id: 12,
+          auditors: body.auditor_ids.map((id) => [dana, sam].find((a) => a.id === id)),
+        });
+      },
+    });
+    const table = await openEngineering();
+
+    for (const id of ["aud-1", "aud-2"]) {
+      const row = rowFor(table, 12);
+      await userEvent.selectOptions(within(row).getByLabelText(/Add an auditor to submission 12/), id);
+      await userEvent.click(within(row).getByRole("button", { name: "Add as auditor" }));
+    }
+
+    expect(sent.at(-1)).toEqual(["aud-1", "aud-2"]);
+    const row = rowFor(table, 12);
+    expect(within(row).getByText("Dana Auditor")).toBeInTheDocument();
+    expect(within(row).getByText("Sam Auditor")).toBeInTheDocument();
+  });
+
+  test("removing the last auditor says the submission can no longer be reviewed", async () => {
     mockApi({ onAssign: () => jsonResponse(200, { submission_id: 11, auditors: [] }) });
     const table = await openEngineering();
 
-    await userEvent.click(within(rowFor(table, 11)).getByRole("checkbox", { name: "Dana Auditor" }));
+    await userEvent.click(within(rowFor(table, 11))
+      .getByRole("button", { name: /Remove Dana Auditor/ }));
 
     expect(await within(rowFor(table, 11)).findByText(/Nobody assigned/)).toBeInTheDocument();
   });
@@ -227,10 +268,12 @@ describe("assigning auditors to a submission", () => {
     mockApi({ onAssign: () => jsonResponse(200, { submission_id: 12, auditors: [dana] }) });
     const table = await openEngineering();
 
-    await userEvent.click(within(rowFor(table, 12)).getByRole("checkbox", { name: "Dana Auditor" }));
+    const row = rowFor(table, 12);
+    await userEvent.selectOptions(within(row).getByLabelText(/Add an auditor to submission 12/), "aud-1");
+    await userEvent.click(within(row).getByRole("button", { name: "Add as auditor" }));
 
-    expect(within(rowFor(table, 12)).getByRole("checkbox", { name: "Dana Auditor" })).toBeChecked();
-    expect(within(rowFor(table, 11)).getByRole("checkbox", { name: "Dana Auditor" })).toBeChecked();
-    expect(within(rowFor(table, 11)).getByRole("checkbox", { name: "Sam Auditor" })).not.toBeChecked();
+    expect(await within(rowFor(table, 12)).findByText("Dana Auditor")).toBeInTheDocument();
+    expect(within(rowFor(table, 11)).getByText("Dana Auditor")).toBeInTheDocument();
+    expect(within(rowFor(table, 11)).queryByText("Sam Auditor")).not.toBeInTheDocument();
   });
 });

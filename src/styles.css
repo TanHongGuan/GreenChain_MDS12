@@ -2601,6 +2601,52 @@ nav a[aria-current="page"]::after {
   border: 0;
 }
 
+.assigned-auditors {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.assigned-auditors li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.85rem;
+}
+
+.assigned-auditor-name {
+  overflow-wrap: anywhere;
+}
+
+.auditor-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.auditor-add select {
+  min-width: 150px;
+  max-width: 100%;
+}
+
+/* The auditor column is the widest thing in this table, and without this the
+   short columns beside it wrap "2026-Q1" and "21 Oct 2026" onto two lines. */
+.building-detail .metrics-table th,
+.building-detail .metrics-table td {
+  white-space: nowrap;
+}
+
+.building-detail .metrics-table td:nth-child(5) {
+  white-space: normal;
+}
+
+.auditor-add .secondary-button {
+  white-space: nowrap;
+}
+
 .submission-auditor-choice {
   display: flex;
   gap: 8px;
@@ -2639,5 +2685,46 @@ nav a[aria-current="page"]::after {
 .review-assigned-projects {
   margin: 0 0 8px;
   color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+/* Which review states the comparison draws on. Two tick boxes rather than a
+   dropdown, because both together is the useful third option and a dropdown
+   would hide it behind a third entry. */
+.compare-status-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: center;
+  margin: 0 0 16px;
+  padding: 8px 16px;
+  border: 1px solid var(--leaf-100);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.compare-status-filter legend {
+  padding: 0 8px;
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.compare-status-filter label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  font-weight: 400;
+}
+
+.compare-status-filter input {
+  width: auto;
+  margin: 0;
+}
+
+.compare-status-note {
+  color: #815c0b;
   font-size: 0.85rem;
 }

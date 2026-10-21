@@ -19,21 +19,26 @@ function statusClass(status) {
 // Who reviews one submission. Per submission rather than per building: a quarter
 // is what gets reviewed, a company may want different people on different
 // quarters, and more than one may be appointed to the same one.
+//
+// Pick-then-add rather than a tick per auditor: the list of auditors grows with
+// the platform, and a column of fifty tick boxes in every table row does not.
+// The dropdown is a placeholder for a search by name or email once the list is
+// long enough to need one.
 function SubmissionAuditors({ submission, auditors, onChanged }) {
+  const [choice, setChoice] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const assigned = submission.auditors || [];
   const assignedIds = assigned.map((item) => item.id);
+  const available = auditors.filter((auditor) => !assignedIds.includes(auditor.id));
 
-  async function toggle(auditorId) {
-    const next = assignedIds.includes(auditorId)
-      ? assignedIds.filter((id) => id !== auditorId)
-      : [...assignedIds, auditorId];
+  async function save(next) {
     setSaving(true);
     setError("");
     try {
       const result = await assignSubmissionAuditors(submission.submission_id, next);
       onChanged(submission.submission_id, result.auditors);
+      setChoice("");
     } catch (problem) {
       setError(problem.message || "The auditors could not be changed.");
     } finally {
@@ -41,24 +46,43 @@ function SubmissionAuditors({ submission, auditors, onChanged }) {
     }
   }
 
+  const selectId = `add-auditor-${submission.submission_id}`;
   return (
     <div className="submission-auditors">
-      <fieldset disabled={saving}>
-        <legend className="visually-hidden">
-          Auditors for submission {submission.submission_id}
-        </legend>
-        {auditors.map((auditor) => (
-          <label key={auditor.id} className="submission-auditor-choice">
-            <input type="checkbox" checked={assignedIds.includes(auditor.id)}
-              onChange={() => toggle(auditor.id)} />
-            {auditor.name}
-          </label>
-        ))}
-      </fieldset>
+      {assigned.length > 0 && (
+        <ul className="assigned-auditors">
+          {assigned.map((auditor) => (
+            <li key={auditor.id}>
+              <span className="assigned-auditor-name">{auditor.name}</span>
+              <button type="button" className="link-button" disabled={saving}
+                aria-label={`Remove ${auditor.name} from submission ${submission.submission_id}`}
+                onClick={() => save(assignedIds.filter((id) => id !== auditor.id))}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {assigned.length === 0 && (
-        <p className="submission-auditors-none">
-          Nobody assigned — this cannot be reviewed yet.
-        </p>
+        <p className="submission-auditors-none">Nobody assigned — this cannot be reviewed yet.</p>
+      )}
+      {available.length > 0 && (
+        <div className="auditor-add">
+          <label className="visually-hidden" htmlFor={selectId}>
+            Add an auditor to submission {submission.submission_id}
+          </label>
+          <select id={selectId} value={choice} disabled={saving}
+            onChange={(event) => setChoice(event.target.value)}>
+            <option value="">Select an auditor</option>
+            {available.map((auditor) => (
+              <option key={auditor.id} value={auditor.id}>{auditor.name} ({auditor.email})</option>
+            ))}
+          </select>
+          <button type="button" className="secondary-button" disabled={saving || !choice}
+            onClick={() => save([...assignedIds, choice])}>
+            Add as auditor
+          </button>
+        </div>
       )}
       {error && <p className="form-error" role="status">{error}</p>}
     </div>

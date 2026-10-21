@@ -18,6 +18,7 @@ from backend.app.repositories.submissions import (
     update_submission_status_if_unreviewed,
 )
 from backend.app.reviews.errors import (
+    ReviewNotAssigned,
     EvidenceIntegrityMismatch,
     EvidenceNotFound,
     InvalidReviewTransition,
@@ -142,13 +143,43 @@ def _to_review_summary(review: Review) -> ReviewSummary:
     )
 
 
-def list_pending_reviews(*, db: Session) -> list[PendingSubmissionSummary]:
+def _require_assignment(submission: Submission, auditor_id: str | None) -> None:
+    """Refuse unless this auditor is the one the company appointed.
+
+    An unassigned building is reviewable by nobody. That is deliberate: the
+    alternative is any auditor being able to approve evidence the owner never
+    asked them to look at.
+    """
+    if auditor_id is None:
+        return
+    assigned = submission.project.auditor_id if submission.project is not None else None
+    if assigned is None:
+        raise ReviewNotAssigned(
+            f"Submission {submission.id} belongs to a building with no auditor appointed. "
+            f"The company that owns it has to appoint one before it can be reviewed."
+        )
+    if assigned != auditor_id:
+        raise ReviewNotAssigned(
+            f"Submission {submission.id} is assigned to another auditor."
+        )
+
+
+def list_pending_reviews(*, db: Session, auditor_id: str | None = None) -> list[PendingSubmissionSummary]:
+    """Submissions awaiting review, narrowed to the ones this auditor was given.
+
+    `auditor_id=None` means "do not narrow" and exists for callers that are not
+    acting as a particular auditor.
+    """
     submissions = list_unreviewed_submissions(db)
+    if auditor_id is not None:
+        submissions = [item for item in submissions
+                       if item.project is not None and item.project.auditor_id == auditor_id]
     return [_to_pending_summary(submission) for submission in submissions]
 
 
-def get_review_detail(submission_id: int, *, db: Session) -> ReviewDetail:
+def get_review_detail(submission_id: int, *, db: Session, auditor_id: str | None = None) -> ReviewDetail:
     submission = _require_submission(db, submission_id)
+    _require_assignment(submission, auditor_id)
     metrics = get_metrics_for_submission(db, submission_id)
     review = get_review_for_submission(db, submission_id)
 
@@ -182,6 +213,9 @@ def decide_submission(
         raise InvalidReviewTransition(f"'{decision}' is not a valid review decision.")
 
     submission = _require_submission(db, submission_id)
+    # Checked here rather than only at the API edge, so the rule holds for any
+    # caller of this function.
+    _require_assignment(submission, reviewer_id)
 
     try:
         updated = update_submission_status_if_unreviewed(db, submission.id, decision)

@@ -75,7 +75,7 @@ async function renderReview(responses) {
       </AuthProvider>
     </MemoryRouter>,
   );
-  await screen.findByRole("heading", { name: /auditor review/i });
+  await screen.findByRole("heading", { name: /assigned projects/i });
 }
 
 async function openDetail() {

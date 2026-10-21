@@ -61,6 +61,10 @@ def make_submission(
     previous_submission_id: int | None = None,
 ) -> Submission:
     project = get_or_create_project(db, "Green Tower", "Acme Corp")
+    # A building has to have an appointed auditor before anyone can review it.
+    auditor = SQLAlchemyUserRepository(db).get_user_by_email("auditor@greenchain.test")
+    assert auditor is not None
+    project.auditor_id = auditor.id
     original_file = storage.store_original(BytesIO(original_bytes), f"{reporting_period}.csv", "text/csv")
     processed_file = storage.store_processed(BytesIO(PROCESSED_BYTES), f"{reporting_period}.csv", "text/csv")
     submission = create_submission(

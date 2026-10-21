@@ -24,14 +24,19 @@ const engineering = {
   organisation_id: "demo-org", location: "Bandar Sunway", country: null, property_type: null,
   submission_count: 2,
   latest_submission: { submission_id: 12, reporting_period: "2026-Q2", status: "UNREVIEWED", submitted_at: "2026-07-01T00:00:00Z" },
+  auditor: null,
 };
 const pharmacy = {
   project_id: 8, project_name: "Pharmacy Building", organisation: "Monash University Malaysia",
   organisation_id: "demo-org", location: null, country: null, property_type: null,
-  submission_count: 0, latest_submission: null,
+  submission_count: 0, latest_submission: null, auditor: null,
 };
 
-function mockApi({ user = company, buildings = [engineering, pharmacy], onPatch, onPost } = {}) {
+const dana = { id: "aud-1", name: "Dana Auditor", email: "dana@greenchain.test" };
+const sam = { id: "aud-2", name: "Sam Auditor", email: "sam@greenchain.test" };
+
+function mockApi({ user = company, buildings = [engineering, pharmacy], onPatch, onPost, onAssign,
+                  auditors = [dana, sam] } = {}) {
   global.fetch = vi.fn((url, options = {}) => {
     const request = String(url);
     const method = options.method || "GET";
@@ -44,6 +49,13 @@ function mockApi({ user = company, buildings = [engineering, pharmacy], onPatch,
     }
     if (request.includes("/projects/owned/") && method === "PATCH") {
       return Promise.resolve(onPatch ? onPatch(request, options) : jsonResponse(200, { building: engineering }));
+    }
+    if (request.endsWith("/projects/auditors")) {
+      return Promise.resolve(jsonResponse(200, { auditors }));
+    }
+    if (request.includes("/auditor") && method === "PUT") {
+      return Promise.resolve(onAssign ? onAssign(request, options)
+        : jsonResponse(200, { building: { ...engineering, auditor: dana } }));
     }
     if (request.includes("/submissions/projects/")) {
       return Promise.resolve(jsonResponse(200, { submissions: [
@@ -151,5 +163,72 @@ describe("manage buildings", () => {
     await screen.findByRole("heading", { name: "Manage Buildings" });
 
     expect(screen.getByRole("link", { name: "Manage Buildings" })).toHaveAttribute("href", "/buildings");
+  });
+});
+
+describe("appointing an auditor", () => {
+  async function openEngineering() {
+    renderAt("/buildings");
+    await screen.findByText("Engineering Building");
+    await userEvent.click(within(screen.getByText("Engineering Building").closest("li"))
+      .getByRole("button", { name: "Open" }));
+    return screen.findByLabelText("Who reviews this building");
+  }
+
+  test("a building with no auditor says so, and warns what that means", async () => {
+    mockApi();
+    const picker = await openEngineering();
+
+    expect(picker).toHaveValue("");
+    expect(screen.getAllByText("No auditor appointed").length).toBeGreaterThan(0);
+    expect(screen.getByText(/will not appear in any auditor's queue/i)).toBeInTheDocument();
+  });
+
+  test("only auditors are offered, and the choice is sent as an assignment", async () => {
+    let sent = null;
+    let sentUrl = "";
+    mockApi({
+      onAssign: (request, options) => {
+        sentUrl = request;
+        sent = JSON.parse(options.body);
+        return jsonResponse(200, { building: { ...engineering, auditor: dana } });
+      },
+    });
+    const picker = await openEngineering();
+
+    expect(within(picker).getByRole("option", { name: /Dana Auditor/ })).toHaveValue("aud-1");
+    expect(within(picker).getByRole("option", { name: /Sam Auditor/ })).toHaveValue("aud-2");
+
+    await userEvent.selectOptions(picker, "aud-1");
+
+    expect(await screen.findByText("Dana Auditor will review this building.")).toBeInTheDocument();
+    // Its own route, not the name-and-address edit.
+    expect(sentUrl).toMatch(/\/projects\/owned\/7\/auditor$/);
+    expect(sent).toEqual({ auditor_id: "aud-1" });
+    expect(screen.queryByText(/will not appear in any auditor's queue/i)).not.toBeInTheDocument();
+  });
+
+  test("withdrawing the appointment says what it costs", async () => {
+    mockApi({
+      buildings: [{ ...engineering, auditor: dana }, pharmacy],
+      onAssign: () => jsonResponse(200, { building: { ...engineering, auditor: null } }),
+    });
+    const picker = await openEngineering();
+    expect(picker).toHaveValue("aud-1");
+
+    await userEvent.selectOptions(picker, "");
+
+    expect(await screen.findByText(/reach nobody until you appoint one/i)).toBeInTheDocument();
+  });
+
+  test("the list shows the appointed auditor without opening the building", async () => {
+    mockApi({ buildings: [{ ...engineering, auditor: dana }, pharmacy] });
+    renderAt("/buildings");
+    await screen.findByText("Engineering Building");
+
+    const row = screen.getByText("Engineering Building").closest("li");
+    expect(within(row).getByText("Auditor: Dana Auditor")).toBeInTheDocument();
+    const other = screen.getByText("Pharmacy Building").closest("li");
+    expect(within(other).getByText("No auditor appointed")).toBeInTheDocument();
   });
 });

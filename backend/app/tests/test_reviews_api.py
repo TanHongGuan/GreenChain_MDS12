@@ -83,6 +83,10 @@ def seed_submission(
         original = storage.store_original(BytesIO(original_bytes), "report.csv", "text/csv")
         processed = storage.store_processed(BytesIO(original_bytes), "report.csv", "text/csv")
         project = get_or_create_project(db, "Green Tower", "Acme Corp")
+        # A building has to have an appointed auditor before anyone can review it.
+        auditor = SQLAlchemyUserRepository(db).get_user_by_email("auditor@greenchain.test")
+        assert auditor is not None
+        project.auditor_id = auditor.id
         submission = create_submission(
             db,
             project_id=project.id,
@@ -224,3 +228,84 @@ def test_hash_mismatch_is_surfaced_safely(client: TestClient, session_factory, s
 
     assert response.status_code == 200
     assert response.json()["submission"]["integrity"]["status"] == "MISMATCH"
+
+
+def _auditor_id(session_factory, email: str = "auditor@greenchain.test") -> str:
+    with session_factory() as db:
+        user = SQLAlchemyUserRepository(db).get_user_by_email(email)
+        assert user is not None
+        return user.id
+
+
+def _set_project_auditor(session_factory, submission_id: int, auditor_id: str | None) -> None:
+    from backend.app.models.project import Project
+    from backend.app.models.submission import Submission
+
+    with session_factory() as db:
+        submission = db.get(Submission, submission_id)
+        db.get(Project, submission.project_id).auditor_id = auditor_id
+        db.commit()
+
+
+def test_an_unassigned_building_appears_in_no_queue_and_cannot_be_reviewed(
+    client: TestClient, session_factory, storage
+) -> None:
+    """Nobody reviews a building until its owner appoints someone.
+
+    The alternative is any auditor approving evidence the owner never asked them
+    to look at, which is the thing the appointment exists to prevent.
+    """
+    submission_id = seed_submission(session_factory, storage)
+    _set_project_auditor(session_factory, submission_id, None)
+    login(client, "auditor@greenchain.test")
+
+    queue = client.get("/reviews/submissions/pending").json()["submissions"]
+    assert [item["submission_id"] for item in queue] == []
+
+    detail = client.get(f"/reviews/submissions/{submission_id}")
+    assert detail.status_code == 403
+    assert detail.json()["error"]["code"] == "REVIEW_NOT_ASSIGNED"
+
+    decision = client.post(f"/reviews/submissions/{submission_id}/decision",
+                           json={"decision": "APPROVED"})
+    assert decision.status_code == 403
+    assert decision.json()["error"]["code"] == "REVIEW_NOT_ASSIGNED"
+
+    # And the refusal is real, not a hidden button: the submission is untouched.
+    from backend.app.models.submission import Submission
+    with session_factory() as db:
+        assert db.get(Submission, submission_id).status == SUBMISSION_STATUS_UNREVIEWED
+
+
+def test_an_auditor_cannot_review_a_building_assigned_to_someone_else(
+    client: TestClient, session_factory, storage
+) -> None:
+    submission_id = seed_submission(session_factory, storage)
+    _set_project_auditor(session_factory, submission_id, "someone-else-entirely")
+    login(client, "auditor@greenchain.test")
+
+    assert client.get("/reviews/submissions/pending").json()["submissions"] == []
+    assert client.get(f"/reviews/submissions/{submission_id}").status_code == 403
+    assert client.post(f"/reviews/submissions/{submission_id}/decision",
+                       json={"decision": "APPROVED"}).status_code == 403
+    # Reading the evidence is part of reviewing, so it is refused too - otherwise
+    # the restriction would only hide a download button.
+    assert client.get(f"/reviews/submissions/{submission_id}/evidence/original").status_code == 403
+
+
+def test_the_assigned_auditor_sees_the_submission_and_can_decide(
+    client: TestClient, session_factory, storage
+) -> None:
+    submission_id = seed_submission(session_factory, storage)
+    _set_project_auditor(session_factory, submission_id, _auditor_id(session_factory))
+    login(client, "auditor@greenchain.test")
+
+    queue = client.get("/reviews/submissions/pending").json()["submissions"]
+    assert [item["submission_id"] for item in queue] == [submission_id]
+    assert client.get(f"/reviews/submissions/{submission_id}").status_code == 200
+    assert client.get(f"/reviews/submissions/{submission_id}/evidence/original").status_code == 200
+
+    decision = client.post(f"/reviews/submissions/{submission_id}/decision",
+                           json={"decision": "APPROVED"})
+    assert decision.status_code == 200, decision.text
+    assert decision.json()["status"] == "APPROVED"

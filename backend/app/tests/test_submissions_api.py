@@ -90,6 +90,10 @@ def seed_submission(
         original = storage.store_original(BytesIO(original_bytes), "report.csv", "text/csv")
         processed = storage.store_processed(BytesIO(original_bytes), "report.csv", "text/csv")
         project = get_or_create_project(db, "Green Tower", "GreenChain Demo Organisation")
+        # A building has to have an appointed auditor before anyone can review it.
+        auditor = SQLAlchemyUserRepository(db).get_user_by_email("auditor@greenchain.test")
+        assert auditor is not None
+        project.auditor_id = auditor.id
         submission = create_submission(
             db,
             project_id=project.id,

@@ -73,6 +73,8 @@ def make_submission(
     original_bytes: bytes = ORIGINAL_BYTES,
 ) -> Submission:
     project = get_or_create_project(db, "Green Tower", "Acme Corp")
+    # A building has to have an appointed auditor before anyone can review it.
+    project.auditor_id = user_id(db, "auditor@greenchain.test")
     original_file = storage.store_original(BytesIO(original_bytes), "report.csv", "text/csv")
     processed_file = storage.store_processed(BytesIO(PROCESSED_BYTES), "report.csv", "text/csv")
     submission = create_submission(

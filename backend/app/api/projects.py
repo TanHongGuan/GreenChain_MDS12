@@ -25,6 +25,8 @@ from backend.app.performance.service import (
 )
 from backend.app.models.project import Project
 from backend.app.models.organisation import Organisation
+from backend.app.models.user import User
+from backend.app.auth.models import UserRole
 from backend.app.models.monthly_record import MonthlyRecord
 from backend.app.models.submission import Submission, SUBMISSION_STATUS_APPROVED
 
@@ -38,6 +40,12 @@ class OwnedBuildingInput(BaseModel):
     property_type: str | None = None
 
 
+class AuditorAssignment(BaseModel):
+    """Who should review this building. None withdraws the appointment."""
+
+    auditor_id: str | None = None
+
+
 class OwnedBuildingEdit(BaseModel):
     """The only two fields a company may change about its own building.
 
@@ -49,12 +57,21 @@ class OwnedBuildingEdit(BaseModel):
     location: str | None = None
 
 
+def _auditor_summary(user: User | None) -> dict | None:
+    if user is None:
+        return None
+    return {"id": user.id, "name": user.name, "email": user.email}
+
+
 def _owned_building(project: Project, organisation: Organisation, summary: dict | None = None) -> dict:
     building = {
         "project_id": project.id, "project_name": project.name,
         "organisation_id": project.organisation_id, "organisation": organisation.name,
         "location": project.location, "country": project.country,
         "property_type": project.property_type,
+        # Null until the company appoints someone. While it is null the building's
+        # submissions appear in no reviewer's queue, which the UI has to say.
+        "auditor": _auditor_summary(project.auditor),
     }
     if summary is not None:
         # Counted from the submissions actually stored, never estimated. A building
@@ -160,6 +177,60 @@ def update_owned_building(
     name, fields = _validated_building_fields(payload, organisation, db, project_id=project_id)
     project.name = name
     project.location = fields["location"]
+    db.commit()
+    db.refresh(project)
+    summaries = _submission_summaries(db, [project.id])
+    return {"building": _owned_building(project, organisation, summaries[project.id])}
+
+
+@router.get("/auditors")
+def available_auditors(
+    _: AuthUser = Depends(require_permission(Permission.UPLOAD_SUBMISSION)),
+    db: Session = Depends(get_db),
+) -> dict:
+    """The auditors a company may appoint.
+
+    Auditors belong to no organisation - they review across all of them - so this
+    is every active auditor rather than a per-tenant list.
+    """
+    auditors = db.scalars(
+        select(User).where(User.role == UserRole.AUDITOR.value, User.is_active.is_(True))
+        .order_by(User.name, User.id)
+    ).all()
+    return {"auditors": [_auditor_summary(auditor) for auditor in auditors]}
+
+
+@router.put("/owned/{project_id}/auditor")
+def assign_building_auditor(
+    project_id: int,
+    payload: AuditorAssignment,
+    current_user: AuthUser = Depends(require_permission(Permission.UPLOAD_SUBMISSION)),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Appoint, change or withdraw the auditor for one of the company's buildings.
+
+    Kept apart from the name and address edit so that one stays what it says it
+    is. Appointing a reviewer is a different kind of act from correcting a label,
+    and only this route may do it.
+    """
+    organisation = db.get(Organisation, current_user.organisation_id) if current_user.organisation_id else None
+    if organisation is None:
+        raise api_error(status.HTTP_403_FORBIDDEN, "ORGANISATION_REQUIRED", "An organisation is required.")
+    project = db.get(Project, project_id)
+    if project is None or project.organisation_id != organisation.id:
+        raise api_error(status.HTTP_404_NOT_FOUND, "PROJECT_NOT_FOUND", "Building was not found.")
+
+    if payload.auditor_id:
+        auditor = db.get(User, payload.auditor_id)
+        # Only an auditor may be appointed to audit. Without this check a company
+        # could name itself, or a viewer, as the reviewer of its own evidence.
+        if auditor is None or auditor.role != UserRole.AUDITOR.value or not auditor.is_active:
+            raise api_error(status.HTTP_400_BAD_REQUEST, "INVALID_AUDITOR",
+                            "Select an auditor from the list.")
+        project.auditor_id = auditor.id
+    else:
+        project.auditor_id = None
+
     db.commit()
     db.refresh(project)
     summaries = _submission_summaries(db, [project.id])

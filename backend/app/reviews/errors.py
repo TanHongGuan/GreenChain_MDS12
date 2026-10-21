@@ -18,5 +18,14 @@ class EvidenceIntegrityMismatch(ReviewError):
     """Raised when a caller requires a strict SHA-256 match and verification fails."""
 
 
+class ReviewNotAssigned(ReviewError):
+    """Raised when an auditor acts on a building they were not appointed to.
+
+    Distinct from "not found" on purpose: the auditor role legitimately sees that
+    the submission exists, so pretending otherwise would be confusing rather than
+    protective. What they may not do is review it.
+    """
+
+
 class ReviewPersistenceFailure(ReviewError):
     """Raised when a review decision could not be committed."""

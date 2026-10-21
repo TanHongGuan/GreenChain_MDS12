@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 
 import { Panel } from "../components/Panel.jsx";
 import {
-  createOwnedBuilding, getOwnedBuildings, getProjectSubmissions, updateOwnedBuilding,
+  assignBuildingAuditor, createOwnedBuilding, getAvailableAuditors, getOwnedBuildings,
+  getProjectSubmissions, updateOwnedBuilding,
 } from "../services/dataService.js";
 import { displayDate } from "../utils/display.js";
 
@@ -15,7 +16,57 @@ function statusClass(status) {
   return `status-pill status-${String(status || "").toLowerCase()}`;
 }
 
-function BuildingDetail({ building, onSaved }) {
+// Appointing the auditor is its own control, not part of the name-and-address
+// form: it decides who may review this building's evidence, and until it is set
+// the building's submissions reach nobody's queue.
+function AuditorAppointment({ building, auditors, onSaved }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const appointed = building.auditor?.id || "";
+
+  async function choose(auditorId) {
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const updated = await assignBuildingAuditor(building.project_id, auditorId || null);
+      onSaved(updated);
+      setNotice(updated.auditor
+        ? `${updated.auditor.name} will review this building.`
+        : "Auditor removed. This building's submissions now reach nobody until you appoint one.");
+    } catch (problem) {
+      setError(problem.message || "The auditor could not be changed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="auditor-appointment">
+      <h3>Auditor</h3>
+      <div className="mapping-field">
+        <label htmlFor="building-auditor">Who reviews this building</label>
+        <select id="building-auditor" value={appointed} disabled={saving || !auditors.length}
+          onChange={(event) => choose(event.target.value)}>
+          <option value="">No auditor appointed</option>
+          {auditors.map((auditor) => (
+            <option key={auditor.id} value={auditor.id}>{auditor.name} ({auditor.email})</option>
+          ))}
+        </select>
+      </div>
+      {!appointed && <p className="form-warning" role="status">
+        Submissions for this building will not appear in any auditor&apos;s queue, and cannot be
+        approved, until you appoint one.
+      </p>}
+      {error && <p className="form-error" role="status">{error}</p>}
+      {notice && <p className="form-success" role="status">{notice}</p>}
+    </div>
+  );
+}
+
+
+function BuildingDetail({ building, auditors, onSaved }) {
   const [name, setName] = useState(building.project_name);
   const [location, setLocation] = useState(building.location || "");
   const [saving, setSaving] = useState(false);
@@ -88,6 +139,8 @@ function BuildingDetail({ building, onSaved }) {
         </div>
       </form>
 
+      <AuditorAppointment building={building} auditors={auditors} onSaved={onSaved} />
+
       <h3>Submission history</h3>
       {historyStatus === "loading" && <p>Loading submissions...</p>}
       {historyStatus === "error" && <p className="form-error" role="status">Submission history could not be loaded.</p>}
@@ -134,6 +187,7 @@ export function ManageBuildingsPage() {
   const [loadError, setLoadError] = useState("");
   const [openId, setOpenId] = useState(null);
 
+  const [auditors, setAuditors] = useState([]);
   const [newName, setNewName] = useState("");
   const [newLocation, setNewLocation] = useState("");
   const [creating, setCreating] = useState(false);
@@ -146,6 +200,11 @@ export function ManageBuildingsPage() {
     }).catch((error) => {
       if (active) { setLoadError(error.message); setStatus("error"); }
     });
+    // A failure here leaves the picker empty rather than breaking the page; the
+    // rest of building administration does not depend on it.
+    getAvailableAuditors().then((items) => {
+      if (active) setAuditors(items);
+    }).catch(() => {});
     return () => { active = false; };
   }, []);
 
@@ -232,6 +291,11 @@ export function ManageBuildingsPage() {
                     </span>
                   </>}
                 </p>
+                <p className="building-row-meta">
+                  {building.auditor
+                    ? <>Auditor: {building.auditor.name}</>
+                    : <span className="building-row-unassigned">No auditor appointed</span>}
+                </p>
               </div>
               <button type="button" className="secondary-button"
                 aria-expanded={openId === building.project_id}
@@ -243,7 +307,8 @@ export function ManageBuildingsPage() {
         </ul>
       )}
 
-      {open && <BuildingDetail key={open.project_id} building={open} onSaved={replaceBuilding} />}
+      {open && <BuildingDetail key={open.project_id} building={open} auditors={auditors}
+        onSaved={replaceBuilding} />}
     </section>
   );
 }

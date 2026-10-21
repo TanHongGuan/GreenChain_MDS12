@@ -331,7 +331,7 @@ describe("auditor role", () => {
   test("Auditor can access /review", async () => {
     await renderWithRestoredUser(auditor, "/review");
 
-    expect(screen.getByRole("heading", { name: /auditor review/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /assigned projects/i })).toBeInTheDocument();
   });
 
   test("Auditor cannot access /upload", async () => {

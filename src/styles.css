@@ -2558,3 +2558,25 @@ nav a[aria-current="page"]::after {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* The appointed auditor decides who may review a building's evidence, so an
+   unappointed building has to be visible as such rather than merely blank. */
+.auditor-appointment {
+  display: grid;
+  gap: 8px;
+}
+
+.auditor-appointment h3 {
+  margin: 0;
+}
+
+.building-row-unassigned {
+  color: #815c0b;
+  font-weight: 600;
+}
+
+.review-assigned-projects {
+  margin: 0 0 8px;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}

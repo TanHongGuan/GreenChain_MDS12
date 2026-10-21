@@ -10,6 +10,7 @@ from backend.app.auth.permissions import Permission
 from backend.app.core.database import get_db
 from backend.app.core.errors import api_error
 from backend.app.reviews.errors import (
+    ReviewNotAssigned,
     EvidenceNotFound,
     InvalidReviewTransition,
     ReviewPersistenceFailure,
@@ -104,24 +105,28 @@ def _integrity_payload(submission_id: int, db: Session, storage: StorageService)
 
 @router.get("/submissions/pending")
 def pending_submissions(
-    _: AuthUser = Depends(require_permission(Permission.REVIEW_SUBMISSION)),
+    current_user: AuthUser = Depends(require_permission(Permission.REVIEW_SUBMISSION)),
     db: Session = Depends(get_db),
 ) -> dict:
-    summaries = list_pending_reviews(db=db)
+    # The queue is the auditor's assigned work, not every unreviewed submission
+    # on the platform.
+    summaries = list_pending_reviews(db=db, auditor_id=current_user.id)
     return {"submissions": [_serialize_pending(summary) for summary in summaries]}
 
 
 @router.get("/submissions/{submission_id}")
 def review_detail(
     submission_id: int,
-    _: AuthUser = Depends(require_permission(Permission.REVIEW_SUBMISSION)),
+    current_user: AuthUser = Depends(require_permission(Permission.REVIEW_SUBMISSION)),
     db: Session = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
 ) -> dict:
     try:
-        detail = get_review_detail(submission_id, db=db)
+        detail = get_review_detail(submission_id, db=db, auditor_id=current_user.id)
     except SubmissionNotFound as exc:
         raise api_error(status.HTTP_404_NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission was not found.") from exc
+    except ReviewNotAssigned as exc:
+        raise api_error(status.HTTP_403_FORBIDDEN, "REVIEW_NOT_ASSIGNED", str(exc)) from exc
 
     integrity = _integrity_payload(submission_id, db, storage)
     return {"submission": _serialize_detail(detail, integrity)}
@@ -143,6 +148,8 @@ def review_decision(
         result = decide_submission(submission_id, clean_decision, clean_reason, current_user.id, db=db)
     except SubmissionNotFound as exc:
         raise api_error(status.HTTP_404_NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission was not found.") from exc
+    except ReviewNotAssigned as exc:
+        raise api_error(status.HTTP_403_FORBIDDEN, "REVIEW_NOT_ASSIGNED", str(exc)) from exc
     except InvalidReviewTransition as exc:
         raise api_error(
             status.HTTP_409_CONFLICT, "INVALID_REVIEW_STATE", "Only UNREVIEWED submissions can be reviewed."
@@ -168,11 +175,20 @@ def review_decision(
     }
 
 
+def _require_assigned(submission_id: int, current_user: AuthUser, db: Session) -> None:
+    try:
+        get_review_detail(submission_id, db=db, auditor_id=current_user.id)
+    except SubmissionNotFound as exc:
+        raise api_error(status.HTTP_404_NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission was not found.") from exc
+    except ReviewNotAssigned as exc:
+        raise api_error(status.HTTP_403_FORBIDDEN, "REVIEW_NOT_ASSIGNED", str(exc)) from exc
+
+
 @router.get("/submissions/{submission_id}/evidence/{kind}")
 def review_evidence(
     submission_id: int,
     kind: str,
-    _: AuthUser = Depends(require_permission(Permission.REVIEW_SUBMISSION)),
+    current_user: AuthUser = Depends(require_permission(Permission.REVIEW_SUBMISSION)),
     db: Session = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
 ) -> Response:
@@ -181,6 +197,9 @@ def review_evidence(
         raise api_error(
             status.HTTP_400_BAD_REQUEST, "INVALID_EVIDENCE_TYPE", "Evidence type must be original or processed."
         )
+    # Reading the evidence is part of reviewing, so it follows the same rule as
+    # the decision. Otherwise the restriction would only hide a button.
+    _require_assigned(submission_id, current_user, db)
 
     try:
         if clean_kind == "original":

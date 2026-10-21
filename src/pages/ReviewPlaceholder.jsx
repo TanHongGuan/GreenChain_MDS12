@@ -31,6 +31,12 @@ export function ReviewPlaceholder() {
     (!filters.period || item.reporting_period === filters.period) &&
     (!filters.search || `${item.project_name} ${item.organisation} ${item.submission_id}`.toLowerCase().includes(filters.search.toLowerCase()))
   ), [queue, filters]);
+  // The queue the backend returns is already only this auditor's assigned work,
+  // so the buildings in it are the buildings they were appointed to.
+  const assignedProjects = useMemo(
+    () => [...new Set(queue.map((item) => item.project_name))].sort(),
+    [queue],
+  );
   const needsAcknowledgement = detail && detail.integrity?.status !== "MATCH";
 
   useEffect(() => {
@@ -141,7 +147,11 @@ export function ReviewPlaceholder() {
     <section className="page-panel review-page">
       <div className="page-heading">
         <p className="eyebrow">Auditor Workspace</p>
-        <h1>Auditor Review</h1>
+        <h1>Assigned Projects</h1>
+        <p>
+          Buildings whose owners have appointed you to review them. Work on another building only
+          reaches you once that company appoints you to it.
+        </p>
       </div>
 
       <div className="review-filters" aria-label="Queue filters">
@@ -153,14 +163,25 @@ export function ReviewPlaceholder() {
 
       <div className="review-layout">
         <section className="review-queue" aria-label="Pending review queue">
-          <h2>Pending submissions <small>({filteredQueue.length} of {queue.length})</small></h2>
+          <h2>Awaiting your review <small>({filteredQueue.length} of {queue.length})</small></h2>
+          {queueStatus === "success" && assignedProjects.length > 0 && (
+            <p className="review-assigned-projects">
+              {assignedProjects.length} assigned {assignedProjects.length === 1 ? "building" : "buildings"}:{" "}
+              {assignedProjects.join(", ")}
+            </p>
+          )}
           {queueStatus === "loading" && <p>Loading submissions...</p>}
           {queueStatus === "error" && (
             <div className="form-error" role="status">
               {queueError}
             </div>
           )}
-          {queueStatus === "success" && queue.length === 0 && <p>No pending submissions.</p>}
+          {queueStatus === "success" && queue.length === 0 && (
+            <p>
+              Nothing is waiting for you. Either every building you are assigned to is up to date,
+              or no company has appointed you to one yet.
+            </p>
+          )}
           {queueStatus === "success" && queue.length > 0 && filteredQueue.length === 0 && <p>No submissions match these filters.</p>}
           {filteredQueue.length > 0 && (
             <div className="review-list">

@@ -60,10 +60,14 @@ export function PeriodComparison({ seriesByKey, definitions }) {
       <label>From<select value={from || points.at(-2)?.reporting_period || ""} onChange={(event) => setFrom(event.target.value)}>{points.map((point) => <option key={point.reporting_period} value={point.reporting_period}>{point.reporting_period}</option>)}</select></label>
       <label>To<select value={to || points.at(-1)?.reporting_period || ""} onChange={(event) => setTo(event.target.value)}>{points.map((point) => <option key={point.reporting_period} value={point.reporting_period}>{point.reporting_period}</option>)}</select></label>
     </div>
-    {!comparison || first.reporting_period === second.reporting_period ? <p>Choose two approved periods for the same metric.</p> : <div className="comparison-result">
-      <div><strong>{first.reporting_period}</strong><span>{format(first.value)} {displayUnit(definition.unit)}</span></div>
-      <div><strong>{second.reporting_period}</strong><span>{format(second.value)} {displayUnit(definition.unit)}</span></div>
-      <p>Change: {comparison.absolute > 0 ? "+" : ""}{format(comparison.absolute)} {displayUnit(definition.unit)}{comparison.percent === null ? "" : ` (${comparison.percent > 0 ? "+" : ""}${comparison.percent.toFixed(1)}%)`}</p>
+    {!comparison || first.reporting_period === second.reporting_period ? <p>Choose two different periods for the same metric.</p> : <div className="comparison-result">
+      <div className="comparison-period"><span className="comparison-label">{first.reporting_period}</span><span className="comparison-value">{format(first.value)} <small>{displayUnit(definition.unit)}</small></span></div>
+      <span className="comparison-arrow" aria-hidden="true">→</span>
+      <div className="comparison-period"><span className="comparison-label">{second.reporting_period}</span><span className="comparison-value">{format(second.value)} <small>{displayUnit(definition.unit)}</small></span></div>
+      <p className={`comparison-change comparison-change-${comparison.absolute > 0 ? "up" : comparison.absolute < 0 ? "down" : "flat"}`}>
+        <span className="comparison-label">Change</span>
+        <span>{comparison.absolute > 0 ? "+" : ""}{format(comparison.absolute)} {displayUnit(definition.unit)}{comparison.percent === null ? "" : ` (${comparison.percent > 0 ? "+" : ""}${comparison.percent.toFixed(1)}%)`}</span>
+      </p>
     </div>}
   </section>;
 }
@@ -75,6 +79,6 @@ export function VerificationChart({ submissions }) {
     <div className="verification-bar" role="img" aria-label={statuses.map(([key, label]) => `${label}: ${submissions.filter((item) => item.status === key).length}`).join(", ")}>
       {statuses.map(([key]) => <span key={key} className={`verification-${key.toLowerCase()}`} style={{ width: `${submissions.filter((item) => item.status === key).length / submissions.length * 100}%` }} />)}
     </div>
-    <div className="verification-legend">{statuses.map(([key, label]) => <span key={key}>{label}: {submissions.filter((item) => item.status === key).length}</span>)}</div>
+    <div className="verification-legend">{statuses.map(([key, label]) => <span key={key}><i className={`verification-swatch verification-${key.toLowerCase()}`} aria-hidden="true" />{label} <b>{submissions.filter((item) => item.status === key).length}</b></span>)}</div>
   </section>;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
-import { getApprovedMonthlyHistory, getProjectConsistency, getProjectDetail, getMetricHistory } from "../services/dataService.js";
+import { getApprovedMonthlyHistory, getProjectDetail, getMetricHistory } from "../services/dataService.js";
 import {
   getProjectSubmissions,
   getSubmissionDetail,
@@ -10,7 +10,6 @@ import {
 
 import { CORE_METRICS, metricDefinition, normalizedPoint, seriesForStatuses } from "../utils/metrics.js";
 import { PeriodComparison, TrendChart, VerificationChart } from "../components/MetricCharts.jsx";
-import { ConsistencyMatrix } from "../components/ConsistencyMatrix.jsx";
 import { Panel } from "../components/Panel.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { displayDate, displayUnit } from "../utils/display.js";
@@ -334,9 +333,6 @@ export function ProjectDetailPage() {
   const [submissionsStatus, setSubmissionsStatus] = useState("loading");
   const [submissionsError, setSubmissionsError] = useState("");
   const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
-  const [consistency, setConsistency] = useState(null);
-  const [consistencyStatus, setConsistencyStatus] = useState("loading");
-  const [consistencyError, setConsistencyError] = useState("");
   const [submissionDetail, setSubmissionDetail] = useState(null);
   const [submissionDetailStatus, setSubmissionDetailStatus] = useState("idle");
   const [submissionDetailError, setSubmissionDetailError] = useState("");
@@ -477,28 +473,6 @@ export function ProjectDetailPage() {
     };
   }, [selectedSubmissionId]);
 
-  useEffect(() => {
-    let isMounted = true;
-    setConsistencyStatus("loading");
-    setConsistencyError("");
-
-    getProjectConsistency(projectId)
-      .then((payload) => {
-        if (!isMounted) return;
-        setConsistency(payload);
-        setConsistencyStatus("success");
-      })
-      .catch((error) => {
-        if (!isMounted) return;
-        setConsistencyError(error.message || "Unable to load reporting consistency.");
-        setConsistencyStatus("error");
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [projectId]);
-
   if (detailStatus === "loading") {
     return (
       <section className="page-panel project-detail-page">
@@ -594,17 +568,6 @@ export function ProjectDetailPage() {
       </Panel>
 
       <VerificationChart submissions={verificationRecords} />
-
-      <Panel id="consistency-heading" title="Reporting Consistency" note="Coverage by metric and period">
-        <p className="panel-caveat">
-          Which metrics this project has reported, in which periods, and whether that data passed review.
-        </p>
-        {consistencyStatus === "loading" && <p>Loading reporting consistency...</p>}
-        {consistencyStatus === "error" && (
-          <div className="form-error" role="status">{consistencyError}</div>
-        )}
-        {consistencyStatus === "success" && <ConsistencyMatrix report={consistency} />}
-      </Panel>
 
       <Panel id="submission-records-heading" title="Submission Records" note="Evidence and review outcomes">
         {submissionsStatus === "loading" && <p>Loading submission records...</p>}

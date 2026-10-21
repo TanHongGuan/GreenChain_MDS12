@@ -2909,3 +2909,93 @@ nav a[aria-current="page"]::after {
   font-size: 0.85rem;
   font-weight: 400;
 }
+
+/* Period comparison: quiet period labels, clear values, the change as a pill. */
+.project-detail-page .comparison-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  align-items: center;
+  padding: 20px 0;
+}
+
+.project-detail-page .comparison-period {
+  display: grid;
+  gap: 4px;
+}
+
+.project-detail-page .comparison-label {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.project-detail-page .comparison-value {
+  color: var(--ink);
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.project-detail-page .comparison-value small {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.project-detail-page .comparison-arrow {
+  color: var(--leaf-300);
+  font-size: 1.2rem;
+}
+
+.project-detail-page .comparison-change {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 0 auto;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--leaf-50);
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.project-detail-page .comparison-change-down { background: #e8f5ed; color: #12583f; }
+.project-detail-page .comparison-change-up { background: #fdf3dc; color: #6b5200; }
+
+/* Verification: a coloured key beside each count, counts at body weight. */
+.project-detail-page .verification-legend {
+  gap: 20px;
+  margin-top: 10px;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.project-detail-page .verification-legend span {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 400;
+}
+
+.project-detail-page .verification-legend b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.project-detail-page .verification-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* Comparison selects: body weight, like the rest of the form controls. */
+.project-detail-page .comparison-controls label {
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.project-detail-page .comparison-controls select {
+  font-weight: 500;
+}

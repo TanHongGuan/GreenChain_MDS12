@@ -95,19 +95,6 @@ const submissionDetail = {
   ],
 };
 
-const consistencyReport = {
-  project_id: 42,
-  metrics: ["Electricity"],
-  periods: ["2026-Q1", "2026-Q2"],
-  cells: [
-    { metric_name: "Electricity", reporting_period: "2026-Q1", state: "APPROVED", value: 100, unit: "kWh", submission_id: 9 },
-    { metric_name: "Electricity", reporting_period: "2026-Q2", state: "APPROVED", value: 150, unit: "kWh", submission_id: 10 },
-  ],
-  approved_cells: 2,
-  total_cells: 2,
-  approved_coverage_percent: 100,
-};
-
 function jsonResponse(status, payload) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -137,9 +124,6 @@ async function renderProjectDetail(
         throw new Error(`Unexpected metric history call: ${requestUrl}`);
       }
       return Promise.resolve(response.clone());
-    }
-    if (requestUrl.endsWith(`/insights/projects/${projectId}/consistency`)) {
-      return Promise.resolve(jsonResponse(200, consistencyReport));
     }
     if (requestUrl.endsWith(`/submissions/projects/${projectId}`)) {
       return Promise.resolve(submissionsResponse.clone());
@@ -314,11 +298,11 @@ describe("project detail page", () => {
     expect(screen.getByText("Review and integrity")).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader", { name: "Metric" }).length).toBeGreaterThan(0);
   });
-  test("renders the reporting consistency section, and no benchmark section", async () => {
+  test("shows neither a reporting consistency nor a benchmark section", async () => {
     await renderProjectDetail();
 
-    expect(await screen.findByRole("heading", { name: "Reporting Consistency" })).toBeInTheDocument();
-    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Performance by quarter" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Reporting Consistency" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Performance vs Benchmark" })).not.toBeInTheDocument();
   });
 

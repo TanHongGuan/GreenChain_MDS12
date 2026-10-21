@@ -120,13 +120,7 @@ case "$(body "/projects/$PROJECT_ID/metrics/Electricity/history")" in
 esac
 
 step '9. Insights'
-check "benchmarks endpoint responds"  200 "$(code GET "/insights/projects/$PROJECT_ID/benchmarks")"
 check "consistency endpoint responds" 200 "$(code GET "/insights/projects/$PROJECT_ID/consistency")"
-case "$(body "/insights/projects/$PROJECT_ID/benchmarks")" in
-  *PROJECT_SCOPE_UNKNOWN*) ok "unscoped project reports PROJECT_SCOPE_UNKNOWN rather than guessing";;
-  *classification*)        ok "benchmark comparison returned a classification";;
-  *) bad "benchmarks returned no comparison and no reason";;
-esac
 
 printf '\n\033[1mResult:\033[0m %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

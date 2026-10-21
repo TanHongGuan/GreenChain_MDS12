@@ -21,14 +21,30 @@ describe("Compare page", () => {
     const user = userEvent.setup();
     render(<MemoryRouter><ComparePage /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "Electricity by building" })).toBeInTheDocument();
-    expect(screen.getByText("No approved submission")).toBeInTheDocument();
+    // Both review states are ticked by default, so Beta's unreviewed quarter is included.
+    expect(screen.getByRole("checkbox", { name: "Approved" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Unreviewed" })).toBeChecked();
+    expect(screen.getByRole("link", { name: "Unreviewed #3" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Approved #2" })).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Unreviewed" }));
+    expect(await screen.findByText("No submission")).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Unreviewed" }));
+    expect(await screen.findByRole("link", { name: "Unreviewed #3" })).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText("Metric"), "water");
     expect(screen.getByRole("heading", { name: "Water by building" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Remove Beta Hall" }));
     expect(screen.getByText("Select one more building for a comparison.")).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Organisation Performance" }));
-    expect(screen.getAllByText(/1 of 2 buildings reporting/).length).toBeGreaterThan(0);
-    await user.selectOptions(screen.getByLabelText("Reporting quarter"), "2025-Q4");
-    expect(screen.getAllByText(/2025-Q4 · 1 of 2 buildings reporting/).length).toBeGreaterThan(0);
+    // Opens on the latest quarters (here both of them), as a start-to-end range.
+    expect(screen.getByLabelText("Start quarter")).toHaveValue("2025-Q4");
+    expect(screen.getByLabelText("End quarter")).toHaveValue("2026-Q1");
+    // Electricity: Alpha (approved) and Beta (unreviewed) both report in the range.
+    expect(screen.getAllByText(/2025-Q4 to 2026-Q1 · 2 of 2 buildings reporting/).length).toBeGreaterThan(0);
+    // Alpha Hall: 100 + 120 across the range.
+    expect(screen.getAllByText(/^220/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Change 2025-Q4 to 2026-Q1: \+20\.0% \(1 matched building\)/).length).toBeGreaterThan(0);
+    // The end picker cannot go earlier than the start, so narrowing works from either side.
+    await user.selectOptions(screen.getByLabelText("End quarter"), "2025-Q4");
+    expect(screen.getAllByText(/^2025-Q4 · 1 of 2 buildings reporting/).length).toBeGreaterThan(0);
   });
 });

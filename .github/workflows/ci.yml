@@ -61,7 +61,6 @@ jobs:
       - name: Seed scripts run against a real schema
         run: |
           python -m backend.app.scripts.seed_auth
-          python -m backend.app.scripts.seed_benchmarks
 
   frontend:
     name: Frontend tests and build

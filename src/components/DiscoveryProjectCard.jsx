@@ -14,7 +14,12 @@ function formatMetric(metric) {
   })} ${displayUnit(metric.unit)}`;
 }
 
-export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = false, showLatestDecision = true }) {
+// showLocation / showLatestMetric let the home page keep its cards short; the
+// Highlighted page still shows both.
+export function DiscoveryProjectCard({
+  project, onToggleHighlight, isUpdating = false, showLatestDecision = true,
+  showLocation = true, showLatestMetric = true,
+}) {
   const detailUrl = `/projects/${project.project_id}`;
   const starLabel = project.highlighted
     ? `Remove ${project.project_name} from Highlighted`
@@ -44,14 +49,14 @@ export function DiscoveryProjectCard({ project, onToggleHighlight, isUpdating = 
             <dt>Organisation</dt>
             <dd>{project.organisation}</dd>
           </div>
-          <div>
+          {showLocation && <div>
             <dt>Location</dt>
             <dd>{project.location || "Not set"}</dd>
-          </div>
-          <div>
+          </div>}
+          {showLatestMetric && <div>
             <dt>Latest approved metric</dt>
             <dd>{formatMetric(project.trusted_metric)}</dd>
-          </div>
+          </div>}
           <div>
             <dt>Latest approved period</dt>
             <dd>{project.trusted_metric?.reporting_period || "Not available"}</dd>

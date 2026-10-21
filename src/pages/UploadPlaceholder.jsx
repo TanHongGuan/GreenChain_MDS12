@@ -339,12 +339,10 @@ export function UploadPlaceholder() {
       {stage === "confirm" && <section className="upload-confirm" aria-labelledby="confirm-heading">
         <h2 id="confirm-heading">Confirm submission</h2>
         <dl className="detail-grid"><div><dt>Project</dt><dd>{projectName}</dd></div><div><dt>Organisation</dt><dd>{organisation}</dd></div><div><dt>Period</dt><dd>{reportingPeriod}</dd></div><div><dt>File</dt><dd>{file?.name} ({(file?.size / 1024).toFixed(1)} KB)</dd></div></dl>
-        <p>Frontend preview only. The backend validates the final upload. {fileExtension(file?.name || "") === ".csv" ? `${previewRows.length} parsed row${previewRows.length === 1 ? "" : "s"}.` : ""}</p>
-        {mappingPreview && <p>Confirmed AI-assisted mapping for {mappingDraft.length} fields. The backend will validate all rows and perform unit conversions.</p>}
         {duplicateNames.length > 0 && <p className="form-warning" role="status">Repeated metric names: {duplicateNames.join(", ")}. Review these rows before submitting.</p>}
         {previewRows.length ? <div className="metrics-table-wrap"><table className="metrics-table"><thead><tr>{(preview.kind === "monthly" ? preview.columns : ["Metric", "Value", "Unit", "Category"]).map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>
           {previewRows.slice(0, 10).map((row, index) => <tr key={index}>{(preview.kind === "monthly" ? preview.columns.map((name) => row[name]) : [row.metric_name, row.value, row.unit, row.category || "—"]).map((value, column) => <td key={column}>{value}</td>)}</tr>)}
-        </tbody></table></div> : <p>{mappingPreview ? "The backend will extract data using the confirmed mapping." : "XLSX preview is unavailable in the browser; backend validation runs on confirmation."}</p>}
+        </tbody></table></div> : !mappingPreview && <p>XLSX preview is unavailable in the browser; backend validation runs on confirmation.</p>}
         {previewRows.length > 10 && <p>Showing the first 10 of {previewRows.length} rows.</p>}
         {notice && <div className="form-error" role="status">{notice}</div>}
         {fileIssues.length > 0 && <ul className="upload-issues">

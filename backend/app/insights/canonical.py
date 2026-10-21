@@ -1,29 +1,23 @@
-"""Canonical metric identity, units and direction for investor insights.
+"""Canonical metric identity and units for the project insights endpoints.
 
 This is the server-side mirror of `src/utils/metrics.js` (`CORE_METRICS` and
-`normalizedPoint`). The two must agree: if the frontend shows a project's CO2e in
-tCO2e while the backend benchmarks the raw kgCO2e figure, the page would display
-a value and a verdict computed from different numbers.
+`normalizedPoint`). The two must agree, or the page would show one figure while
+the reporting-consistency grid reports another.
 
 Why a table rather than free-text matching:
 
 - `metric_name` is a free-text column, and real uploads use several spellings for
   the same quantity ("Electricity" in the sample file, "electricity_consumption"
   in the test datasets). Without an alias table the same metric produces two
-  unrelated rows and never matches a benchmark.
+  unrelated rows.
 - Unit conversion is restricted to the exact pairs listed here. Anything else is
-  reported as a unit mismatch rather than converted on an assumed factor, which
-  is the behaviour the rest of this package depends on.
+  withheld rather than converted on an assumed factor.
 
-Adding a metric or a conversion factor changes what investors are told, so it is
+Adding a metric or a conversion factor changes what readers are told, so it is
 a team decision - and it must be made in both this file and `metrics.js`.
 """
 
 from dataclasses import dataclass, field
-
-LOWER_IS_BETTER = "LOWER_IS_BETTER"
-HIGHER_IS_BETTER = "HIGHER_IS_BETTER"
-
 
 @dataclass(frozen=True)
 class CanonicalMetric:
@@ -33,11 +27,9 @@ class CanonicalMetric:
     unit: str
     # Lowercased source unit -> multiplier that converts it to `unit`.
     unit_conversions: dict[str, float] = field(default_factory=dict)
-    direction: str = LOWER_IS_BETTER
 
 
-# The three metrics GreenChain presents. All are consumption or emission
-# quantities, so a smaller number is the better outcome for each.
+# The three metrics GreenChain presents.
 CANONICAL_METRICS: tuple[CanonicalMetric, ...] = (
     CanonicalMetric(
         key="electricity",
@@ -88,7 +80,7 @@ def to_canonical_value(value: float, unit: str, metric: CanonicalMetric) -> floa
     """Convert a reported value into the metric's canonical unit.
 
     Returns None when the reported unit is neither the canonical unit nor a
-    documented conversion - the caller reports that as a unit mismatch.
+    documented conversion; the caller withholds the value rather than guess.
     """
     if unit is None:
         return None

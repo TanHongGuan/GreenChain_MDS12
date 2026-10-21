@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ComparisonBarChart, OrganisationTrend } from "../components/ComparisonCharts.jsx";
 import { getComparisonSnapshot } from "../services/comparisonService.js";
-import { CORE_METRICS, comparisonRows, organisationSummary, organisations, reportingPeriods } from "../utils/comparison.js";
+import { CORE_METRICS, comparisonRows, latestPeriodRange, organisationRangeSummary, organisationSummary, organisations, periodsInRange, reportingPeriods } from "../utils/comparison.js";
 import { displayUnit } from "../utils/display.js";
 
 const format = (value) => Number(value).toLocaleString("en-MY", { maximumFractionDigits: 2 });
@@ -20,13 +20,16 @@ export function ComparePage() {
   const [view, setView] = useState("buildings");
   const [selectedIds, setSelectedIds] = useState([]);
   const [period, setPeriod] = useState("");
+  // Organisation view: a quarter range, opening on the latest four quarters.
+  const [startPeriod, setStartPeriod] = useState("");
+  const [endPeriod, setEndPeriod] = useState("");
   const [metricKey, setMetricKey] = useState("electricity");
   const [organisation, setOrganisation] = useState("");
   const [orgMetricKey, setOrgMetricKey] = useState("electricity");
   const [sort, setSort] = useState("desc");
-  // Which review states to compare. Approved only by default - that is what a
-  // viewer should see unless they deliberately ask for work still in review.
-  const [statuses, setStatuses] = useState(["APPROVED"]);
+  // Which review states to compare. Both by default; untick Unreviewed to see
+  // only figures an auditor has approved.
+  const [statuses, setStatuses] = useState(["APPROVED", "UNREVIEWED"]);
 
   function toggleStatus(status) {
     setStatuses((current) => current.includes(status)
@@ -43,6 +46,9 @@ export function ComparePage() {
       const periods = reportingPeriods(data.submissions);
       setPeriod((current) => (current && periods.includes(current)) ? current
         : (periods.includes("2026-Q1") ? "2026-Q1" : periods.at(-1) || ""));
+      const latest = latestPeriodRange(periods, 4);
+      setStartPeriod((current) => periods.includes(current) ? current : latest.start);
+      setEndPeriod((current) => periods.includes(current) ? current : latest.end);
       setSelectedIds((current) => {
         const stillThere = current.filter((id) => data.projects.some((p) => p.project_id === id));
         return stillThere.length ? stillThere
@@ -64,9 +70,11 @@ export function ComparePage() {
   const available = rows.filter((row) => row.values[metricKey] !== null);
   const chartRows = available.map((row) => ({ id: row.project.project_id, name: row.project.project_name, value: row.values[metricKey] }));
   const ranked = [...chartRows].sort((a, b) => a.value - b.value);
-  const summaries = CORE_METRICS.map((item) => ({ metric: item, result: organisationSummary(projects, submissions, organisation, period, item.key, statuses) }));
+  const rangePeriods = periodsInRange(periods, startPeriod, endPeriod);
+  const rangeLabel = startPeriod === endPeriod ? startPeriod : `${startPeriod} to ${endPeriod}`;
+  const summaries = CORE_METRICS.map((item) => ({ metric: item, result: organisationRangeSummary(projects, submissions, organisation, rangePeriods, item.key, statuses) }));
   const selectedSummary = summaries.find((item) => item.metric.key === orgMetricKey)?.result;
-  const trend = periods.map((quarter) => organisationSummary(projects, submissions, organisation, quarter, orgMetricKey, statuses));
+  const trend = rangePeriods.map((quarter) => organisationSummary(projects, submissions, organisation, quarter, orgMetricKey, statuses));
 
   function toggleBuilding(id) {
     setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : current.length < MAX_VISIBLE_BUILDINGS ? [...current, id] : current);
@@ -124,33 +132,35 @@ export function ComparePage() {
           </>}
         </section>
         <section className="compare-section" aria-labelledby="building-table-heading"><h2 id="building-table-heading">Quarterly values</h2>
-          {!rows.length ? <p>No buildings selected.</p> : <div className="compare-table-scroll"><table className="compare-table"><thead><tr><th>Building</th><th>Organisation</th><th>Quarter</th>{CORE_METRICS.map((item) => <th key={item.key}>{item.label} ({displayUnit(item.unit)})</th>)}<th>Approved source</th></tr></thead>
+          {!rows.length ? <p>No buildings selected.</p> : <div className="compare-table-scroll"><table className="compare-table"><thead><tr><th>Building</th><th>Organisation</th><th>Quarter</th>{CORE_METRICS.map((item) => <th key={item.key}>{item.label} ({displayUnit(item.unit)})</th>)}<th>Source submission</th></tr></thead>
             <tbody>{rows.map((row) => <tr key={row.project.project_id}><th><Link to={`/projects/${row.project.project_id}`}>{row.project.project_name}</Link></th><td>{row.project.organisation}</td><td>{period}</td>
               {CORE_METRICS.map((item) => <td key={item.key}>{row.values[item.key] === null ? <span className="missing-value">Missing</span> : format(row.values[item.key])}</td>)}
-              <td>{row.submissionId ? <Link to={`/projects/${row.project.project_id}`}>Approved #{row.submissionId}</Link> : <span className="missing-value">No approved submission</span>}</td>
+              <td>{row.submissionId ? <Link to={`/projects/${row.project.project_id}`}>{row.status === "APPROVED" ? "Approved" : "Unreviewed"} #{row.submissionId}</Link> : <span className="missing-value">No submission</span>}</td>
             </tr>)}</tbody></table></div>}
         </section>
       </> : <>
         <div className="compare-toolbar">
           <label className="compare-field">Organisation<select value={organisation} onChange={(event) => setOrganisation(event.target.value)}>{orgNames.map((name) => <option key={name}>{name}</option>)}</select></label>
-          <label className="compare-field">Reporting quarter<select value={period} onChange={(event) => setPeriod(event.target.value)}>{periods.map((item) => <option key={item}>{item}</option>)}</select></label>
+          {/* Each picker only offers quarters on its own side of the other, so the range can never run backwards. */}
+          <label className="compare-field">Start quarter<select value={startPeriod} onChange={(event) => setStartPeriod(event.target.value)}>{periods.filter((item) => !endPeriod || item <= endPeriod).map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label className="compare-field">End quarter<select value={endPeriod} onChange={(event) => setEndPeriod(event.target.value)}>{periods.filter((item) => !startPeriod || item >= startPeriod).map((item) => <option key={item}>{item}</option>)}</select></label>
         </div>
-        <div className="compare-org-heading"><h2>{organisation}</h2><p>{selectedSummary?.buildingCount || 0} buildings · {selectedSummary?.contributorCount || 0} with {orgMetric.label.toLowerCase()} data · {period}</p></div>
+        <div className="compare-org-heading"><h2>{organisation}</h2><p>{selectedSummary?.buildingCount || 0} buildings · {selectedSummary?.contributorCount || 0} with {orgMetric.label.toLowerCase()} data · {rangeLabel} ({rangePeriods.length} {rangePeriods.length === 1 ? "quarter" : "quarters"})</p></div>
         <div className="compare-kpis">{summaries.map(({ metric: item, result }) => <section key={item.key} className="compare-kpi">
           <h3>Total {item.label.toLowerCase()}</h3><strong>{result.total === null ? "Not available" : format(result.total)} {result.total === null ? "" : <small>{displayUnit(item.unit)}</small>}</strong>
-          <p>{period} · {result.contributorCount} of {result.buildingCount} buildings reporting</p>
-          <p>{result.matchedChangePercent === null ? "Previous-quarter comparison: Not available" : `Matched-building change vs ${result.previousPeriod}: ${result.matchedChangePercent > 0 ? "+" : ""}${result.matchedChangePercent.toFixed(1)}% (${result.matchedCount} ${result.matchedCount === 1 ? "building" : "buildings"})`}</p>
+          <p>{rangeLabel} · {result.contributorCount} of {result.buildingCount} buildings reporting</p>
+          <p>{result.matchedChangePercent === null ? `Change ${result.start} to ${result.end}: Not available` : `Change ${result.start} to ${result.end}: ${result.matchedChangePercent > 0 ? "+" : ""}${result.matchedChangePercent.toFixed(1)}% (${result.matchedCount} matched ${result.matchedCount === 1 ? "building" : "buildings"})`}</p>
         </section>)}</div>
         <section className="compare-section" aria-labelledby="org-trend-heading"><div className="compare-section-head"><h2 id="org-trend-heading">Quarterly reported totals</h2><MetricSelect id="org-metric" value={orgMetricKey} onChange={setOrgMetricKey} /></div>
           <OrganisationTrend points={trend} metric={orgMetric} />
         </section>
-        <section className="compare-section" aria-labelledby="contribution-heading"><h2 id="contribution-heading">Building contribution · {period}</h2>
-          <p className="compare-meta">{selectedSummary.contributorCount} of {selectedSummary.buildingCount} buildings have approved {orgMetric.label.toLowerCase()} data for {period}.</p>
+        <section className="compare-section" aria-labelledby="contribution-heading"><h2 id="contribution-heading">Building contribution · {rangeLabel}</h2>
+          <p className="compare-meta">{selectedSummary.contributorCount} of {selectedSummary.buildingCount} buildings have {orgMetric.label.toLowerCase()} data for {rangeLabel}. Each bar is the building&apos;s total across the range.</p>
           {selectedSummary.contributorCount < selectedSummary.buildingCount ? <p className="compare-coverage">Reported total based on available approved submissions. Some buildings have missing data.</p> : null}
-          <ComparisonBarChart metric={orgMetric} showShare rows={selectedSummary.contributors.map((row) => ({ id: row.project.project_id, name: row.project.project_name, value: row.values[orgMetricKey], share: row.share }))} />
+          <ComparisonBarChart metric={orgMetric} showShare rows={selectedSummary.contributors.map((row) => ({ id: row.project.project_id, name: row.project.project_name, value: row.value, share: row.share }))} />
         </section>
       </>}
-      <p className="compare-method">Only the latest approved submission per building and quarter is counted. Missing values are excluded, never treated as zero. Reported totals may not represent a complete organisational footprint.</p>
+      <p className="compare-method">Only the latest submission per building and quarter, among the ticked review states, is counted. Missing values are excluded, never treated as zero. Reported totals may not represent a complete organisational footprint.</p>
     </div>}
   </section>;
 }

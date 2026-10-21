@@ -33,7 +33,6 @@ export const decideSubmission = realReviews.decideSubmission;
 export const getHighlightedProjects = realDiscovery.getHighlightedProjects;
 export const addHighlightedProject = realDiscovery.addHighlightedProject;
 export const removeHighlightedProject = realDiscovery.removeHighlightedProject;
-export const getProjectBenchmarks = realInsights.getProjectBenchmarks;
 export const getProjectConsistency = realInsights.getProjectConsistency;
 export const getSubmissionEvidenceUrl = realSubmissions.getSubmissionEvidenceUrl;
 export const evidenceUrl = realReviews.evidenceUrl;

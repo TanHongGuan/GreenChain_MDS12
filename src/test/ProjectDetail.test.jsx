@@ -95,41 +95,6 @@ const submissionDetail = {
   ],
 };
 
-const benchmarkReport = {
-  project: {
-    project_id: 42,
-    project_name: "Green Tower",
-    organisation: "Acme Corp",
-    country: "Malaysia",
-    property_type: "Office",
-  },
-  tolerance_percent: 5,
-  comparisons: [
-    {
-      metric_name: "Electricity",
-      reporting_period: "2026-Q2",
-      submission_id: 10,
-      value: 150,
-      unit: "kWh",
-      direction: "LOWER_IS_BETTER",
-      benchmark_value: 200,
-      benchmark_unit: "kWh",
-      difference_percent: -25,
-      classification: "BETTER_THAN_TARGET",
-      reason: null,
-      source: {
-        provider: "GreenChain Demo Benchmark Set",
-        source_name: "Illustrative placeholder targets",
-        source_version: "demo-2026.1",
-        source_url: null,
-        country: "Malaysia",
-        property_type: "Office",
-        year: 2026,
-      },
-    },
-  ],
-};
-
 const consistencyReport = {
   project_id: 42,
   metrics: ["Electricity"],
@@ -172,9 +137,6 @@ async function renderProjectDetail(
         throw new Error(`Unexpected metric history call: ${requestUrl}`);
       }
       return Promise.resolve(response.clone());
-    }
-    if (requestUrl.endsWith(`/insights/projects/${projectId}/benchmarks`)) {
-      return Promise.resolve(jsonResponse(200, benchmarkReport));
     }
     if (requestUrl.endsWith(`/insights/projects/${projectId}/consistency`)) {
       return Promise.resolve(jsonResponse(200, consistencyReport));
@@ -352,15 +314,12 @@ describe("project detail page", () => {
     expect(screen.getByText("Review and integrity")).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader", { name: "Metric" }).length).toBeGreaterThan(0);
   });
-  test("renders Sprint 8 insights sections from the real API payloads", async () => {
+  test("renders the reporting consistency section, and no benchmark section", async () => {
     await renderProjectDetail();
 
-    expect(await screen.findByRole("heading", { name: "Performance vs Benchmark" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Reporting Consistency" })).toBeInTheDocument();
-    expect(screen.getAllByText("Better than target").length).toBeGreaterThan(0);
-    // The provider appears in the provenance line and again in the table twin.
-    expect(screen.getAllByText(/GreenChain Demo Benchmark Set/).length).toBeGreaterThan(0);
+    expect(await screen.findByRole("heading", { name: "Reporting Consistency" })).toBeInTheDocument();
     expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Performance vs Benchmark" })).not.toBeInTheDocument();
   });
 
   test("review-state selector controls what is requested and how it is drawn", async () => {
@@ -389,15 +348,21 @@ describe("project detail page", () => {
     });
 
     await screen.findByRole("heading", { name: "Performance by quarter" });
-    const selector = await screen.findByLabelText(/review state shown/i);
-
-    await userEvent.selectOptions(selector, "BOTH");
+    const filter = await screen.findByRole("group", { name: /review state shown/i });
+    const approved = within(filter).getByRole("checkbox", { name: "Approved" });
+    const unreviewed = within(filter).getByRole("checkbox", { name: "Unreviewed" });
+    // Both ticked by default, so unreviewed points are requested from the start.
+    expect(approved).toBeChecked();
+    expect(unreviewed).toBeChecked();
     await waitFor(() => expect(requested.some(Boolean)).toBe(true));
     expect(await screen.findByText(/drawn with a dashed line/i)).toBeInTheDocument();
 
-    await userEvent.selectOptions(selector, "APPROVED");
+    await userEvent.click(unreviewed);
     await waitFor(() => expect(requested.at(-1)).toBe(false));
     expect(screen.queryByText(/drawn with a dashed line/i)).not.toBeInTheDocument();
+
+    await userEvent.click(approved);
+    expect(await screen.findByText(/tick at least one review state/i)).toBeInTheDocument();
     global.fetch = original;
   });
 });

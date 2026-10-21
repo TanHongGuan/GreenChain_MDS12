@@ -17,7 +17,8 @@ const SORT_OPTIONS = [
   { value: "period_desc", label: "Latest period" },
   { value: "period_asc", label: "Earliest period" },
 ];
-const DEFAULT_STATUSES = ["APPROVED"];
+// Approved and unreviewed by default; rejected only when ticked.
+const DEFAULT_STATUSES = ["APPROVED", "UNREVIEWED"];
 const DEFAULT_PAGE_SIZE = 12;
 
 function splitStatuses(value) {

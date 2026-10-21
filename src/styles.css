@@ -234,8 +234,12 @@ nav a.active {
 }
 
 .danger-button {
+  /* Same box as .primary-button. It used to keep a 16px top margin, which sat
+     Reject 16px below Approve in the review decision row. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 46px;
-  margin-top: 16px;
   padding: 0 16px;
   color: #ffffff;
   background: #a84444;
@@ -416,6 +420,32 @@ nav a.active {
   justify-content: flex-end;
 }
 
+/* Approve / Reject and the confirm row: one height, one width, one baseline. */
+.decision-actions .primary-button,
+.decision-actions .danger-button,
+.decision-confirm .primary-button,
+.decision-confirm .danger-button,
+.decision-confirm .secondary-button {
+  min-width: 128px;
+}
+
+.decision-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.decision-confirm p {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
+.decision-confirm .secondary-button {
+  min-height: 46px;
+}
+
 .status-pill {
   display: inline-flex;
   min-height: 30px;
@@ -517,7 +547,6 @@ nav a.active {
 .trend-chart svg { width: 100%; height: auto; max-height: 230px; }
 .trend-chart text { fill: #566f61; font: 11px ui-sans-serif, sans-serif; }
 .chart-axis { stroke: #b2cdbe; stroke-width: 1; }
-.chart-sources { display: flex; flex-wrap: wrap; gap: 16px; }
 .chart-empty { padding: 24px 0; }
 .comparison-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .comparison-controls label { display: grid; gap: 8px; }
@@ -623,7 +652,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .trend-chart .chart-gridline { stroke: #e4efe9; stroke-dasharray: 4 4; }
 .trend-chart .chart-unit-label { font-weight: 700; }
 .chart-axis-note { margin: 4px 0 8px; color: var(--muted-ink); font-size: .78rem; }
-.chart-sources { gap: 8px 16px; }
 .comparison-controls { max-width: 760px; }
 .comparison-result { padding: 16px 0; border-top: 1px solid var(--line); }
 .comparison-result p { font-weight: 700; }
@@ -1413,19 +1441,6 @@ select:not([multiple]) {
   color: #445f53;
 }
 
-/* Chart colour roles. The two poles are a validated diverging pair (blue/red):
-   green/red was rejected because it is the classic red-green confusion case, and
-   the app's own green is already spoken for by "approved". Direction of better is
-   carried by the row sublabel and the legend note, never by hue alone. */
-.benchmark-insight {
-  --chart-below: #2a78d6;
-  --chart-above: #d03b3b;
-  --chart-grid: #e9f3ec;
-  --chart-baseline: #cfe1d6;
-  --chart-ink: #152b23;
-  --chart-ink-muted: #6a8678;
-}
-
 .chart-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1440,162 +1455,6 @@ select:not([multiple]) {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-}
-
-.chart-legend-note {
-  color: #6a8678;
-  font-style: italic;
-  /* A flex item defaults to min-width:auto, so this sentence refuses to shrink
-     below its own length and pushes the page wider than a phone viewport,
-     clipping every paragraph beside it. Let it wrap, and give it its own row
-     once the legend keys no longer leave space. */
-  flex: 1 1 16rem;
-  min-width: 0;
-}
-
-.chart-swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  display: inline-block;
-}
-
-.chart-swatch-below {
-  background: #2a78d6;
-}
-
-.chart-swatch-above {
-  background: #d03b3b;
-}
-
-.chart-frame {
-  border: 1px solid #d8e8dd;
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 8px 4px;
-  margin-bottom: 16px;
-}
-
-.benchmark-chart {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-/* Hairline, solid, recessive - never dashed. */
-.benchmark-chart .chart-gridline {
-  stroke: #e9f3ec;
-  stroke-width: 1;
-}
-
-.benchmark-chart .chart-baseline {
-  stroke: #cfe1d6;
-  stroke-width: 1;
-}
-
-.benchmark-chart .chart-tick {
-  fill: #6a8678;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.benchmark-chart .chart-axis-title {
-  fill: #445f53;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.benchmark-chart .chart-row-label {
-  fill: #152b23;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.benchmark-chart .chart-row-sublabel {
-  fill: #6a8678;
-  font-size: 11px;
-}
-
-.benchmark-chart .chart-value-inside {
-  fill: #ffffff;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.benchmark-chart .chart-value-outside {
-  fill: #445f53;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.benchmark-chart .benchmark-bar-below {
-  fill: #2a78d6;
-}
-
-.benchmark-chart .benchmark-bar-above {
-  fill: #d03b3b;
-}
-
-.benchmark-chart .benchmark-row {
-  cursor: default;
-}
-
-.benchmark-chart .benchmark-row-hit {
-  fill: transparent;
-}
-
-.benchmark-chart .benchmark-row-active {
-  fill: #eef7f1;
-}
-
-.benchmark-chart .benchmark-row:focus {
-  outline: none;
-}
-
-.benchmark-chart .benchmark-row:focus-visible .benchmark-row-hit {
-  stroke: #23835e;
-  stroke-width: 2;
-}
-
-.benchmark-provenance {
-  font-size: 0.85rem;
-  color: #445f53;
-  margin: 0 0 16px;
-  overflow-wrap: anywhere;
-}
-
-.benchmark-excluded {
-  border: 1px solid #d8e8dd;
-  border-radius: 8px;
-  background: #f6fbf8;
-  padding: 16px 16px;
-  margin-bottom: 16px;
-}
-
-.benchmark-excluded h3 {
-  margin: 0 0 8px;
-  font-size: 0.95rem;
-  color: #0f2a20;
-}
-
-.benchmark-excluded ul {
-  margin: 0;
-  padding-left: 16px;
-  font-size: 0.85rem;
-  color: #445f53;
-}
-
-.benchmark-excluded li + li {
-  margin-top: 8px;
-}
-
-.benchmark-table .table-note {
-  color: #6a8678;
-  font-size: 0.8rem;
 }
 
 /* --- reporting consistency matrix --- */
@@ -2173,22 +2032,9 @@ nav a[aria-current="page"]::after {
 }
 
 /* Review-state selector above the performance charts. */
+/* Tickboxes share the Compare page's .compare-status-filter look. */
 .chart-status-filter {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.chart-status-filter label {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--ink-muted);
-  white-space: nowrap;
-}
-
-.chart-status-filter select {
-  width: auto;
-  min-width: 200px;
+  margin-bottom: var(--space-1);
 }
 
 .chart-status-note {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comparisonRows, latestRecords, organisationSummary, previousQuarter } from "../utils/comparison.js";
+import { comparisonRows, latestPeriodRange, latestRecords, organisationRangeSummary, organisationSummary, periodsInRange, previousQuarter } from "../utils/comparison.js";
 
 const projects = [
   { project_id: 1, project_name: "Alpha", organisation: "Org A" },
@@ -61,5 +61,26 @@ describe("comparison aggregation", () => {
     expect(summary.matchedChangePercent).toBe(30);
     expect(organisationSummary(projects, submissions, "Org A", "2026-Q1", "water").matchedChangePercent).toBeNull();
     expect(previousQuarter("2026-Q1")).toBe("2025-Q4");
+  });
+
+  it("opens on the latest four quarters and filters a start-to-end range", () => {
+    const quarters = ["2025-Q2", "2025-Q3", "2025-Q4", "2026-Q1", "2026-Q2", "2026-Q3"];
+    expect(latestPeriodRange(quarters)).toEqual({ start: "2025-Q4", end: "2026-Q3" });
+    expect(latestPeriodRange(["2026-Q1"])).toEqual({ start: "2026-Q1", end: "2026-Q1" });
+    expect(latestPeriodRange([])).toEqual({ start: "", end: "" });
+    expect(periodsInRange(quarters, "2025-Q4", "2026-Q2")).toEqual(["2025-Q4", "2026-Q1", "2026-Q2"]);
+  });
+
+  it("sums each building across a range and compares end with start on matched buildings", () => {
+    const summary = organisationRangeSummary(projects, submissions, "Org A", ["2025-Q4", "2026-Q1"], "electricity");
+    // Alpha 100 + 130 (latest approved in Q1), Beta 200 (Q1 was rejected).
+    expect(summary.total).toBe(430);
+    expect(summary.contributorCount).toBe(2);
+    expect(summary.contributors.find((row) => row.project.project_id === 1).value).toBe(230);
+    // Only Alpha reported in both quarters: 100 -> 130.
+    expect(summary.matchedCount).toBe(1);
+    expect(summary.matchedChangePercent).toBe(30);
+    // A single-quarter range has nothing to compare against.
+    expect(organisationRangeSummary(projects, submissions, "Org A", ["2025-Q4"], "electricity").matchedChangePercent).toBeNull();
   });
 });

@@ -99,7 +99,9 @@ describe("upload submission", () => {
       new File(["metric_name,value,unit\nElectricity,10,kWh\n"], "energy.csv", { type: "text/csv" }),
     );
     await userEvent.click(screen.getByRole("button", { name: /review file/i }));
-    expect(await screen.findByText(/1 parsed row/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Confirm submission" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Electricity" })).toBeInTheDocument();
+    expect(screen.queryByText(/frontend preview only/i)).not.toBeInTheDocument();
     await userEvent.click(await screen.findByRole("button", { name: /confirm upload/i }));
 
     expect(await screen.findByText("Submission #123 is UNREVIEWED.")).toBeInTheDocument();
@@ -264,7 +266,8 @@ describe("upload submission", () => {
       "reporting_period,electricity_kwh,water_m3,co2_tco2e\n2026-01,1200,4,0.5\n",
     ], "monthly.csv", { type: "text/csv" }));
     await userEvent.click(screen.getByRole("button", { name: /review file/i }));
-    expect(await screen.findByText(/1 parsed row/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Confirm submission" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "2026-01" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /confirm upload/i }));
     expect(await screen.findByText("Submission #55 is UNREVIEWED.")).toBeInTheDocument();
   });

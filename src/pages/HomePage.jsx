@@ -40,6 +40,8 @@ function DiscoverySection({
               isUpdating={updatingProjectId === project.project_id}
               onToggleHighlight={onToggleHighlight}
               showLatestDecision={false}
+              showLocation={false}
+              showLatestMetric={false}
             />
           ))}
         </div>

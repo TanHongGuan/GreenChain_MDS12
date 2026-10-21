@@ -124,6 +124,10 @@ describe("Sprint 7 discovery and highlighted workflow", () => {
     expect(within(recently).getByText("Discovery Pending")).toBeInTheDocument();
     expect(within(recently).queryByText("Latest submission decision")).not.toBeInTheDocument();
     expect(within(recently).queryByText("UNREVIEWED")).not.toBeInTheDocument();
+    // Home cards are kept short: no address and no latest approved metric.
+    expect(within(recently).queryByText("Location")).not.toBeInTheDocument();
+    expect(within(recently).queryByText("Latest approved metric")).not.toBeInTheDocument();
+    expect(within(recently).getAllByText("Latest approved period").length).toBeGreaterThan(0);
     expect(within(recently).getByRole("link", { name: "View all" })).toHaveAttribute(
       "href",
       "/projects?sort=updated_desc",
@@ -172,6 +176,9 @@ describe("Sprint 7 discovery and highlighted workflow", () => {
 
     expect(await screen.findByRole("heading", { name: "Highlighted" })).toBeInTheDocument();
     expect(await screen.findByText("Discovery Solar")).toBeInTheDocument();
+    // The Highlighted page keeps the full card.
+    expect(screen.getAllByText("Location").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Latest approved metric").length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole("button", { name: "Remove Discovery Solar from Highlighted" }));
 

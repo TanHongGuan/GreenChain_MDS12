@@ -4,7 +4,7 @@ import { displayUnit } from "../utils/display.js";
 
 function format(value) { return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 
-export function TrendChart({ definition, points, onSelectSubmission }) {
+export function TrendChart({ definition, points }) {
   if (!points.length) return <p className="chart-empty">No values are available for this metric under the selected review states.</p>;
   if (points.length < 2) return <p className="chart-empty">Only one period is available. A trend needs at least two.</p>;
   const width = 680, height = 220, left = 72, top = 30, innerWidth = width - left - 24, innerHeight = height - top - 44;
@@ -41,7 +41,6 @@ export function TrendChart({ definition, points, onSelectSubmission }) {
       </g>)}
     </svg>
     <p className="chart-axis-note">Vertical axis: {format(min)}–{format(max)} {displayUnit(definition.unit)}. The axis is scaled to the observed range; it does not always start at zero.</p>
-    <div className="chart-sources">{points.map((point) => <button type="button" key={`${point.reporting_period}-${point.submission_id}`} className="text-button" onClick={() => onSelectSubmission(point.submission_id)}>{point.reporting_period} · #{point.submission_id}</button>)}</div>
   </div>;
 }
 

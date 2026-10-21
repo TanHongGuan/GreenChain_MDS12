@@ -81,3 +81,59 @@ export function organisationSummary(projects, submissions, organisation, period,
     matchedChangePercent: matched.length && previousMatched !== 0 ? (currentMatched - previousMatched) / previousMatched * 100 : null,
   };
 }
+
+// The latest `count` quarters present in the data, oldest first. Used to seed the
+// start/end pickers so the organisation view opens on the most recent year.
+export function latestPeriodRange(periods, count = 4) {
+  if (!periods.length) return { start: "", end: "" };
+  return { start: periods[Math.max(0, periods.length - count)], end: periods.at(-1) };
+}
+
+// Quarters from start to end inclusive. YYYY-Qn sorts correctly as a string.
+export function periodsInRange(periods, start, end) {
+  return periods.filter((period) => period >= start && period <= end);
+}
+
+// Organisation totals across a range of quarters. Each building's value is summed
+// over the quarters it reported; a quarter it did not report adds nothing rather
+// than zero. The change compares the end quarter with the start quarter using only
+// buildings that reported in both, so a building joining or leaving mid-range does
+// not read as a rise or a fall.
+export function organisationRangeSummary(projects, submissions, organisation, rangePeriods, metricKey,
+                                         statuses = ["APPROVED"]) {
+  const members = buildingsByOrganisation(projects, organisation);
+  const ids = members.map((item) => item.project_id);
+  const byBuilding = new Map();
+  const perQuarter = new Map();
+  for (const quarter of rangePeriods) {
+    const rows = comparisonRows(projects, submissions, ids, quarter, statuses);
+    const values = new Map();
+    for (const row of rows) {
+      const value = row.values[metricKey];
+      if (value === null) continue;
+      values.set(row.project.project_id, value);
+      const entry = byBuilding.get(row.project.project_id) || { project: row.project, value: 0, quarters: 0 };
+      entry.value += value;
+      entry.quarters += 1;
+      byBuilding.set(row.project.project_id, entry);
+    }
+    perQuarter.set(quarter, values);
+  }
+  const contributors = [...byBuilding.values()];
+  const total = contributors.reduce((sum, item) => sum + item.value, 0);
+  const start = rangePeriods[0] ?? null;
+  const end = rangePeriods.at(-1) ?? null;
+  const startValues = perQuarter.get(start) || new Map();
+  const endValues = perQuarter.get(end) || new Map();
+  const matched = start !== end ? [...endValues.keys()].filter((id) => startValues.has(id)) : [];
+  const startMatched = matched.reduce((sum, id) => sum + startValues.get(id), 0);
+  const endMatched = matched.reduce((sum, id) => sum + endValues.get(id), 0);
+  return {
+    start, end, quarterCount: rangePeriods.length,
+    buildingCount: members.length, contributorCount: contributors.length,
+    total: contributors.length ? total : null,
+    contributors: contributors.map((item) => ({ ...item, share: total > 0 ? item.value / total * 100 : null })),
+    matchedCount: matched.length,
+    matchedChangePercent: matched.length && startMatched !== 0 ? (endMatched - startMatched) / startMatched * 100 : null,
+  };
+}

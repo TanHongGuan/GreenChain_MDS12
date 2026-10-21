@@ -29,7 +29,6 @@ After changes: `ACCOUNT_SELECT_LOGIN=false .venv/bin/pytest -q` passed **373 tes
 - Local evidence storage does not provide WORM retention. Hui Zern must configure and verify S3 Object Lock separately if that is a deployment requirement.
 - The monthly API and additive upload response need agreement with Bradley (API/database), Gavyn (ETL data contract), Hui Zern (processed evidence storage), and Hong Guan (frontend and company-building UX) before production rollout.
 - Frontend CSV preview is advisory; final backend validation is authoritative. XLSX needs backend confirmation to inspect content.
-- Existing seeded benchmark figures remain separate demonstration content and are not inferred from these synthetic datasets.
 - The earlier `D01_Bayview_2026_Q1_VALID.xlsx` raw workbook is **not** one of the two agreed monthly input formats; it needs an explicit conversion to the `Monthly_Data` contract before upload. This implementation does not guess its meter-sheet layout.
 
 The repository already contained unrelated tracked deletions under `GreenChain_Realistic_Raw_Datasets_ETL_Pack (1)/` before this work; they were not restored or staged. No commit, push or PR was created.

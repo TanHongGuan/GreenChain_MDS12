@@ -1,16 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
-import { getApprovedMonthlyHistory, getProjectBenchmarks, getProjectConsistency, getProjectDetail, getMetricHistory } from "../services/dataService.js";
+import { getApprovedMonthlyHistory, getProjectConsistency, getProjectDetail, getMetricHistory } from "../services/dataService.js";
 import {
   getProjectSubmissions,
   getSubmissionDetail,
   getSubmissionEvidenceUrl,
 } from "../services/dataService.js";
 
-import { CHART_STATUS_FILTERS, CORE_METRICS, metricDefinition, normalizedPoint, seriesForStatuses, statusesFor } from "../utils/metrics.js";
+import { CORE_METRICS, metricDefinition, normalizedPoint, seriesForStatuses } from "../utils/metrics.js";
 import { PeriodComparison, TrendChart, VerificationChart } from "../components/MetricCharts.jsx";
-import { BenchmarkComparisonChart } from "../components/BenchmarkComparisonChart.jsx";
 import { ConsistencyMatrix } from "../components/ConsistencyMatrix.jsx";
 import { Panel } from "../components/Panel.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
@@ -23,6 +22,18 @@ function formatValue(value) {
     return "Not available";
   }
   return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+// Rejected is deliberately not offered: it failed review and must never be charted as evidence.
+const CHART_STATUS_OPTIONS = [["APPROVED", "Approved"], ["UNREVIEWED", "Unreviewed"]];
+
+function chartStatusNote(statuses) {
+  const approved = statuses.includes("APPROVED");
+  const unreviewed = statuses.includes("UNREVIEWED");
+  if (approved && unreviewed) return "Approved and unreviewed";
+  if (unreviewed) return "Unreviewed only";
+  if (approved) return "Approved only";
+  return "Nothing selected";
 }
 
 function statusClass(status) {
@@ -323,18 +334,22 @@ export function ProjectDetailPage() {
   const [submissionsStatus, setSubmissionsStatus] = useState("loading");
   const [submissionsError, setSubmissionsError] = useState("");
   const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
-  const [benchmarks, setBenchmarks] = useState(null);
-  const [benchmarksStatus, setBenchmarksStatus] = useState("loading");
-  const [benchmarksError, setBenchmarksError] = useState("");
   const [consistency, setConsistency] = useState(null);
   const [consistencyStatus, setConsistencyStatus] = useState("loading");
   const [consistencyError, setConsistencyError] = useState("");
   const [submissionDetail, setSubmissionDetail] = useState(null);
   const [submissionDetailStatus, setSubmissionDetailStatus] = useState("idle");
   const [submissionDetailError, setSubmissionDetailError] = useState("");
-  // Approved-only by default: a chart shown to a viewer should carry reviewed
-  // figures unless they deliberately ask to see what is still pending.
-  const [statusFilter, setStatusFilter] = useState("APPROVED");
+  // Both states by default. Unreviewed points are drawn dashed and hollow, and the
+  // note below says so, so pending figures are never mistaken for reviewed ones.
+  const [chartStatuses, setChartStatuses] = useState(["APPROVED", "UNREVIEWED"]);
+  // Fixed order, so the effect below sees the same key whichever box was ticked first.
+  const statusKey = CHART_STATUS_OPTIONS.map(([value]) => value).filter((value) => chartStatuses.includes(value)).join(",");
+
+  function toggleChartStatus(status) {
+    setChartStatuses((current) => current.includes(status)
+      ? current.filter((item) => item !== status) : [...current, status]);
+  }
   const [historyByKey, setHistoryByKey] = useState({});
   const [historyStatus, setHistoryStatus] = useState("loading");
   const [chartMetricKey, setChartMetricKey] = useState(CORE_METRICS[0].key);
@@ -355,12 +370,13 @@ export function ProjectDetailPage() {
 
   useEffect(() => {
     if (!detail) return undefined;
+    const statuses = statusKey ? statusKey.split(",") : [];
+    if (!statuses.length) { setHistoryByKey({}); setHistoryStatus("success"); return undefined; }
     let active = true;
     setHistoryStatus("loading");
     Promise.all(CORE_METRICS.map(async (definition) => {
       const existing = detail.metrics.find((metric) => metricDefinition(metric.metric_name)?.key === definition.key);
       try {
-        const statuses = statusesFor(statusFilter);
         // The endpoint returns approved rows always, and unreviewed ones only when
         // asked. Rejected rows are never returned by it at all.
         const response = await getMetricHistory(projectId, existing?.metric_name || definition.names[0], statuses.includes("UNREVIEWED"));
@@ -368,7 +384,7 @@ export function ProjectDetailPage() {
       } catch { return [definition.key, []]; }
     })).then((entries) => { if (active) { setHistoryByKey(Object.fromEntries(entries)); setHistoryStatus("success"); } });
     return () => { active = false; };
-  }, [detail, projectId, statusFilter]);
+  }, [detail, projectId, statusKey]);
 
   useEffect(() => {
     let isMounted = true;
@@ -463,22 +479,8 @@ export function ProjectDetailPage() {
 
   useEffect(() => {
     let isMounted = true;
-    setBenchmarksStatus("loading");
     setConsistencyStatus("loading");
-    setBenchmarksError("");
     setConsistencyError("");
-
-    getProjectBenchmarks(projectId)
-      .then((payload) => {
-        if (!isMounted) return;
-        setBenchmarks(payload);
-        setBenchmarksStatus("success");
-      })
-      .catch((error) => {
-        if (!isMounted) return;
-        setBenchmarksError(error.message || "Unable to load benchmark comparison.");
-        setBenchmarksStatus("error");
-      });
 
     getProjectConsistency(projectId)
       .then((payload) => {
@@ -545,25 +547,29 @@ export function ProjectDetailPage() {
       )}
 
       <Panel id="performance-heading" title="Performance by quarter"
-             note={CHART_STATUS_FILTERS.find(([value]) => value === statusFilter)?.[1]} defaultOpen>
-        <div className="chart-status-filter">
-          <label htmlFor="chart-status">Review state shown</label>
-          <select id="chart-status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-            {CHART_STATUS_FILTERS.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-          </select>
-        </div>
-        {statusFilter !== "APPROVED" && <p className="chart-status-note">
+             note={chartStatusNote(chartStatuses)} defaultOpen>
+        <fieldset className="compare-status-filter chart-status-filter">
+          <legend>Review state shown</legend>
+          {CHART_STATUS_OPTIONS.map(([value, label]) => (
+            <label key={value}>
+              <input type="checkbox" checked={chartStatuses.includes(value)} onChange={() => toggleChartStatus(value)} />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+        {chartStatuses.includes("UNREVIEWED") && <p className="chart-status-note">
           Unreviewed figures have not passed auditor review and are drawn with a dashed line and hollow points.
           Rejected submissions are never charted.
         </p>}
+        {!chartStatuses.length && <p className="form-warning" role="status">Tick at least one review state to show the charts.</p>}
         {historyStatus === "loading" && <p>Loading history...</p>}
-        {historyStatus === "success" && <>
+        {historyStatus === "success" && chartStatuses.length > 0 && <>
           <div className="metric-tabs" role="tablist" aria-label="Performance metric">
             {CORE_METRICS.map((definition) => <button key={definition.key} role="tab" type="button" id={`metric-tab-${definition.key}`} aria-selected={chartMetricKey === definition.key} aria-controls="metric-trend-panel" className={`metric-tab${chartMetricKey === definition.key ? " metric-tab-active" : ""}`} onClick={() => setChartMetricKey(definition.key)}>{definition.label}</button>)}
           </div>
           {CORE_METRICS.filter((definition) => definition.key === chartMetricKey).map((definition) => <section className="chart-section selected-trend" key={definition.key} id="metric-trend-panel" role="tabpanel" aria-labelledby={`metric-tab-${definition.key}`}>
             <h3>{definition.label} <small>{displayUnit(definition.unit)}</small></h3>
-            <TrendChart definition={definition} points={historyByKey[definition.key] || []} onSelectSubmission={setSelectedSubmissionId} />
+            <TrendChart definition={definition} points={historyByKey[definition.key] || []} />
           </section>)}
           <PeriodComparison seriesByKey={historyByKey} definitions={CORE_METRICS} />
         </>}
@@ -588,18 +594,6 @@ export function ProjectDetailPage() {
       </Panel>
 
       <VerificationChart submissions={verificationRecords} />
-
-      <Panel id="benchmark-heading" title="Performance vs Benchmark" note="Against published targets" defaultOpen>
-        <p className="panel-caveat">
-          Latest approved value for each metric against a published target for this project&apos;s country and
-          property type. Approval is a GreenChain review outcome, not independent certification.
-        </p>
-        {benchmarksStatus === "loading" && <p>Loading benchmark comparison...</p>}
-        {benchmarksStatus === "error" && (
-          <div className="form-error" role="status">{benchmarksError}</div>
-        )}
-        {benchmarksStatus === "success" && <BenchmarkComparisonChart report={benchmarks} />}
-      </Panel>
 
       <Panel id="consistency-heading" title="Reporting Consistency" note="Coverage by metric and period">
         <p className="panel-caveat">

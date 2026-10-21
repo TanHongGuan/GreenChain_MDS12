@@ -52,9 +52,8 @@ press **Log In**. No password, setup, AWS account or repo checkout is needed.
 * **Passwordless login.** `docker-compose.lan.yml` sets `ACCOUNT_SELECT_LOGIN=true`, so anyone who
   can reach the address can sign in as any account, including the auditor. The backend refuses this
   setting when `ENVIRONMENT=production`.
-* **No placeholder data.** `demo_up.sh` seeds only the three accounts. It does not run
-  `seed_benchmarks` (placeholder values), so projects, submissions and benchmarks come only from
-  real uploads.
+* **No placeholder data.** `demo_up.sh` seeds only the accounts, so projects and submissions come
+  only from real uploads.
 * **Same network required.** University and guest Wi-Fi often block device-to-device traffic
   (client isolation). If teammates cannot reach the host, use a phone hotspot or present from the
   host machine.

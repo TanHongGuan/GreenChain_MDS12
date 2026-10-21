@@ -34,6 +34,8 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       STORAGE_BACKEND: local
       LOCAL_STORAGE_ROOT: /app/var/storage
+      # Optional: only needed for spreadsheets in an unrecognised layout.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     volumes:
       # Evidence must outlive the container. Replace with the object-store
       # backend once that work lands.

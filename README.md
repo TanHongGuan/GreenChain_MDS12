@@ -259,26 +259,6 @@ With both servers running:
 
 ## Optional extras
 
-**Demonstration benchmarks.** Not for real datasets:
-
-```bash
-python -m backend.app.scripts.seed_benchmarks
-```
-
-These are **placeholder figures** attributed to `GreenChain Demo Benchmark Set demo-2026.1`, not to
-any real standards body. The provider and version are shown beside every comparison. Replace them
-with licensed data and bump `SOURCE_VERSION` before showing a comparison outside the project team.
-
-Benchmarks match on a project's country and property type, which uploads do not collect, so set
-them explicitly for any project you want benchmarked:
-
-```bash
-python -m backend.app.scripts.set_project_scope "Your Building Name" Malaysia Office
-```
-
-A project without a scope reports `PROJECT_SCOPE_UNKNOWN` rather than being compared against a
-guess.
-
 **S3 Object Lock evidence storage.** Instead of local disk, in `.env`:
 
 ```env
@@ -343,7 +323,7 @@ The original Sprint 1 foundation provided FastAPI authentication/RBAC, PostgreSQ
 
 The former frontend **mock mode** (fictional demo personas, buildings and submissions held in browser session storage) was removed on 2026-10-19; every page now reads and writes real backend data.
 
-Sprint 7 home discovery shows Recently Updated, Featured and New Projects sections, each linking into Projects with a preset the catalogue accepts. Sprint 8 adds benchmark comparison and reporting consistency to Project Detail. Benchmarks only appear once benchmark data is loaded; `seed_benchmarks` inserts placeholder values and is not run on the shared demo stack.
+Sprint 7 home discovery shows Recently Updated, Featured and New Projects sections, each linking into Projects with a preset the catalogue accepts. Sprint 8 adds reporting consistency to Project Detail. (Benchmark comparison was removed on 2026-10-21.)
 
 **Evidence storage:** `STORAGE_BACKEND=s3` stores evidence in a versioned S3 bucket with Object Lock (GOVERNANCE) retention, pins each submission to exact S3 version IDs and verifies files against an S3-recorded SHA-256. It was verified against a real AWS test bucket on 2026-10-19 (see `docs/STORAGE_S3_OBJECT_LOCK.md`). Local storage remains the development default.
 
@@ -434,40 +414,6 @@ Missing, malformed, expired or invalid tokens return `401`.
 
 Returns `204 No Content` and clears the auth cookie.
 
-### `GET /insights/projects/{project_id}/benchmarks`
-
-Sprint 8. Compares each metric's latest **APPROVED** value against the best-matching benchmark. Unreviewed and rejected data are never benchmarked. Any authenticated role may read it.
-
-```json
-{
-  "project": { "project_id": 105, "project_name": "Bukit Civic Annex", "organisation": "Demo Civic Trust",
-               "country": "Malaysia", "property_type": "Office" },
-  "tolerance_percent": 5.0,
-  "comparisons": [
-    { "metric_name": "Electricity", "reporting_period": "2026-Q2", "submission_id": 1112,
-      "value": 90000.0, "unit": "kWh", "direction": "LOWER_IS_BETTER",
-      "benchmark_value": 95000.0, "benchmark_unit": "kWh",
-      "difference_percent": -5.26, "classification": "BETTER_THAN_TARGET", "reason": null,
-      "source": { "provider": "GreenChain Demo Benchmark Set", "source_version": "demo-2026.1", "year": 2026 } }
-  ]
-}
-```
-
-`classification` is `BETTER_THAN_TARGET`, `AT_TARGET`, `WORSE_THAN_TARGET` or `NOT_COMPARABLE`. A value within `tolerance_percent` of the benchmark is `AT_TARGET`.
-
-A metric that cannot be benchmarked is still returned, with a machine-readable `reason`:
-
-| `reason` | Meaning |
-|---|---|
-| `PROJECT_SCOPE_UNKNOWN` | The project has no recorded country/property type. |
-| `NO_BENCHMARK_FOR_SCOPE` | No benchmark published for that scope/metric at or before the reporting year. |
-| `UNIT_MISMATCH` | The reported unit is not the canonical unit and has no documented conversion. |
-| `UNKNOWN_METRIC_DIRECTION` | The metric is not one of the canonical three. |
-| `BENCHMARK_NOT_USABLE` | The benchmark value is zero, so a percentage difference is undefined. |
-| `PERIOD_NOT_PARSEABLE` | The reporting period is not `YYYY-Qn`. |
-
-The UI renders these reasons rather than hiding the metric: a dropped bar and a passing bar look identical to someone scanning.
-
 ### `GET /insights/projects/{project_id}/consistency`
 
 Sprint 8. Which metric x period cells have approved data.
@@ -489,7 +435,7 @@ Sprint 8. Which metric x period cells have approved data.
 
 ### Canonical metrics
 
-Both insights endpoints resolve metric names and units through `backend/app/benchmarks/canonical.py`, the server-side mirror of `CORE_METRICS` in `src/utils/metrics.js`. **Change both together.**
+The consistency endpoint resolves metric names and units through `backend/app/insights/canonical.py`, the server-side mirror of `CORE_METRICS` in `src/utils/metrics.js`. **Change both together.**
 
 | Metric | Accepted names | Canonical unit | Accepted conversions |
 |---|---|---|---|
@@ -610,7 +556,7 @@ To let teammates upload from their own laptops into the S3 Object Lock bucket, r
 ./deploy/smoke_test.sh http://localhost:8000 "$DEV_SEED_PASSWORD"
 ```
 
-22 checks covering the full acceptance journey plus the negative paths: health, anonymous access denied, role boundaries enforced, malformed and oversized uploads rejected, upload → `UNREVIEWED` → approve → approved metrics visible → insights. It exits non-zero on the first failure, so it can gate a deploy. It is safe to run repeatedly; each run creates its own submission.
+Checks covering the full acceptance journey plus the negative paths: health, anonymous access denied, role boundaries enforced, malformed and oversized uploads rejected, upload → `UNREVIEWED` → approve → approved metrics visible → insights. It exits non-zero on the first failure, so it can gate a deploy. It is safe to run repeatedly; each run creates its own submission.
 
 ### Continuous integration
 
@@ -619,14 +565,13 @@ To let teammates upload from their own laptops into the S3 Object Lock bucket, r
 | Job | What it proves |
 |---|---|
 | `backend` | `pytest` against SQLite fixtures |
-| `migrations` | The chain upgrades, downgrades one revision and re-upgrades **against real PostgreSQL**, then both seed scripts run. Migration `0004` uses ALTER-constraint operations SQLite cannot execute, so this is the only place the chain is genuinely proven. |
+| `migrations` | The chain upgrades, downgrades one revision and re-upgrades **against real PostgreSQL**, then the account seed script runs. Migration `0004` uses ALTER-constraint operations SQLite cannot execute, so this is the only place the chain is genuinely proven. |
 | `frontend` | `vitest` and a production build |
 
 ### Handover notes
 
 - **Python 3.12 or newer.** The codebase uses syntax that 3.10 (the macOS default) cannot parse. CI and the Docker image both pin 3.12.
-- **Seed scripts are idempotent.** Re-running `seed_auth` updates existing users' passwords to the current `DEV_SEED_PASSWORD`; `seed_benchmarks` reports `0 new rows` on a second run.
-- **Benchmark data is placeholder.** Attributed to `GreenChain Demo Benchmark Set demo-2026.1`, never to a real standards body. Replace before any external claim.
+- **Seed scripts are idempotent.** Re-running `seed_auth` updates existing users' passwords to the current `DEV_SEED_PASSWORD`.
 - **Storage is local filesystem only.** S3 Object Lock / WORM is separate in-progress work behind the same `StorageService` protocol.
 - **Known gap — no tenant isolation.** `POST /submissions` accepts a caller-supplied organisation name with no membership check, and the auditor queue is global. Role boundaries are enforced; organisation boundaries are not. Do not run multi-organisation data on this until that is closed.
 

@@ -10,7 +10,7 @@ async function parseInsightsResponse(response) {
 
   if (!response.ok) {
     const message =
-      payload?.error?.message || payload?.message || payload?.detail || "Unable to load investor insights.";
+      payload?.error?.message || payload?.message || payload?.detail || "Unable to load project insights.";
     const error = new Error(message);
     error.status = response.status;
     error.code = payload?.error?.code || payload?.error;
@@ -18,13 +18,6 @@ async function parseInsightsResponse(response) {
   }
 
   return payload;
-}
-
-export async function getProjectBenchmarks(projectId) {
-  const response = await fetch(`${API_BASE_URL}/insights/projects/${projectId}/benchmarks`, {
-    credentials: "include",
-  });
-  return parseInsightsResponse(response);
 }
 
 export async function getProjectConsistency(projectId) {

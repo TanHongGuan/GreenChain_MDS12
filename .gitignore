@@ -47,5 +47,12 @@ coverage/
 .env.local
 .env.*.local
 
-# Zipped copies of folders already tracked here; derived, not sources.
+# Dataset workbooks are not pushed; the generators and the expected-totals CSVs
+# are. Rebuild them with the scripts in test_datasets/. The seed is fixed, so
+# every cell comes back the same - the file bytes differ only because openpyxl
+# stamps a fresh creation time into docProps/core.xml.
+#
+# test_datasets/workbooks/ is the exception: it is the supplied dataset pack and
+# has no generator. Recover it from git history if a fresh clone needs it.
+test_datasets/**/*.xlsx
 test_datasets/*.zip

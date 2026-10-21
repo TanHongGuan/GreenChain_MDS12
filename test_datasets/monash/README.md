@@ -77,3 +77,8 @@ refusal:
 
 Engineering's water needs its opening reading entered at the mapping step; the value is on each
 file's rules sheet.
+
+## The workbooks are not in git
+
+Only `generate.py` and the expected-totals CSVs are tracked. Rebuild the `.xlsx` files with
+`python test_datasets/monash/generate.py`. The seed is fixed, so every cell comes back identical.

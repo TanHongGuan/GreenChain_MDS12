@@ -45,3 +45,15 @@ A third building covering four consecutive quarters that cross the calendar boun
 
 Its water is daily consumption, not a meter reading, so no opening reading is needed. Its
 car park submeter is a share of the building intake and must not be added to it.
+
+## The workbooks are not in git
+
+Only the generator and the expected-totals CSVs are tracked. Rebuild the `.xlsx` files with:
+
+```bash
+python test_datasets/generate_company_datasets.py   # the 2026 sets
+cd test_datasets && python generate_rolling_year.py # 2025-Q4 to 2026-Q3
+```
+
+The seed is fixed, so every cell comes back identical and the expected files still verify. Only
+`docProps/core.xml` differs between runs, because openpyxl stamps the creation time.

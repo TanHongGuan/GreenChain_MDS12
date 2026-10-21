@@ -59,3 +59,15 @@ come back in a single refusal:
 | `Power_Log` | 2026-07-16 | `NO READING` where a figure belongs — `INVALID_NUMERIC` |
 | `Power_Log` | 2026-08-23 | reading left blank — `MISSING_VALUE` |
 | `Water_Meter` | 2026-08-02 | cumulative meter falls 112.80 m³ — `DECREASING_CUMULATIVE` |
+
+## The workbooks are not in git
+
+Only the generator and the expected-totals CSVs are tracked. Rebuild the `.xlsx` files with:
+
+```bash
+python test_datasets/generate_company_datasets.py   # the 2026 sets
+cd test_datasets && python generate_rolling_year.py # 2025-Q4 to 2026-Q3
+```
+
+The seed is fixed, so every cell comes back identical and the expected files still verify. Only
+`docProps/core.xml` differs between runs, because openpyxl stamps the creation time.

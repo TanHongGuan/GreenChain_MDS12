@@ -135,8 +135,15 @@ select:focus {
 }
 
 .primary-button {
+  /* Was relying on the browser's own button padding (1px 6px) and carrying a
+     16px top margin meant for standing alone, which pushed it out of line with
+     the buttons beside it. It now has the same box as .secondary-button, and
+     containers supply their own spacing through gap. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 46px;
-  margin-top: 16px;
+  padding: 0 16px;
   color: #ffffff;
   background: #176b4d;
 }
@@ -379,6 +386,30 @@ nav a.active {
 
 .evidence-actions .secondary-button {
   min-width: 150px;
+}
+
+/* The separation the primary button's own top margin used to provide, moved to
+   the row so every button in it keeps the same baseline. Containers that supply
+   their own gap zero it again below. */
+.decision-actions {
+  margin-top: 16px;
+}
+
+.upload-confirm-bar .decision-actions,
+.upload-result .decision-actions,
+.building-detail .decision-actions {
+  margin-top: 0;
+}
+
+/* One control height per action row. A 46px primary beside a 38px secondary
+   reads as a mistake however they are aligned, and 46px is what the inputs
+   above them already are. */
+.decision-actions .primary-button,
+.decision-actions .secondary-button,
+.decision-actions .danger-button,
+.upload-result .primary-button,
+.upload-result .secondary-button {
+  min-height: 46px;
 }
 
 .review-list-actions {
@@ -2575,12 +2606,27 @@ nav a[aria-current="page"]::after {
   gap: 8px;
   align-items: center;
   margin: 0;
+  /* Labels are bold by default because most of them head a field. These sit in a
+     table cell beside the figures, and should not out-shout them. */
   font-size: 0.85rem;
+  font-weight: 400;
   white-space: nowrap;
 }
 
 .submission-auditor-choice input {
   width: auto;
+  margin: 0;
+}
+
+/* The success panel had no layout of its own, so its two buttons rendered edge
+   to edge with no gap at all. Its actions now sit in the same row component the
+   other stages use, rather than loose in the panel. */
+.upload-result {
+  display: grid;
+  gap: 16px;
+}
+
+.upload-result p {
   margin: 0;
 }
 

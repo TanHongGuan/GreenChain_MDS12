@@ -267,8 +267,10 @@ export function UploadPlaceholder() {
       {stage === "success" ? <div className="upload-result" role="status">
         <p className="form-success">{notice}</p>
         <p>{result?.input_format?.startsWith("MONTHLY") && result?.processing_status === "COMPLETED" ? `Processed ${result.monthly_record_count} monthly record${result.monthly_record_count === 1 ? "" : "s"} from ${result.input_format}. ` : "Your submission was accepted by the backend. "}Awaiting auditor review.</p>
-        {result?.project_id && <Link to={`/projects/${result.project_id}`} className="secondary-button">View project</Link>}
-        <button type="button" className="secondary-button" onClick={() => { setStage("form"); setNotice(""); setResult(null); }}>New submission</button>
+        <div className="decision-actions">
+          {result?.project_id && <Link to={`/projects/${result.project_id}`} className="secondary-button">View project</Link>}
+          <button type="button" className="secondary-button" onClick={() => { setStage("form"); setNotice(""); setResult(null); }}>New submission</button>
+        </div>
       </div> : null}
 
       {stage === "mapping" && <section className="upload-confirm upload-review" aria-labelledby="mapping-heading">

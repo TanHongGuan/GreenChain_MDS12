@@ -152,6 +152,7 @@ export function ProjectsPage() {
         <h1>Projects</h1>
       </div>
 
+      <div className="catalogue-filters">
       <div className="catalogue-toolbar" aria-label="Project catalogue filters">
         <label className="catalogue-field catalogue-search">
           <span>Search</span>
@@ -215,7 +216,7 @@ export function ProjectsPage() {
       </div>
 
       <div className="catalogue-status-row" aria-label="Latest submission decision filters">
-        <span>Latest submission decision</span>
+        <span className="catalogue-status-label">Latest submission decision</span>
         {STATUS_OPTIONS.map((statusOption) => (
           <label key={statusOption} className="status-toggle">
             <input
@@ -230,6 +231,7 @@ export function ProjectsPage() {
           Reset
         </button>
       </div>
+      </div>
 
       {status === "loading" && <p>Loading projects...</p>}
       {status === "error" && (
@@ -239,7 +241,8 @@ export function ProjectsPage() {
       )}
       {status === "success" && (
         <div className="catalogue-summary" role="status">
-          Showing {projects.length} of {catalogue.total_items} project{catalogue.total_items === 1 ? "" : "s"}. Status and period filters refer to the latest submission.
+          <strong>Showing {projects.length} of {catalogue.total_items} project{catalogue.total_items === 1 ? "" : "s"}.</strong>{" "}
+          <span>Status and period filters refer to the latest submission.</span>
         </div>
       )}
       {status === "success" && projects.length === 0 && <p>No projects match the selected filters.</p>}
@@ -253,7 +256,7 @@ export function ProjectsPage() {
               className="project-list-item"
             >
               <span className="project-list-identity"><strong>{project.project_name}</strong><small>{project.organisation}</small>{project.trusted_metric?.reporting_period && <small>Approved data: {project.trusted_metric.reporting_period}</small>}</span>
-              <span>{project.location || "Not set"}</span>
+              <span className="project-list-location" title={project.location || undefined}>{project.location || "Not set"}</span>
               <span>{project.reporting_period || "Not available"}</span>
               <span className={statusClass(project.status)}>{project.status}</span>
               <span>{displayDate(project.updated_at)}</span>

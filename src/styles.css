@@ -2569,3 +2569,167 @@ nav a[aria-current="page"]::after {
   color: #815c0b;
   font-size: 0.85rem;
 }
+
+/* --- Projects page readability ----------------------------------------------
+   Same layout and palette; more air between things and light boxes so filters,
+   the result count and each project row read as separate blocks. Scoped to
+   .project-catalogue so nothing else changes. */
+.project-catalogue {
+  gap: var(--space-3);
+}
+
+.project-catalogue .catalogue-filters {
+  display: grid;
+  gap: 20px;
+  padding: 20px 24px;
+  background: var(--surface-alt);
+  border: 1px solid var(--leaf-100);
+  border-radius: 12px;
+}
+
+.project-catalogue .catalogue-toolbar {
+  gap: 20px 24px;
+}
+
+.project-catalogue .catalogue-field {
+  gap: 10px;
+}
+
+.project-catalogue .catalogue-field input,
+.project-catalogue .catalogue-field select {
+  background: var(--surface);
+}
+
+.project-catalogue .catalogue-status-row {
+  gap: 10px 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--leaf-100);
+}
+
+.project-catalogue .catalogue-status-label {
+  margin-right: 4px;
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+/* Each decision toggle is its own outlined chip; a ticked one is outlined in green. */
+.project-catalogue .status-toggle {
+  gap: 10px;
+  padding: 4px 12px 4px 10px;
+  background: var(--surface);
+  border: 1px solid var(--leaf-100);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.project-catalogue .status-toggle:has(input:checked) {
+  border-color: var(--leaf-300);
+  box-shadow: 0 0 0 1px var(--leaf-300) inset;
+}
+
+.project-catalogue .catalogue-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  font-weight: 400;
+}
+
+.project-catalogue .catalogue-summary strong {
+  color: var(--ink);
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.project-catalogue .catalogue-summary span {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+/* Rows become separate cards with space between them. */
+.project-catalogue .project-list {
+  gap: 12px;
+}
+
+.project-catalogue .project-list-head {
+  padding: 12px 24px;
+  background: var(--leaf-50);
+  border: 1px solid var(--leaf-100);
+  border-radius: 10px;
+  align-items: end;
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+}
+
+.project-catalogue .project-list-item {
+  padding: 20px 24px;
+  border: 1px solid var(--leaf-100);
+  border-radius: 12px;
+  background: var(--surface);
+  line-height: 1.45;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.project-catalogue .project-list-item:nth-child(odd) {
+  background: #fbfdfc;
+}
+
+.project-catalogue .project-list-item:hover {
+  border-color: var(--leaf-400);
+  background: var(--surface-alt);
+  box-shadow: 0 2px 10px rgba(15, 42, 32, 0.06);
+}
+
+.project-catalogue .project-list-identity {
+  gap: 6px;
+}
+
+.project-catalogue .project-list-identity strong {
+  font-size: 1.02rem;
+}
+
+.project-catalogue .project-list-identity small {
+  display: inline-block;
+  width: max-content;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--leaf-50);
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+}
+
+/* Long addresses: two lines, muted, full text on hover. */
+.project-catalogue .project-list-location {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.project-catalogue .project-view-link {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--leaf-50);
+}
+
+.project-catalogue .project-list-item:hover .project-view-link {
+  background: var(--leaf-100);
+}
+
+/* Wider screens: give the address more room and the columns more space. */
+@media (min-width: 901px) {
+  .project-catalogue .project-list-head,
+  .project-catalogue .project-list-item {
+    grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.7fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 0.9fr) 140px;
+    gap: 24px;
+  }
+}
+
+@media (max-width: 600px) {
+  .project-catalogue .catalogue-filters { padding: 16px; }
+  .project-catalogue .project-list-item { padding: 16px; }
+}

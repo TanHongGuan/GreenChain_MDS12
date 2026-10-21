@@ -142,16 +142,22 @@ It prints what it did, one line per account. Expect four accounts:
 |---|---|---|
 | `sonwoy@greenchain.test` | COMPANY | Sonwoy |
 | `monosh@greenchain.test` | COMPANY | Monosh |
+| `aisyah@greenchain.test` | AUDITOR (Aisyah Rahman) | — |
+| `daniel@greenchain.test` | AUDITOR (Daniel Chong) | — |
+| `priya@greenchain.test` | AUDITOR (Priya Nair) | — |
 | `viewer@greenchain.test` | VIEWER | — |
-| `auditor@greenchain.test` | AUDITOR | — |
 
-All four use whatever `DEV_SEED_PASSWORD` is currently set to — there is no universal password.
+All six use whatever `DEV_SEED_PASSWORD` is currently set to — there is no universal password.
 Re-running the script is safe: it does not duplicate users, but it **does reset their passwords**
 to the current setting.
 
 The two company accounts belong to different organisations on purpose. Each can only create
 buildings and upload for its own, which is how tenant isolation is demonstrated rather than
 asserted. The role is stored as `UPLOADER`; `COMPANY` is only what the interface calls it.
+
+Auditors belong to no organisation — they review across all of them. A company appoints one per
+building under **Manage Buildings**, and only that auditor may review that building's submissions.
+There are three so the appointment is a real choice.
 
 **Check:** the output ends with `Seeded development auth accounts.`
 
@@ -240,9 +246,12 @@ With both servers running:
    which; anything it could not settle is flagged and opened for you. Correct anything wrong, tick
    the confirmation and continue. *(This step needs `GEMINI_API_KEY`. A spreadsheet already in a
    recognised format skips it entirely.)*
-5. **Sign out, sign in as `auditor@greenchain.test`, open Review** and approve the submission.
+5. **Back in Manage Buildings, appoint an auditor** for that building — pick one of the three from
+   the **Auditor** dropdown. Until you do, the submission reaches nobody's queue and cannot be
+   approved.
+6. **Sign out, sign in as that auditor, open Assigned Projects** and approve the submission.
    Nothing appears in charts, Projects or Compare until an auditor approves it.
-6. **Sign in as `monosh@greenchain.test`** and repeat with
+7. **Sign in as `monosh@greenchain.test`** and repeat with
    [`test_datasets/monosh/`](test_datasets/monosh) to see two organisations side by side.
 
 ---
@@ -323,7 +332,8 @@ Teammates open `http://<host Wi-Fi IP>:8080`, pick an account from the dropdown 
 | "The AI did not answer within N seconds" on upload | The model was slow, not broken. Retry; if it persists, set a faster `GEMINI_MODEL` in `.env` and restart the backend. The backend log records the underlying error. |
 | "AI mapping is not configured correctly on the backend" | `GEMINI_API_KEY` is missing or rejected. Only spreadsheets in an unrecognised layout need it. |
 | Upload is refused listing several row problems | Working as intended: every bad row is reported at once, each naming its worksheet, row, date and column. Correct them all and upload again. |
-| Nothing appears in Projects, Compare or the charts after uploading | The submission is still `UNREVIEWED`. Sign in as `auditor@greenchain.test` and approve it; those views show approved data only. |
+| Nothing appears in Projects, Compare or the charts after uploading | The submission is still `UNREVIEWED`. Sign in as the building's appointed auditor and approve it; those views show approved data only. |
+| An auditor's Assigned Projects page is empty | No company has appointed them to a building yet. The owner appoints one under **Manage Buildings**; an unappointed building reaches nobody's queue. |
 | Upload page shows "You have no buildings yet" | Buildings are created under **Manage Buildings**, not on the upload page. |
 
 ## Current Implementation Status

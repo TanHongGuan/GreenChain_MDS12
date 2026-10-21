@@ -18,10 +18,19 @@ COMPANIES = (
     ("Monosh", "Monosh", "monosh@greenchain.test"),
 )
 
+# Auditors belong to no organisation: they review across all of them, and a
+# company picks one per building. More than one exists so that choice is a real
+# choice rather than a dropdown with a single entry.
+AUDITORS = (
+    ("Aisyah Rahman", "aisyah@greenchain.test"),
+    ("Daniel Chong", "daniel@greenchain.test"),
+    ("Priya Nair", "priya@greenchain.test"),
+)
+
 # Accounts this seeder removes if it finds them. The single shared uploader is
 # gone: it belonged to no particular company, so nothing it did could show
 # whether one organisation can reach another's data.
-RETIRED_EMAILS = ("uploader@greenchain.test",)
+RETIRED_EMAILS = ("uploader@greenchain.test", "auditor@greenchain.test")
 
 
 def upsert_user(db: Session, *, name: str, email: str, role: UserRole, password_hash: str) -> User:
@@ -78,13 +87,12 @@ def seed_auth_data() -> list[str]:
             role=UserRole.VIEWER,
             password_hash=password_hash,
         )
-        auditor = upsert_user(
-            db,
-            name="GreenChain Auditor",
-            email="auditor@greenchain.test",
-            role=UserRole.AUDITOR,
-            password_hash=password_hash,
-        )
+        auditors = [
+            upsert_user(db, name=name, email=email, role=UserRole.AUDITOR, password_hash=password_hash)
+            for name, email in AUDITORS
+        ]
+        for name, email in AUDITORS:
+            notes.append(f"{email}: auditor ({name})")
 
         for organisation_name, account_name, email in COMPANIES:
             organisation = db.scalars(select(Organisation).where(Organisation.name == organisation_name)).first()
@@ -109,7 +117,7 @@ def seed_auth_data() -> list[str]:
             notes.append(f"{email}: company account for {organisation_name}")
 
         # Viewers and auditors act across organisations, so they belong to none.
-        for user in (viewer, auditor):
+        for user in (viewer, *auditors):
             for membership in db.scalars(select(OrganisationMember).where(OrganisationMember.user_id == user.id)).all():
                 db.delete(membership)
 

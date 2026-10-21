@@ -93,7 +93,7 @@ if [ -n "$PROJECT_ID" ]; then ok "submission detail resolves project #$PROJECT_I
 case "$UPLOAD" in *UNREVIEWED*) ok "new submission starts UNREVIEWED";; *) bad "new submission is not UNREVIEWED";; esac
 
 step '7. Review'
-check "auditor can log in" 200 "$(login auditor@greenchain.test)"
+check "auditor can log in" 200 "$(login aisyah@greenchain.test)"
 check "auditor cannot upload" 403 \
   "$(code POST /submissions -F "project_name=$PROJECT" -F "organisation=Smoke Org" \
        -F "reporting_period=$PERIOD" -F "file=@$WORK/good.csv;type=text/csv")"

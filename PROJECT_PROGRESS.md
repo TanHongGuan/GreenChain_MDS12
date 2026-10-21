@@ -28,7 +28,8 @@ Last updated: 2026-10-09
   - `viewer@greenchain.test`
   - `sonwoy@greenchain.test` (company account for the Sonwoy organisation)
   - `monosh@greenchain.test` (company account for the Monosh organisation)
-  - `auditor@greenchain.test`
+  - `aisyah@greenchain.test`, `daniel@greenchain.test`, `priya@greenchain.test` (auditors; a
+    company appoints one per building)
 - Local test password is `123`.
 - Role-based routing is implemented:
   - Viewer can access Home, Highlighted, and Projects.

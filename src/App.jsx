@@ -4,7 +4,6 @@ import { ProtectedRoute } from "./auth/ProtectedRoute.jsx";
 import { RoleRoute } from "./auth/RoleRoute.jsx";
 import { Navbar } from "./components/Navbar.jsx";
 import { AccessDenied } from "./components/AccessDenied.jsx";
-import { HighlightedPage } from "./pages/HighlightedPage.jsx";
 import { HomePage } from "./pages/HomePage.jsx";
 import { LoginPage } from "./pages/LoginPage.jsx";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage.jsx";
@@ -33,7 +32,6 @@ export function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route index element={<HomePage />} />
-          <Route path="/highlighted" element={<HighlightedPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/compare" element={<ComparePage />} />
           <Route path="/projects/:projectId" element={<ProjectDetailPage />} />

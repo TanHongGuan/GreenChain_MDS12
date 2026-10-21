@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { addHighlightedProject, getHomeDiscovery, removeHighlightedProject } from "../services/dataService.js";
+import { getHomeDiscovery } from "../services/dataService.js";
 import { DiscoveryProjectCard } from "../components/DiscoveryProjectCard.jsx";
 
 // The home page shows recently updated projects and nothing else. The platform
@@ -16,8 +16,6 @@ function DiscoverySection({
   viewAllTo,
   note,
   emptyText = "No projects to show.",
-  updatingProjectId,
-  onToggleHighlight,
 }) {
   const items = projects || [];
   return (
@@ -37,8 +35,6 @@ function DiscoverySection({
             <DiscoveryProjectCard
               key={project.project_id}
               project={project}
-              isUpdating={updatingProjectId === project.project_id}
-              onToggleHighlight={onToggleHighlight}
               showLatestDecision={false}
               showLocation={false}
               showLatestMetric={false}
@@ -50,15 +46,10 @@ function DiscoverySection({
   );
 }
 
-function updateProject(projects, updatedProject) {
-  return projects.map((project) => (project.project_id === updatedProject.project_id ? updatedProject : project));
-}
-
 export function HomePage() {
   const [discovery, setDiscovery] = useState({ recently_updated: [] });
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
-  const [updatingProjectId, setUpdatingProjectId] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -86,27 +77,6 @@ export function HomePage() {
     };
   }, []);
 
-  async function handleToggleHighlight(project) {
-    setUpdatingProjectId(project.project_id);
-    setError("");
-    try {
-      const payload = project.highlighted
-        ? await removeHighlightedProject(project.project_id)
-        : await addHighlightedProject(project.project_id);
-      const updatedProject = project.highlighted
-        ? { ...project, highlighted: false }
-        : payload.project;
-      setDiscovery((current) => ({
-        ...current,
-        recently_updated: updateProject(current.recently_updated, updatedProject),
-      }));
-    } catch (err) {
-      setError(err.message || "Unable to update highlighted project.");
-    } finally {
-      setUpdatingProjectId(null);
-    }
-  }
-
   return (
     <section className="page-panel home-discovery-page">
       <div className="page-heading">
@@ -125,8 +95,6 @@ export function HomePage() {
           title="Recently updated projects"
           projects={discovery.recently_updated}
           viewAllTo="/projects?sort=updated_desc"
-          updatingProjectId={updatingProjectId}
-          onToggleHighlight={handleToggleHighlight}
         />
       )}
     </section>

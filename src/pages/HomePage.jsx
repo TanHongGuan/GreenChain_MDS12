@@ -1,27 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { addHighlightedProject, getHomeDiscovery, getProjectDetail, removeHighlightedProject } from "../services/dataService.js";
+import { addHighlightedProject, getHomeDiscovery, removeHighlightedProject } from "../services/dataService.js";
 import { DiscoveryProjectCard } from "../components/DiscoveryProjectCard.jsx";
-import { displayDate, displayUnit } from "../utils/display.js";
-import { CORE_METRICS, metricDefinition, normalizedPoint } from "../utils/metrics.js";
 
-const METRICS = [
-  ["electricity", "Electricity"],
-  ["water", "Water"],
-  ["co2", "CO2 emissions"],
-];
-
-function approvedMetric(detail, key) {
-  const definition = CORE_METRICS.find((metric) => metric.key === key);
-  const record = detail?.metrics?.find((metric) => metricDefinition(metric.metric_name)?.key === key)?.latest;
-  if (!record) return { value: "No approved data", period: null };
-  const normalized = normalizedPoint(record, definition) || record;
-  return {
-    value: `${Number(normalized.value).toLocaleString("en-MY", { maximumFractionDigits: 2 })} ${displayUnit(normalized.unit)}`,
-    period: record.reporting_period,
-  };
-}
+// The home page shows recently updated projects and nothing else. The platform
+// summary, the recent-submissions table, the latest-approved panel and the
+// featured and new sections are gone; Projects and Compare are where the rest
+// of that belongs.
 
 function DiscoverySection({
   id,
@@ -67,16 +53,10 @@ function updateProject(projects, updatedProject) {
 }
 
 export function HomePage() {
-  const [discovery, setDiscovery] = useState({
-    recently_updated: [],
-    featured: [],
-    new_projects: [],
-    featured_rule: "",
-  });
+  const [discovery, setDiscovery] = useState({ recently_updated: [] });
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
   const [updatingProjectId, setUpdatingProjectId] = useState(null);
-  const [preview, setPreview] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -84,21 +64,12 @@ export function HomePage() {
     setError("");
 
     getHomeDiscovery()
-      .then(async (payload) => {
+      .then((payload) => {
         if (!isMounted) {
           return;
         }
         setDiscovery(payload);
         setStatus("success");
-        const candidate = (payload.featured || []).find((item) => item.trusted_metric);
-        if (candidate) {
-          try {
-            const detail = await getProjectDetail(candidate.project_id);
-            if (isMounted) setPreview({ project: candidate, detail });
-          } catch {
-            if (isMounted) setPreview(null);
-          }
-        }
       })
       .catch((err) => {
         if (!isMounted) {
@@ -126,8 +97,6 @@ export function HomePage() {
       setDiscovery((current) => ({
         ...current,
         recently_updated: updateProject(current.recently_updated, updatedProject),
-        featured: updateProject(current.featured, updatedProject),
-        new_projects: updateProject(current.new_projects, updatedProject),
       }));
     } catch (err) {
       setError(err.message || "Unable to update highlighted project.");
@@ -149,79 +118,14 @@ export function HomePage() {
         </div>
       )}
       {status === "success" && (
-        <>
-          <div className="home-intro">
-            <div>
-              <p className="eyebrow">Sustainability records</p>
-              <h2>Project overview</h2>
-            </div>
-            <Link to="/projects" className="secondary-button">Browse projects</Link>
-          </div>
-          {discovery.summary && (
-            <dl className="platform-summary" aria-label="Platform summary">
-              {[
-                ["Projects", discovery.summary.total_projects],
-                ["Organisations", discovery.summary.total_organisations],
-                ["Submissions", discovery.summary.total_submissions],
-                ["Approved submissions", discovery.summary.approved_submissions],
-                ["Pending submissions", discovery.summary.unreviewed_submissions],
-              ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
-            </dl>
-          )}
-          {discovery.activity?.length > 0 && (
-            <section className="activity-section" aria-labelledby="activity-heading">
-              <div className="section-title-row"><h2 id="activity-heading">Recent submissions</h2><Link to="/projects">View projects</Link></div>
-              <div className="activity-table-scroll">
-                <div className="activity-row activity-header" aria-hidden="true"><span>Project</span><span>Organisation</span><span>Period</span><span>Decision</span><span>Submitted</span></div>
-                <div className="activity-list">
-                  {discovery.activity.map((item) => (
-                    <Link key={item.submission_id} to={`/projects/${item.project_id}`} className="activity-row">
-                      <strong>{item.project_name}</strong><span>{item.organisation}</span><span>{item.reporting_period}</span>
-                      <span className={`status-pill status-${item.status.toLowerCase()}`}>{item.status}</span>
-                      <time dateTime={item.submitted_at}>{displayDate(item.submitted_at)}</time>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )}
-          {preview && <section className="home-metric-preview" aria-labelledby="preview-heading">
-            <div className="section-title-row"><h2 id="preview-heading">Latest approved data</h2><Link to={`/projects/${preview.project.project_id}`}>{preview.project.project_name}</Link></div>
-            <p>Values below belong to this project only, not the whole platform.</p>
-            <dl>{METRICS.map(([key, label]) => {
-              const metric = approvedMetric(preview.detail, key);
-              return <div key={key}><dt>{label}</dt><dd>{metric.value}</dd>{metric.period && <small>Approved period: {metric.period}</small>}</div>;
-            })}</dl>
-          </section>}
-          <DiscoverySection
-            id="recent"
-            title="Recently updated projects"
-            projects={discovery.recently_updated}
-            viewAllTo="/projects?sort=updated_desc"
-            updatingProjectId={updatingProjectId}
-            onToggleHighlight={handleToggleHighlight}
-          />
-
-          <DiscoverySection
-            id="featured"
-            title="Featured sustainable projects"
-            projects={discovery.featured}
-            viewAllTo="/projects?status=APPROVED&sort=period_desc"
-            note={discovery.featured_rule}
-            emptyText="No project has approved data yet, so none can be featured."
-            updatingProjectId={updatingProjectId}
-            onToggleHighlight={handleToggleHighlight}
-          />
-
-          <DiscoverySection
-            id="new"
-            title="New projects"
-            projects={discovery.new_projects}
-            viewAllTo="/projects?sort=created_desc"
-            updatingProjectId={updatingProjectId}
-            onToggleHighlight={handleToggleHighlight}
-          />
-        </>
+        <DiscoverySection
+          id="recent"
+          title="Recently updated projects"
+          projects={discovery.recently_updated}
+          viewAllTo="/projects?sort=updated_desc"
+          updatingProjectId={updatingProjectId}
+          onToggleHighlight={handleToggleHighlight}
+        />
       )}
     </section>
   );

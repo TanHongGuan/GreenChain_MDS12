@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
-import { getApprovedMonthlyHistory, getProjectDetail, getMetricHistory } from "../services/dataService.js";
+import { getProjectDetail, getMetricHistory } from "../services/dataService.js";
 import {
   getProjectSubmissions,
   getSubmissionDetail,
@@ -349,21 +349,6 @@ export function ProjectDetailPage() {
   const [historyByKey, setHistoryByKey] = useState({});
   const [historyStatus, setHistoryStatus] = useState("loading");
   const [chartMetricKey, setChartMetricKey] = useState(CORE_METRICS[0].key);
-  const [monthlyRecords, setMonthlyRecords] = useState([]);
-  const [monthlyStatus, setMonthlyStatus] = useState("loading");
-  const [monthlyError, setMonthlyError] = useState("");
-
-  useEffect(() => {
-    let active = true;
-    setMonthlyStatus("loading");
-    getApprovedMonthlyHistory(projectId).then((payload) => {
-      if (active) { setMonthlyRecords(payload.monthly_records || []); setMonthlyStatus("success"); }
-    }).catch((error) => {
-      if (active) { setMonthlyError(error.message || "Unable to load monthly data."); setMonthlyStatus("error"); }
-    });
-    return () => { active = false; };
-  }, [projectId]);
-
   useEffect(() => {
     if (!detail) return undefined;
     const statuses = statusKey ? statusKey.split(",") : [];
@@ -549,27 +534,8 @@ export function ProjectDetailPage() {
         </>}
       </Panel>
 
-      <Panel id="monthly-performance-heading" title="Monthly performance" note="Approved monthly records only">
-        {monthlyStatus === "loading" && <p>Loading monthly history...</p>}
-        {monthlyStatus === "error" && <p className="form-error" role="status">{monthlyError}</p>}
-        {monthlyStatus === "success" && !monthlyRecords.length && <p>No approved monthly records yet.</p>}
-        {monthlyStatus === "success" && monthlyRecords.length > 0 && <>
-          <div className="metric-tabs" role="tablist" aria-label="Monthly performance metric">
-            {CORE_METRICS.map((definition) => <button key={definition.key} type="button" role="tab" aria-selected={chartMetricKey === definition.key} className={`metric-tab${chartMetricKey === definition.key ? " metric-tab-active" : ""}`} onClick={() => setChartMetricKey(definition.key)}>{definition.label}</button>)}
-          </div>
-          {CORE_METRICS.filter((definition) => definition.key === chartMetricKey).map((definition) => <div key={definition.key} className="chart-section">
-            <h3>{definition.label} <small>{displayUnit(definition.unit)}</small></h3>
-            <TrendChart definition={definition} points={monthlyRecords.map((row) => ({
-              reporting_period: row.reporting_period, submission_id: row.submission_id,
-              value: Number(row[definition.key === "electricity" ? "electricity_kwh" : definition.key === "water" ? "water_m3" : "co2_tco2e"]),
-            }))} onSelectSubmission={setSelectedSubmissionId} />
-          </div>)}
-        </>}
-      </Panel>
-
-      <VerificationChart submissions={verificationRecords} />
-
       <Panel id="submission-records-heading" title="Submission Records" note="Evidence and review outcomes">
+        <VerificationChart submissions={verificationRecords} embedded />
         {submissionsStatus === "loading" && <p>Loading submission records...</p>}
         {submissionsStatus === "error" && (
           <div className="form-error" role="status">

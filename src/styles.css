@@ -2999,3 +2999,19 @@ nav a[aria-current="page"]::after {
 .project-detail-page .comparison-controls select {
   font-weight: 500;
 }
+
+/* Verification summary at the top of the Submission Records panel. */
+.project-detail-page .verification-summary {
+  margin-bottom: var(--space-3);
+  padding: 16px 20px;
+  border: 1px solid var(--leaf-100);
+  border-radius: 10px;
+  background: var(--surface-alt);
+}
+
+.project-detail-page .verification-summary h3 {
+  margin: 0 0 12px;
+  color: var(--ink-muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+}

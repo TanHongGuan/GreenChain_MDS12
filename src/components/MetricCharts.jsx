@@ -72,10 +72,13 @@ export function PeriodComparison({ seriesByKey, definitions }) {
   </section>;
 }
 
-export function VerificationChart({ submissions }) {
-  if (!submissions.length) return <p>No submissions to classify.</p>;
+// `embedded` renders it as a summary at the top of the Submission Records panel,
+// with a subordinate heading and no section rule.
+export function VerificationChart({ submissions, embedded = false }) {
+  if (!submissions.length) return embedded ? null : <p>No submissions to classify.</p>;
   const statuses = [["APPROVED", "Approved"], ["UNREVIEWED", "Unreviewed"], ["REJECTED", "Rejected"]];
-  return <section className="chart-section" aria-labelledby="verification-heading"><h2 id="verification-heading">Submission verification</h2>
+  const Heading = embedded ? "h3" : "h2";
+  return <section className={embedded ? "verification-summary" : "chart-section"} aria-labelledby="verification-heading"><Heading id="verification-heading">Submission verification</Heading>
     <div className="verification-bar" role="img" aria-label={statuses.map(([key, label]) => `${label}: ${submissions.filter((item) => item.status === key).length}`).join(", ")}>
       {statuses.map(([key]) => <span key={key} className={`verification-${key.toLowerCase()}`} style={{ width: `${submissions.filter((item) => item.status === key).length / submissions.length * 100}%` }} />)}
     </div>

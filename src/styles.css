@@ -2755,3 +2755,157 @@ nav a[aria-current="page"]::after {
   .project-catalogue .catalogue-filters { padding: 16px; }
   .project-catalogue .project-list-item { padding: 16px; }
 }
+
+/* --- Project detail typography ------------------------------------------------
+   One clear order of importance: page title, then each metric's value, then
+   section headings, then everything else in regular weight. Labels and notes
+   drop to normal case and lighter weights so bold is reserved for what matters.
+   Scoped to the project detail page. */
+.project-detail-page .page-heading {
+  display: grid;
+  gap: 6px;
+  margin-bottom: var(--space-4);
+}
+
+.project-detail-page .detail-back-link {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  width: fit-content;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.project-detail-page .detail-back-link:hover {
+  color: var(--leaf-600);
+  text-decoration: underline;
+}
+
+.project-detail-page .eyebrow {
+  margin: 0;
+  color: var(--leaf-600);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.project-detail-page h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.project-detail-page .detail-location {
+  margin: 2px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+/* Metric cards: the number is the headline; everything else supports it. */
+.project-detail-page .metric-card {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 20px 22px;
+}
+
+.project-detail-page .metric-card h3 {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.project-detail-page .metric-card-value {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 1.85rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.project-detail-page .metric-card-unit {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.project-detail-page .metric-card-period {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.project-detail-page .metric-card-source {
+  width: fit-content;
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--leaf-200);
+  text-underline-offset: 3px;
+}
+
+.project-detail-page .metric-card-source:hover {
+  text-decoration-color: currentColor;
+}
+
+.project-detail-page .metric-card .comparison-badge {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--leaf-100);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* Section panels: a heading clearly above the body text, and a quiet note. */
+.project-detail-page .panel-summary {
+  align-items: center;
+}
+
+.project-detail-page .panel-summary h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.project-detail-page .panel-note {
+  font-size: 0.88rem;
+  font-weight: 400;
+}
+
+.project-detail-page .chart-status-filter legend {
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.project-detail-page .chart-status-filter label {
+  font-size: 0.95rem;
+}
+
+.project-detail-page .chart-status-note {
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.project-detail-page .metric-tab {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.project-detail-page .chart-section h3 {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.project-detail-page .chart-section h3 small {
+  margin-left: 4px;
+  font-size: 0.85rem;
+  font-weight: 400;
+}

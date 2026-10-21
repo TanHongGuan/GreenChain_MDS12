@@ -107,8 +107,8 @@ function MetricCard({ metric, onSelectSubmission }) {
         {formatValue(displayLatest?.value ?? latest.value)} <span className="metric-card-unit">{displayUnit(displayLatest?.unit || latest.unit)}</span>
       </p>
       <p className="metric-card-period">Approved period: {latest.reporting_period}</p>
-      <button type="button" className="text-button" onClick={() => onSelectSubmission(latest.submission_id)}>
-        Source submission #{latest.submission_id}
+      <button type="button" className="text-button metric-card-source" onClick={() => onSelectSubmission(latest.submission_id)}>
+        View source submission #{latest.submission_id}
       </button>
       {!displayLatest && <p>Unit is not supported for trend charts.</p>}
       <ComparisonBadge latest={displayLatest || latest} previous={displayPrevious || previous} />
@@ -525,13 +525,13 @@ export function ProjectDetailPage() {
   return (
     <section className="page-panel project-detail-page">
       <div className="page-heading">
+        <Link to={projectListUrl} className="detail-back-link">
+          <span aria-hidden="true">←</span> Back to projects
+        </Link>
         <p className="eyebrow">{detail.project.organisation}</p>
         <h1>{detail.project.project_name}</h1>
-        {detail.project.location && <p>{detail.project.location}</p>}
+        {detail.project.location && <p className="detail-location">{detail.project.location}</p>}
         {detail.project.description && <p>{detail.project.description}</p>}
-        <Link to={projectListUrl} className="secondary-button detail-back-link">
-          Back to projects
-        </Link>
       </div>
 
       {orderedMetrics.length === 0 && <p>No approved sustainability data yet for this project.</p>}

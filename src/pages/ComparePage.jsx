@@ -72,8 +72,7 @@ export function ComparePage() {
   const ranked = [...chartRows].sort((a, b) => a.value - b.value);
   const rangePeriods = periodsInRange(periods, startPeriod, endPeriod);
   const rangeLabel = startPeriod === endPeriod ? startPeriod : `${startPeriod} to ${endPeriod}`;
-  const summaries = CORE_METRICS.map((item) => ({ metric: item, result: organisationRangeSummary(projects, submissions, organisation, rangePeriods, item.key, statuses) }));
-  const selectedSummary = summaries.find((item) => item.metric.key === orgMetricKey)?.result;
+  const selectedSummary = organisationRangeSummary(projects, submissions, organisation, rangePeriods, orgMetricKey, statuses);
   const trend = rangePeriods.map((quarter) => organisationSummary(projects, submissions, organisation, quarter, orgMetricKey, statuses));
 
   function toggleBuilding(id) {
@@ -146,11 +145,6 @@ export function ComparePage() {
           <label className="compare-field">End quarter<select value={endPeriod} onChange={(event) => setEndPeriod(event.target.value)}>{periods.filter((item) => !startPeriod || item >= startPeriod).map((item) => <option key={item}>{item}</option>)}</select></label>
         </div>
         <div className="compare-org-heading"><h2>{organisation}</h2><p>{selectedSummary?.buildingCount || 0} buildings · {selectedSummary?.contributorCount || 0} with {orgMetric.label.toLowerCase()} data · {rangeLabel} ({rangePeriods.length} {rangePeriods.length === 1 ? "quarter" : "quarters"})</p></div>
-        <div className="compare-kpis">{summaries.map(({ metric: item, result }) => <section key={item.key} className="compare-kpi">
-          <h3>Total {item.label.toLowerCase()}</h3><strong>{result.total === null ? "Not available" : format(result.total)} {result.total === null ? "" : <small>{displayUnit(item.unit)}</small>}</strong>
-          <p>{rangeLabel} · {result.contributorCount} of {result.buildingCount} buildings reporting</p>
-          <p>{result.matchedChangePercent === null ? `Change ${result.start} to ${result.end}: Not available` : `Change ${result.start} to ${result.end}: ${result.matchedChangePercent > 0 ? "+" : ""}${result.matchedChangePercent.toFixed(1)}% (${result.matchedCount} matched ${result.matchedCount === 1 ? "building" : "buildings"})`}</p>
-        </section>)}</div>
         <section className="compare-section" aria-labelledby="org-trend-heading"><div className="compare-section-head"><h2 id="org-trend-heading">Quarterly reported totals</h2><MetricSelect id="org-metric" value={orgMetricKey} onChange={setOrgMetricKey} /></div>
           <OrganisationTrend points={trend} metric={orgMetric} />
         </section>

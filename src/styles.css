@@ -1307,12 +1307,6 @@ textarea:focus {
 .missing-value { color: #6a8678; }
 .compare-org-heading { margin: 0.7rem 0 1.2rem; }
 .compare-org-heading p { color: #4c6659; margin: 0; }
-.compare-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.3rem; }
-.compare-kpi { border-top: 2px solid #277b5c; padding: 0.7rem 0; min-width: 0; }
-.compare-kpi h3 { font-size: 0.88rem; color: #4c6659; margin: 0 0 0.5rem; }
-.compare-kpi strong { display: block; font-size: 1.55rem; line-height: 1.2; overflow-wrap: anywhere; }
-.compare-kpi strong small { color: #566f61; font-size: 0.85rem; }
-.compare-kpi p { margin: 0.5rem 0 0; color: #4c6659; font-size: 0.82rem; }
 .compare-section-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-end; }
 .compare-coverage { border-left: 3px solid #bb8a1b; padding-left: 0.7rem; color: #664d11; font-size: 0.88rem; }
 .organisation-trend svg { width: 100%; height: auto; max-height: 290px; overflow: visible; }
@@ -1321,7 +1315,6 @@ textarea:focus {
 .comparison-trend-point { fill: #176b4d; }
 .compare-page button:focus-visible, .compare-page select:focus-visible, .compare-page input:focus-visible { outline: 2px solid #176b4d; outline-offset: 2px; }
 @media (max-width: 720px) {
-  .compare-kpis { grid-template-columns: 1fr; }
   .comparison-bar-row { grid-template-columns: minmax(0, 1fr) minmax(90px, auto); gap: 0.2rem 0.6rem; }
   .comparison-bar-name { grid-column: 1 / -1; }
   .comparison-axis { margin-left: 0; }

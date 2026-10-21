@@ -39,12 +39,13 @@ describe("Compare page", () => {
     expect(screen.getByLabelText("Start quarter")).toHaveValue("2025-Q4");
     expect(screen.getByLabelText("End quarter")).toHaveValue("2026-Q1");
     // Electricity: Alpha (approved) and Beta (unreviewed) both report in the range.
-    expect(screen.getAllByText(/2025-Q4 to 2026-Q1 · 2 of 2 buildings reporting/).length).toBeGreaterThan(0);
-    // Alpha Hall: 100 + 120 across the range.
+    expect(screen.getByText(/2 buildings · 2 with electricity data · 2025-Q4 to 2026-Q1 \(2 quarters\)/)).toBeInTheDocument();
+    // The per-metric total cards were removed.
+    expect(screen.queryByRole("heading", { name: "Total electricity" })).not.toBeInTheDocument();
+    // Alpha Hall: 100 + 120 across the range, in the contribution chart.
     expect(screen.getAllByText(/^220/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Change 2025-Q4 to 2026-Q1: \+20\.0% \(1 matched building\)/).length).toBeGreaterThan(0);
     // The end picker cannot go earlier than the start, so narrowing works from either side.
     await user.selectOptions(screen.getByLabelText("End quarter"), "2025-Q4");
-    expect(screen.getAllByText(/^2025-Q4 · 1 of 2 buildings reporting/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/1 with electricity data · 2025-Q4 \(1 quarter\)/)).toBeInTheDocument();
   });
 });

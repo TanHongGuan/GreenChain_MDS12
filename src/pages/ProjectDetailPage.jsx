@@ -340,7 +340,10 @@ export function ProjectDetailPage() {
   // note below says so, so pending figures are never mistaken for reviewed ones.
   const [chartStatuses, setChartStatuses] = useState(["APPROVED", "UNREVIEWED"]);
   // Fixed order, so the effect below sees the same key whichever box was ticked first.
-  const statusKey = CHART_STATUS_OPTIONS.map(([value]) => value).filter((value) => chartStatuses.includes(value)).join(",");
+  // Viewers only ever see approved figures, so they get no choice of review state.
+  const isViewer = user?.role === "VIEWER";
+  const shownStatuses = isViewer ? ["APPROVED"] : chartStatuses;
+  const statusKey = CHART_STATUS_OPTIONS.map(([value]) => value).filter((value) => shownStatuses.includes(value)).join(",");
 
   function toggleChartStatus(status) {
     setChartStatuses((current) => current.includes(status)
@@ -506,7 +509,8 @@ export function ProjectDetailPage() {
       )}
 
       <Panel id="performance-heading" title="Performance by quarter"
-             note={chartStatusNote(chartStatuses)} defaultOpen>
+             note={chartStatusNote(shownStatuses)} defaultOpen>
+        {!isViewer && <>
         <fieldset className="compare-status-filter chart-status-filter">
           <legend>Review state shown</legend>
           {CHART_STATUS_OPTIONS.map(([value, label]) => (
@@ -521,8 +525,9 @@ export function ProjectDetailPage() {
           Rejected submissions are never charted.
         </p>}
         {!chartStatuses.length && <p className="form-warning" role="status">Tick at least one review state to show the charts.</p>}
+        </>}
         {historyStatus === "loading" && <p>Loading history...</p>}
-        {historyStatus === "success" && chartStatuses.length > 0 && <>
+        {historyStatus === "success" && shownStatuses.length > 0 && <>
           <div className="metric-tabs" role="tablist" aria-label="Performance metric">
             {CORE_METRICS.map((definition) => <button key={definition.key} role="tab" type="button" id={`metric-tab-${definition.key}`} aria-selected={chartMetricKey === definition.key} aria-controls="metric-trend-panel" className={`metric-tab${chartMetricKey === definition.key ? " metric-tab-active" : ""}`} onClick={() => setChartMetricKey(definition.key)}>{definition.label}</button>)}
           </div>

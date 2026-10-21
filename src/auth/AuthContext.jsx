@@ -68,6 +68,12 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// For components that may also render outside the provider (in isolated tests):
+// the signed-in context when there is one, otherwise null.
+export function useOptionalAuth() {
+  return useContext(AuthContext);
+}
+
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {

@@ -108,6 +108,7 @@ async function renderProjectDetail(
     submissionsResponse = jsonResponse(200, { submissions: submissionHistory }),
     submissionResponse = jsonResponse(200, { submission: submissionDetail }),
     histories = { Electricity: jsonResponse(200, electricityHistory) },
+    user = auditor,
   } = {},
   projectId = "42",
   route = `/projects/${projectId}`,
@@ -115,7 +116,7 @@ async function renderProjectDetail(
   global.fetch = vi.fn((url) => {
     const requestUrl = String(url);
     if (requestUrl.endsWith("/auth/me")) {
-      return Promise.resolve(jsonResponse(200, { user: auditor }));
+      return Promise.resolve(jsonResponse(200, { user }));
     }
     if (requestUrl.includes(`/projects/${projectId}/metrics/`)) {
       const metricName = decodeURIComponent(requestUrl.split(`/projects/${projectId}/metrics/`)[1].split("/")[0]);
@@ -349,4 +350,25 @@ describe("project detail page", () => {
     expect(await screen.findByText(/tick at least one review state/i)).toBeInTheDocument();
     global.fetch = original;
   });
+
+  test("viewers get no review-state choice and only ever request approved history", async () => {
+    const viewer = { ...auditor, id: "viewer-id", email: "viewer@greenchain.test", role: "VIEWER" };
+    await renderProjectDetail({ user: viewer });
+
+    expect(await screen.findByRole("heading", { name: "Performance by quarter" })).toBeInTheDocument();
+    await waitFor(() => expect(global.fetch.mock.calls.some(([url]) => String(url).includes("/metrics/"))).toBe(true));
+    expect(screen.queryByRole("group", { name: /review state shown/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/drawn with a dashed line/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Approved only")).toBeInTheDocument();
+    const historyCalls = global.fetch.mock.calls.map(([url]) => String(url)).filter((url) => url.includes("/metrics/"));
+    expect(historyCalls.every((url) => !url.includes("include_unreviewed=true"))).toBe(true);
+  });
+
+  test("companies and auditors keep the review-state choice, both ticked", async () => {
+    await renderProjectDetail();
+    const filter = await screen.findByRole("group", { name: /review state shown/i });
+    expect(within(filter).getByRole("checkbox", { name: "Approved" })).toBeChecked();
+    expect(within(filter).getByRole("checkbox", { name: "Unreviewed" })).toBeChecked();
+  });
 });
+

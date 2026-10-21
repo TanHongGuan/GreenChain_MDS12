@@ -4,6 +4,7 @@ import { ComparisonBarChart, OrganisationTrend } from "../components/ComparisonC
 import { getComparisonSnapshot } from "../services/comparisonService.js";
 import { CORE_METRICS, comparisonRows, latestPeriodRange, organisationRangeSummary, organisationSummary, organisations, periodsInRange, reportingPeriods } from "../utils/comparison.js";
 import { displayUnit } from "../utils/display.js";
+import { useOptionalAuth } from "../auth/AuthContext.jsx";
 
 const format = (value) => Number(value).toLocaleString("en-MY", { maximumFractionDigits: 2 });
 const MAX_VISIBLE_BUILDINGS = 6;
@@ -29,7 +30,10 @@ export function ComparePage() {
   const [sort, setSort] = useState("desc");
   // Which review states to compare. Both by default; untick Unreviewed to see
   // only figures an auditor has approved.
-  const [statuses, setStatuses] = useState(["APPROVED", "UNREVIEWED"]);
+  const [chosenStatuses, setStatuses] = useState(["APPROVED", "UNREVIEWED"]);
+  // Viewers compare approved figures only, so they get no choice of review state.
+  const isViewer = useOptionalAuth()?.user?.role === "VIEWER";
+  const statuses = useMemo(() => (isViewer ? ["APPROVED"] : chosenStatuses), [isViewer, chosenStatuses]);
 
   function toggleStatus(status) {
     setStatuses((current) => current.includes(status)
@@ -82,7 +86,7 @@ export function ComparePage() {
   return <section className="page-panel compare-page">
     <div className="page-heading"><h1>Compare</h1></div>
     <p className="compare-intro">Compare reported building values and organisation totals from quarterly submissions.</p>
-    <fieldset className="compare-status-filter">
+    {!isViewer && <fieldset className="compare-status-filter">
       <legend>Include submissions that are</legend>
       {[["APPROVED", "Approved"], ["UNREVIEWED", "Unreviewed"]].map(([value, label]) => (
         <label key={value}>
@@ -95,7 +99,7 @@ export function ComparePage() {
           Unreviewed figures have not been checked by an auditor.
         </span>
       )}
-    </fieldset>
+    </fieldset>}
     {!statuses.length && (
       <p className="form-warning" role="status">Tick at least one review state to compare.</p>
     )}

@@ -2559,20 +2559,35 @@ nav a[aria-current="page"]::after {
   white-space: nowrap;
 }
 
-/* The appointed auditor decides who may review a building's evidence, so an
-   unappointed building has to be visible as such rather than merely blank. */
-.auditor-appointment {
+/* Who may review a submission is chosen per submission, so the control sits in
+   the row it governs. A submission nobody is assigned to has to be visible as
+   such rather than merely blank. */
+.submission-auditors fieldset {
   display: grid;
-  gap: 8px;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.auditor-appointment h3 {
+.submission-auditor-choice {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.submission-auditor-choice input {
+  width: auto;
   margin: 0;
 }
 
-.building-row-unassigned {
+.submission-auditors-none {
+  margin: 4px 0 0;
   color: #815c0b;
-  font-weight: 600;
+  font-size: 0.8rem;
 }
 
 .review-assigned-projects {

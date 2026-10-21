@@ -40,12 +40,6 @@ class OwnedBuildingInput(BaseModel):
     property_type: str | None = None
 
 
-class AuditorAssignment(BaseModel):
-    """Who should review this building. None withdraws the appointment."""
-
-    auditor_id: str | None = None
-
-
 class OwnedBuildingEdit(BaseModel):
     """The only two fields a company may change about its own building.
 
@@ -69,9 +63,6 @@ def _owned_building(project: Project, organisation: Organisation, summary: dict 
         "organisation_id": project.organisation_id, "organisation": organisation.name,
         "location": project.location, "country": project.country,
         "property_type": project.property_type,
-        # Null until the company appoints someone. While it is null the building's
-        # submissions appear in no reviewer's queue, which the UI has to say.
-        "auditor": _auditor_summary(project.auditor),
     }
     if summary is not None:
         # Counted from the submissions actually stored, never estimated. A building
@@ -198,43 +189,6 @@ def available_auditors(
         .order_by(User.name, User.id)
     ).all()
     return {"auditors": [_auditor_summary(auditor) for auditor in auditors]}
-
-
-@router.put("/owned/{project_id}/auditor")
-def assign_building_auditor(
-    project_id: int,
-    payload: AuditorAssignment,
-    current_user: AuthUser = Depends(require_permission(Permission.UPLOAD_SUBMISSION)),
-    db: Session = Depends(get_db),
-) -> dict:
-    """Appoint, change or withdraw the auditor for one of the company's buildings.
-
-    Kept apart from the name and address edit so that one stays what it says it
-    is. Appointing a reviewer is a different kind of act from correcting a label,
-    and only this route may do it.
-    """
-    organisation = db.get(Organisation, current_user.organisation_id) if current_user.organisation_id else None
-    if organisation is None:
-        raise api_error(status.HTTP_403_FORBIDDEN, "ORGANISATION_REQUIRED", "An organisation is required.")
-    project = db.get(Project, project_id)
-    if project is None or project.organisation_id != organisation.id:
-        raise api_error(status.HTTP_404_NOT_FOUND, "PROJECT_NOT_FOUND", "Building was not found.")
-
-    if payload.auditor_id:
-        auditor = db.get(User, payload.auditor_id)
-        # Only an auditor may be appointed to audit. Without this check a company
-        # could name itself, or a viewer, as the reviewer of its own evidence.
-        if auditor is None or auditor.role != UserRole.AUDITOR.value or not auditor.is_active:
-            raise api_error(status.HTTP_400_BAD_REQUEST, "INVALID_AUDITOR",
-                            "Select an auditor from the list.")
-        project.auditor_id = auditor.id
-    else:
-        project.auditor_id = None
-
-    db.commit()
-    db.refresh(project)
-    summaries = _submission_summaries(db, [project.id])
-    return {"building": _owned_building(project, organisation, summaries[project.id])}
 
 
 @router.get("")

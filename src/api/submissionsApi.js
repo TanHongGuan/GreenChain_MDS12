@@ -59,6 +59,17 @@ export async function getProjectSubmissions(projectId) {
   return payload.submissions;
 }
 
+// Per submission, not per building: a quarter is what gets reviewed, and a
+// company may want different people on different quarters. The list replaces
+// whoever was assigned before.
+export async function assignSubmissionAuditors(submissionId, auditorIds) {
+  const response = await fetch(`${API_BASE_URL}/submissions/${submissionId}/auditors`, {
+    method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ auditor_ids: auditorIds }),
+  });
+  return parseSubmissionResponse(response);
+}
+
 export async function getSubmissionDetail(submissionId) {
   const response = await fetch(`${API_BASE_URL}/submissions/${submissionId}`, { credentials: "include" });
   const payload = await parseSubmissionResponse(response);

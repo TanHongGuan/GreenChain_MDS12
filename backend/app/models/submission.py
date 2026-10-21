@@ -45,5 +45,8 @@ class Submission(Base):
     metrics = relationship("Metric", back_populates="submission", cascade="all, delete-orphan")
     monthly_records = relationship("MonthlyRecord", back_populates="submission", cascade="all, delete-orphan")
     reviews = relationship("Review", back_populates="submission")
+    # Who the owning company appointed to review this quarter. Empty until they
+    # appoint someone, and while it is empty nobody may review it.
+    auditors = relationship("SubmissionAuditor", cascade="all, delete-orphan")
     previous_submission = relationship("Submission", remote_side=[id], back_populates="corrections")
     corrections = relationship("Submission", back_populates="previous_submission")

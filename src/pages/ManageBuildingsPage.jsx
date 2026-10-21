@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 import { Panel } from "../components/Panel.jsx";
 import {
-  assignBuildingAuditor, createOwnedBuilding, getAvailableAuditors, getOwnedBuildings,
+  assignSubmissionAuditors, createOwnedBuilding, getAvailableAuditors, getOwnedBuildings,
   getProjectSubmissions, updateOwnedBuilding,
 } from "../services/dataService.js";
 import { displayDate } from "../utils/display.js";
@@ -16,51 +16,51 @@ function statusClass(status) {
   return `status-pill status-${String(status || "").toLowerCase()}`;
 }
 
-// Appointing the auditor is its own control, not part of the name-and-address
-// form: it decides who may review this building's evidence, and until it is set
-// the building's submissions reach nobody's queue.
-function AuditorAppointment({ building, auditors, onSaved }) {
+// Who reviews one submission. Per submission rather than per building: a quarter
+// is what gets reviewed, a company may want different people on different
+// quarters, and more than one may be appointed to the same one.
+function SubmissionAuditors({ submission, auditors, onChanged }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const appointed = building.auditor?.id || "";
+  const assigned = submission.auditors || [];
+  const assignedIds = assigned.map((item) => item.id);
 
-  async function choose(auditorId) {
+  async function toggle(auditorId) {
+    const next = assignedIds.includes(auditorId)
+      ? assignedIds.filter((id) => id !== auditorId)
+      : [...assignedIds, auditorId];
     setSaving(true);
     setError("");
-    setNotice("");
     try {
-      const updated = await assignBuildingAuditor(building.project_id, auditorId || null);
-      onSaved(updated);
-      setNotice(updated.auditor
-        ? `${updated.auditor.name} will review this building.`
-        : "Auditor removed. This building's submissions now reach nobody until you appoint one.");
+      const result = await assignSubmissionAuditors(submission.submission_id, next);
+      onChanged(submission.submission_id, result.auditors);
     } catch (problem) {
-      setError(problem.message || "The auditor could not be changed.");
+      setError(problem.message || "The auditors could not be changed.");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="auditor-appointment">
-      <h3>Auditor</h3>
-      <div className="mapping-field">
-        <label htmlFor="building-auditor">Who reviews this building</label>
-        <select id="building-auditor" value={appointed} disabled={saving || !auditors.length}
-          onChange={(event) => choose(event.target.value)}>
-          <option value="">No auditor appointed</option>
-          {auditors.map((auditor) => (
-            <option key={auditor.id} value={auditor.id}>{auditor.name} ({auditor.email})</option>
-          ))}
-        </select>
-      </div>
-      {!appointed && <p className="form-warning" role="status">
-        Submissions for this building will not appear in any auditor&apos;s queue, and cannot be
-        approved, until you appoint one.
-      </p>}
+    <div className="submission-auditors">
+      <fieldset disabled={saving}>
+        <legend className="visually-hidden">
+          Auditors for submission {submission.submission_id}
+        </legend>
+        {auditors.map((auditor) => (
+          <label key={auditor.id} className="submission-auditor-choice">
+            <input type="checkbox" checked={assignedIds.includes(auditor.id)}
+              onChange={() => toggle(auditor.id)} />
+            {auditor.name}
+          </label>
+        ))}
+      </fieldset>
+      {assigned.length === 0 && (
+        <p className="submission-auditors-none">
+          Nobody assigned — this cannot be reviewed yet.
+        </p>
+      )}
       {error && <p className="form-error" role="status">{error}</p>}
-      {notice && <p className="form-success" role="status">{notice}</p>}
     </div>
   );
 }
@@ -85,6 +85,11 @@ function BuildingDetail({ building, auditors, onSaved }) {
     });
     return () => { active = false; };
   }, [building.project_id]);
+
+  function updateAuditors(submissionId, assigned) {
+    setSubmissions((records) => records.map((record) => record.submission_id === submissionId
+      ? { ...record, auditors: assigned } : record));
+  }
 
   const changed = name.trim() !== building.project_name
     || location.trim() !== (building.location || "");
@@ -139,8 +144,6 @@ function BuildingDetail({ building, auditors, onSaved }) {
         </div>
       </form>
 
-      <AuditorAppointment building={building} auditors={auditors} onSaved={onSaved} />
-
       <h3>Submission history</h3>
       {historyStatus === "loading" && <p>Loading submissions...</p>}
       {historyStatus === "error" && <p className="form-error" role="status">Submission history could not be loaded.</p>}
@@ -156,6 +159,7 @@ function BuildingDetail({ building, auditors, onSaved }) {
                 <th>Period</th>
                 <th>Submitted</th>
                 <th>Status</th>
+                <th>Auditors</th>
                 <th><span className="visually-hidden">Actions</span></th>
               </tr>
             </thead>
@@ -166,6 +170,10 @@ function BuildingDetail({ building, auditors, onSaved }) {
                   <td>{record.reporting_period}</td>
                   <td>{displayDate(record.submitted_at)}</td>
                   <td><span className={statusClass(record.status)}>{record.status}</span></td>
+                  <td>
+                    <SubmissionAuditors submission={record} auditors={auditors}
+                      onChanged={updateAuditors} />
+                  </td>
                   <td>
                     <Link to={`/projects/${building.project_id}?submission=${record.submission_id}`}>
                       View details
@@ -291,11 +299,7 @@ export function ManageBuildingsPage() {
                     </span>
                   </>}
                 </p>
-                <p className="building-row-meta">
-                  {building.auditor
-                    ? <>Auditor: {building.auditor.name}</>
-                    : <span className="building-row-unassigned">No auditor appointed</span>}
-                </p>
+
               </div>
               <button type="button" className="secondary-button"
                 aria-expanded={openId === building.project_id}

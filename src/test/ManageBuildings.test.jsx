@@ -53,14 +53,14 @@ function mockApi({ user = company, buildings = [engineering, pharmacy], onPatch,
     if (request.endsWith("/projects/auditors")) {
       return Promise.resolve(jsonResponse(200, { auditors }));
     }
-    if (request.includes("/auditor") && method === "PUT") {
+    if (request.includes("/auditors") && method === "PUT") {
       return Promise.resolve(onAssign ? onAssign(request, options)
-        : jsonResponse(200, { building: { ...engineering, auditor: dana } }));
+        : jsonResponse(200, { submission_id: 12, auditors: [dana] }));
     }
     if (request.includes("/submissions/projects/")) {
       return Promise.resolve(jsonResponse(200, { submissions: [
-        { submission_id: 11, reporting_period: "2026-Q1", status: "APPROVED", submitted_at: "2026-04-01T00:00:00Z" },
-        { submission_id: 12, reporting_period: "2026-Q2", status: "UNREVIEWED", submitted_at: "2026-07-01T00:00:00Z" },
+        { submission_id: 11, reporting_period: "2026-Q1", status: "APPROVED", submitted_at: "2026-04-01T00:00:00Z", auditors: [dana] },
+        { submission_id: 12, reporting_period: "2026-Q2", status: "UNREVIEWED", submitted_at: "2026-07-01T00:00:00Z", auditors: [] },
       ] }));
     }
     throw new Error(`Unexpected fetch call: ${method} ${request}`);
@@ -166,69 +166,71 @@ describe("manage buildings", () => {
   });
 });
 
-describe("appointing an auditor", () => {
+describe("assigning auditors to a submission", () => {
   async function openEngineering() {
     renderAt("/buildings");
     await screen.findByText("Engineering Building");
     await userEvent.click(within(screen.getByText("Engineering Building").closest("li"))
       .getByRole("button", { name: "Open" }));
-    return screen.findByLabelText("Who reviews this building");
+    return screen.findByRole("table");
   }
 
-  test("a building with no auditor says so, and warns what that means", async () => {
-    mockApi();
-    const picker = await openEngineering();
+  function rowFor(table, submissionId) {
+    return within(table).getByText(`#${submissionId}`).closest("tr");
+  }
 
-    expect(picker).toHaveValue("");
-    expect(screen.getAllByText("No auditor appointed").length).toBeGreaterThan(0);
-    expect(screen.getByText(/will not appear in any auditor's queue/i)).toBeInTheDocument();
+  test("each submission carries its own auditors, and one with none says so", async () => {
+    mockApi();
+    const table = await openEngineering();
+
+    // #11 already has one; #12 has nobody, which is why it cannot be reviewed.
+    expect(within(rowFor(table, 11)).getByRole("checkbox", { name: "Dana Auditor" })).toBeChecked();
+    expect(within(rowFor(table, 12)).getByRole("checkbox", { name: "Dana Auditor" })).not.toBeChecked();
+    expect(within(rowFor(table, 12)).getByText(/Nobody assigned/)).toBeInTheDocument();
+    expect(within(rowFor(table, 11)).queryByText(/Nobody assigned/)).not.toBeInTheDocument();
   });
 
-  test("only auditors are offered, and the choice is sent as an assignment", async () => {
-    let sent = null;
-    let sentUrl = "";
+  test("a submission can be given more than one auditor", async () => {
+    const sent = [];
     mockApi({
       onAssign: (request, options) => {
-        sentUrl = request;
-        sent = JSON.parse(options.body);
-        return jsonResponse(200, { building: { ...engineering, auditor: dana } });
+        const body = JSON.parse(options.body);
+        sent.push({ url: request, ids: body.auditor_ids });
+        return jsonResponse(200, {
+          submission_id: 12,
+          auditors: body.auditor_ids.map((id) => [dana, sam].find((a) => a.id === id)),
+        });
       },
     });
-    const picker = await openEngineering();
+    const table = await openEngineering();
 
-    expect(within(picker).getByRole("option", { name: /Dana Auditor/ })).toHaveValue("aud-1");
-    expect(within(picker).getByRole("option", { name: /Sam Auditor/ })).toHaveValue("aud-2");
+    await userEvent.click(within(rowFor(table, 12)).getByRole("checkbox", { name: "Dana Auditor" }));
+    await userEvent.click(within(rowFor(table, 12)).getByRole("checkbox", { name: "Sam Auditor" }));
 
-    await userEvent.selectOptions(picker, "aud-1");
-
-    expect(await screen.findByText("Dana Auditor will review this building.")).toBeInTheDocument();
-    // Its own route, not the name-and-address edit.
-    expect(sentUrl).toMatch(/\/projects\/owned\/7\/auditor$/);
-    expect(sent).toEqual({ auditor_id: "aud-1" });
-    expect(screen.queryByText(/will not appear in any auditor's queue/i)).not.toBeInTheDocument();
+    expect(sent.at(-1).url).toMatch(/\/submissions\/12\/auditors$/);
+    expect(sent.at(-1).ids).toEqual(["aud-1", "aud-2"]);
+    expect(within(rowFor(table, 12)).getByRole("checkbox", { name: "Dana Auditor" })).toBeChecked();
+    expect(within(rowFor(table, 12)).getByRole("checkbox", { name: "Sam Auditor" })).toBeChecked();
+    expect(within(rowFor(table, 12)).queryByText(/Nobody assigned/)).not.toBeInTheDocument();
   });
 
-  test("withdrawing the appointment says what it costs", async () => {
-    mockApi({
-      buildings: [{ ...engineering, auditor: dana }, pharmacy],
-      onAssign: () => jsonResponse(200, { building: { ...engineering, auditor: null } }),
-    });
-    const picker = await openEngineering();
-    expect(picker).toHaveValue("aud-1");
+  test("unticking the last auditor says the submission can no longer be reviewed", async () => {
+    mockApi({ onAssign: () => jsonResponse(200, { submission_id: 11, auditors: [] }) });
+    const table = await openEngineering();
 
-    await userEvent.selectOptions(picker, "");
+    await userEvent.click(within(rowFor(table, 11)).getByRole("checkbox", { name: "Dana Auditor" }));
 
-    expect(await screen.findByText(/reach nobody until you appoint one/i)).toBeInTheDocument();
+    expect(await within(rowFor(table, 11)).findByText(/Nobody assigned/)).toBeInTheDocument();
   });
 
-  test("the list shows the appointed auditor without opening the building", async () => {
-    mockApi({ buildings: [{ ...engineering, auditor: dana }, pharmacy] });
-    renderAt("/buildings");
-    await screen.findByText("Engineering Building");
+  test("assigning one submission does not change another", async () => {
+    mockApi({ onAssign: () => jsonResponse(200, { submission_id: 12, auditors: [dana] }) });
+    const table = await openEngineering();
 
-    const row = screen.getByText("Engineering Building").closest("li");
-    expect(within(row).getByText("Auditor: Dana Auditor")).toBeInTheDocument();
-    const other = screen.getByText("Pharmacy Building").closest("li");
-    expect(within(other).getByText("No auditor appointed")).toBeInTheDocument();
+    await userEvent.click(within(rowFor(table, 12)).getByRole("checkbox", { name: "Dana Auditor" }));
+
+    expect(within(rowFor(table, 12)).getByRole("checkbox", { name: "Dana Auditor" })).toBeChecked();
+    expect(within(rowFor(table, 11)).getByRole("checkbox", { name: "Dana Auditor" })).toBeChecked();
+    expect(within(rowFor(table, 11)).getByRole("checkbox", { name: "Sam Auditor" })).not.toBeChecked();
   });
 });

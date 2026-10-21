@@ -155,9 +155,10 @@ The two company accounts belong to different organisations on purpose. Each can 
 buildings and upload for its own, which is how tenant isolation is demonstrated rather than
 asserted. The role is stored as `UPLOADER`; `COMPANY` is only what the interface calls it.
 
-Auditors belong to no organisation — they review across all of them. A company appoints one per
-building under **Manage Buildings**, and only that auditor may review that building's submissions.
-There are three so the appointment is a real choice.
+Auditors belong to no organisation — they review across all of them. A company assigns auditors to
+each **submission** under **Manage Buildings → open a building → Submission history**, and only
+those auditors may review it. A submission can have several; whichever of them decides first
+settles it. There are three so the choice is a real one.
 
 **Check:** the output ends with `Seeded development auth accounts.`
 
@@ -246,9 +247,9 @@ With both servers running:
    which; anything it could not settle is flagged and opened for you. Correct anything wrong, tick
    the confirmation and continue. *(This step needs `GEMINI_API_KEY`. A spreadsheet already in a
    recognised format skips it entirely.)*
-5. **Back in Manage Buildings, appoint an auditor** for that building — pick one of the three from
-   the **Auditor** dropdown. Until you do, the submission reaches nobody's queue and cannot be
-   approved.
+5. **Back in Manage Buildings, open the building and tick an auditor** against the new submission
+   in **Submission history**. Tick more than one if you want several able to review it. Until you
+   do, the submission reaches nobody's queue and cannot be approved.
 6. **Sign out, sign in as that auditor, open Assigned Projects** and approve the submission.
    Nothing appears in charts, Projects or Compare until an auditor approves it.
 7. **Sign in as `monosh@greenchain.test`** and repeat with
@@ -333,7 +334,7 @@ Teammates open `http://<host Wi-Fi IP>:8080`, pick an account from the dropdown 
 | "AI mapping is not configured correctly on the backend" | `GEMINI_API_KEY` is missing or rejected. Only spreadsheets in an unrecognised layout need it. |
 | Upload is refused listing several row problems | Working as intended: every bad row is reported at once, each naming its worksheet, row, date and column. Correct them all and upload again. |
 | Nothing appears in Projects, Compare or the charts after uploading | The submission is still `UNREVIEWED`. Sign in as the building's appointed auditor and approve it; those views show approved data only. |
-| An auditor's Assigned Projects page is empty | No company has appointed them to a building yet. The owner appoints one under **Manage Buildings**; an unappointed building reaches nobody's queue. |
+| An auditor's Assigned Projects page is empty | No company has assigned them to a submission yet. The owner assigns auditors per submission under **Manage Buildings → Submission history**; an unassigned submission reaches nobody's queue. |
 | Upload page shows "You have no buildings yet" | Buildings are created under **Manage Buildings**, not on the upload page. |
 
 ## Current Implementation Status

@@ -10,6 +10,7 @@ from backend.app.integrity.hashing import calculate_sha256
 from backend.app.main import create_app
 from backend.app.models.metric import Metric
 from backend.app.models.submission import SUBMISSION_STATUS_APPROVED, Submission
+from backend.app.models.submission_auditor import SubmissionAuditor
 from backend.app.repositories.projects import get_or_create_project
 from backend.app.repositories.submissions import create_submission
 from backend.app.repositories.users import get_user_repository
@@ -106,6 +107,9 @@ def seed_submission(
             previous_submission_id=previous_submission_id,
         )
         submission.status = status
+        db.flush()
+        # A submission has to have an auditor assigned before anyone can review it.
+        db.add(SubmissionAuditor(submission_id=submission.id, auditor_id=auditor.id))
         db.add(Metric(submission_id=submission.id, metric_name="Electricity", value=120.5, unit="kWh", category="Energy"))
         db.commit()
         return submission.id
@@ -468,3 +472,94 @@ def test_detail_exposes_storage_version_fields(client: TestClient, session_facto
     assert original["integrity"]["status"] == "MATCH"
     assert original["integrity"]["trusted_reference"] == "DATABASE_ONLY"
     assert original["integrity"]["algorithm"] == "SHA-256"
+
+
+def _auditor_ids(client: TestClient) -> list[str]:
+    response = client.get("/projects/auditors")
+    assert response.status_code == 200, response.text
+    return [item["id"] for item in response.json()["auditors"]]
+
+
+def test_a_company_assigns_several_auditors_to_one_submission(
+    session_factory, storage, client: TestClient
+) -> None:
+    """A quarter is what gets reviewed, so it is what gets reviewers - and it may
+    have more than one."""
+    submission_id = seed_submission(session_factory, storage)
+    login(client, "uploader@greenchain.test")
+    auditors = _auditor_ids(client)
+    assert auditors
+
+    response = client.put(f"/submissions/{submission_id}/auditors",
+                          json={"auditor_ids": auditors})
+
+    assert response.status_code == 200, response.text
+    assert sorted(item["id"] for item in response.json()["auditors"]) == sorted(auditors)
+    history = client.get(f"/submissions/projects/{_project_of(session_factory, submission_id)}").json()
+    listed = {item["submission_id"]: item for item in history["submissions"]}
+    assert sorted(a["id"] for a in listed[submission_id]["auditors"]) == sorted(auditors)
+
+    # Assigning again replaces the set rather than adding to it.
+    cleared = client.put(f"/submissions/{submission_id}/auditors", json={"auditor_ids": []})
+    assert cleared.status_code == 200
+    assert cleared.json()["auditors"] == []
+
+
+def _project_of(session_factory, submission_id: int) -> int:
+    with session_factory() as db:
+        return db.get(Submission, submission_id).project_id
+
+
+def test_only_auditors_can_be_assigned_to_a_submission(
+    session_factory, storage, client: TestClient
+) -> None:
+    """A company must not be able to name itself as the reviewer of its own evidence."""
+    submission_id = seed_submission(session_factory, storage)
+    login(client, "uploader@greenchain.test")
+    accounts = {item["email"]: item["id"] for item in client.get("/auth/accounts").json()["accounts"]}
+
+    for email in ("uploader@greenchain.test", "viewer@greenchain.test"):
+        response = client.put(f"/submissions/{submission_id}/auditors",
+                              json={"auditor_ids": [accounts[email]]})
+        assert response.status_code == 400, f"{email} should not be assignable"
+        assert response.json()["error"] == "INVALID_AUDITOR"
+
+    # One bad id in an otherwise valid list rejects the whole assignment.
+    mixed = client.put(f"/submissions/{submission_id}/auditors",
+                       json={"auditor_ids": [*_auditor_ids(client), "no-such-user"]})
+    assert mixed.status_code == 400
+
+
+def test_a_company_cannot_assign_auditors_to_another_organisations_submission(
+    session_factory, storage, client: TestClient
+) -> None:
+    # A submission belonging to a different organisation entirely.
+    with session_factory() as db:
+        rival = get_or_create_project(db, "Rival Tower", "Rival Holdings")
+        uploader = SQLAlchemyUserRepository(db).get_user_by_email("uploader@greenchain.test")
+        raw = BytesIO(b"metric_name,value,unit\nElectricity,1,kWh\n")
+        stored = storage.store_original(raw, "rival.csv", "text/csv")
+        submission = create_submission(
+            db, project_id=rival.id, uploader_id=uploader.id, reporting_period="2026-Q1",
+            original_filename="rival.csv", original_storage_key=stored.storage_key,
+            processed_storage_key=stored.storage_key,
+            original_sha256=calculate_sha256(BytesIO(b"x")))
+        db.commit()
+        other = submission.id
+    login(client, "uploader@greenchain.test")
+
+    response = client.put(f"/submissions/{other}/auditors",
+                          json={"auditor_ids": _auditor_ids(client)})
+
+    # Not found rather than forbidden: a refusal that confirms existence is a leak.
+    assert response.status_code == 404
+    assert response.json()["error"] == "SUBMISSION_NOT_FOUND"
+
+
+@pytest.mark.parametrize("email", ["viewer@greenchain.test", "auditor@greenchain.test"])
+def test_only_companies_may_assign_auditors(session_factory, storage, client: TestClient, email: str) -> None:
+    """An auditor assigning itself would defeat the point of the assignment."""
+    submission_id = seed_submission(session_factory, storage)
+    login(client, email)
+    assert client.put(f"/submissions/{submission_id}/auditors",
+                      json={"auditor_ids": []}).status_code == 403

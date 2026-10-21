@@ -81,16 +81,6 @@ export async function getAvailableAuditors() {
   return (await parseProjectResponse(response)).auditors;
 }
 
-// Separate from updateOwnedBuilding on purpose: appointing a reviewer is a
-// different kind of act from correcting a name, and only this route may do it.
-export async function assignBuildingAuditor(projectId, auditorId) {
-  const response = await fetch(`${API_BASE_URL}/projects/owned/${projectId}/auditor`, {
-    method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ auditor_id: auditorId || null }),
-  });
-  return (await parseProjectResponse(response)).building;
-}
-
 export async function getApprovedMonthlyHistory(projectId) {
   const response = await fetch(`${API_BASE_URL}/projects/${projectId}/monthly`, { credentials: "include" });
   return parseProjectResponse(response);

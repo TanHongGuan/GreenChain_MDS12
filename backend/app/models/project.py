@@ -23,12 +23,6 @@ class Project(Base):
     organisation_id: Mapped[str] = mapped_column(
         ForeignKey("organisations.id", ondelete="RESTRICT"), nullable=False
     )
-    # The auditor the owning company has appointed to review this building. Null
-    # until they appoint one, and while it is null nobody may review the
-    # building's submissions - a reviewer is assigned, never assumed.
-    auditor_id: Mapped[str | None] = mapped_column(
-        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True, index=True
-    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -38,5 +32,4 @@ class Project(Base):
     )
 
     organisation = relationship("Organisation")
-    auditor = relationship("User", foreign_keys=[auditor_id])
     submissions = relationship("Submission", back_populates="project")

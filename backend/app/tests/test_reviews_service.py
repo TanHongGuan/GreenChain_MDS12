@@ -12,6 +12,7 @@ from backend.app.models.submission import (
     Submission,
 )
 from backend.app.repositories.metrics import bulk_create_metrics
+from backend.app.models.submission_auditor import SubmissionAuditor
 from backend.app.repositories.projects import get_or_create_project
 from backend.app.repositories.submissions import create_submission
 from backend.app.repositories.users import SQLAlchemyUserRepository
@@ -73,8 +74,6 @@ def make_submission(
     original_bytes: bytes = ORIGINAL_BYTES,
 ) -> Submission:
     project = get_or_create_project(db, "Green Tower", "Acme Corp")
-    # A building has to have an appointed auditor before anyone can review it.
-    project.auditor_id = user_id(db, "auditor@greenchain.test")
     original_file = storage.store_original(BytesIO(original_bytes), "report.csv", "text/csv")
     processed_file = storage.store_processed(BytesIO(PROCESSED_BYTES), "report.csv", "text/csv")
     submission = create_submission(
@@ -92,6 +91,10 @@ def make_submission(
         submission.id,
         [CanonicalMetricRow(metric_name="Electricity", value=120.5, unit="kWh", category="Energy")],
     )
+    db.flush()
+    # A submission has to have an auditor assigned before anyone can review it.
+    db.add(SubmissionAuditor(submission_id=submission.id,
+                             auditor_id=user_id(db, "auditor@greenchain.test")))
     db.commit()
     return submission
 

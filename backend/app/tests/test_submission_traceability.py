@@ -7,6 +7,7 @@ from backend.app.etl.transform import CanonicalMetricRow
 from backend.app.integrity.hashing import calculate_sha256
 from backend.app.models.submission import SUBMISSION_STATUS_APPROVED, Submission
 from backend.app.repositories.metrics import bulk_create_metrics
+from backend.app.models.submission_auditor import SubmissionAuditor
 from backend.app.repositories.projects import get_or_create_project
 from backend.app.repositories.submissions import create_submission
 from backend.app.repositories.users import SQLAlchemyUserRepository
@@ -61,10 +62,8 @@ def make_submission(
     previous_submission_id: int | None = None,
 ) -> Submission:
     project = get_or_create_project(db, "Green Tower", "Acme Corp")
-    # A building has to have an appointed auditor before anyone can review it.
     auditor = SQLAlchemyUserRepository(db).get_user_by_email("auditor@greenchain.test")
     assert auditor is not None
-    project.auditor_id = auditor.id
     original_file = storage.store_original(BytesIO(original_bytes), f"{reporting_period}.csv", "text/csv")
     processed_file = storage.store_processed(BytesIO(PROCESSED_BYTES), f"{reporting_period}.csv", "text/csv")
     submission = create_submission(
@@ -78,6 +77,9 @@ def make_submission(
         original_sha256=calculate_sha256(BytesIO(original_bytes)),
         previous_submission_id=previous_submission_id,
     )
+    db.flush()
+    # A submission has to have an auditor assigned before anyone can review it.
+    db.add(SubmissionAuditor(submission_id=submission.id, auditor_id=auditor.id))
     bulk_create_metrics(
         db,
         submission.id,

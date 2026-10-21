@@ -7,6 +7,7 @@ from backend.app.models.organisation_member import OrganisationMember
 from backend.app.models.project import Project
 from backend.app.models.review import Review
 from backend.app.models.submission import Submission
+from backend.app.models.submission_auditor import SubmissionAuditor
 from backend.app.models.user import User
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "Project",
     "Review",
     "Submission",
+    "SubmissionAuditor",
     "User",
 ]

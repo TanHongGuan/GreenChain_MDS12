@@ -40,8 +40,12 @@ from backend.app.submissions.traceability import (
     get_submission_detail,
     get_submission_history,
 )
+from pydantic import BaseModel, Field
+
 from backend.app.models.monthly_record import MonthlyRecord
 from backend.app.models.submission import Submission, SUBMISSION_STATUS_APPROVED
+from backend.app.models.submission_auditor import SubmissionAuditor
+from backend.app.models.user import User
 from backend.app.models.project import Project
 from backend.app.auth.models import UserRole
 from backend.app.etl.ai_mapping import MappingUnavailable, inspect_sheets, inspection_payload, suggest_mapping
@@ -193,6 +197,58 @@ async def mapping_preview(
         raise submission_error(status.HTTP_503_SERVICE_UNAVAILABLE, "AI_MAPPING_UNAVAILABLE", str(exc)) from exc
 
 
+class SubmissionAuditorAssignment(BaseModel):
+    """Who the company appoints to review this submission. Empty withdraws them all."""
+
+    auditor_ids: list[str] = Field(default_factory=list)
+
+
+@router.put("/{submission_id}/auditors")
+def assign_submission_auditors(
+    submission_id: int,
+    payload: SubmissionAuditorAssignment,
+    current_user: AuthUser = Depends(require_permission(Permission.UPLOAD_SUBMISSION)),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Appoint the auditors for one submission.
+
+    Per submission rather than per building: a quarter is what gets reviewed, and
+    a company may want different people on different quarters. More than one may
+    be appointed; whichever of them decides first settles it.
+
+    Another organisation's submission reports as not found rather than forbidden,
+    so this cannot be used to discover that it exists.
+    """
+    submission = db.get(Submission, submission_id)
+    project = db.get(Project, submission.project_id) if submission is not None else None
+    if submission is None or project is None or not current_user.organisation_id \
+            or project.organisation_id != current_user.organisation_id:
+        raise submission_error(status.HTTP_404_NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission was not found.")
+
+    wanted = list(dict.fromkeys(payload.auditor_ids))
+    chosen = db.scalars(select(User).where(User.id.in_(wanted))).all() if wanted else []
+    by_id = {user.id: user for user in chosen}
+    # Only an auditor may be appointed to audit. Without this a company could name
+    # itself, or a viewer, as the reviewer of its own evidence.
+    if any(identifier not in by_id or by_id[identifier].role != UserRole.AUDITOR.value
+           or not by_id[identifier].is_active for identifier in wanted):
+        raise submission_error(status.HTTP_400_BAD_REQUEST, "INVALID_AUDITOR",
+                               "Choose auditors from the list.")
+
+    existing = {row.auditor_id: row for row in db.scalars(
+        select(SubmissionAuditor).where(SubmissionAuditor.submission_id == submission_id)
+    ).all()}
+    for auditor_id, row in existing.items():
+        if auditor_id not in wanted:
+            db.delete(row)
+    for auditor_id in wanted:
+        if auditor_id not in existing:
+            db.add(SubmissionAuditor(submission_id=submission_id, auditor_id=auditor_id))
+    db.commit()
+
+    return {"submission_id": submission_id, "auditors": _auditors_for(db, [submission_id])[submission_id]}
+
+
 @router.get("/{submission_id}/monthly")
 def submission_monthly_records(
     submission_id: int,
@@ -286,6 +342,22 @@ def _serialize_version(version: VersionLink | None) -> dict | None:
     }
 
 
+def _auditors_for(db: Session, submission_ids: list[int]) -> dict[int, list[dict]]:
+    """Who each submission's owner appointed to review it, in one query."""
+    assigned: dict[int, list[dict]] = {submission_id: [] for submission_id in submission_ids}
+    if not submission_ids:
+        return assigned
+    rows = db.execute(
+        select(SubmissionAuditor.submission_id, User)
+        .join(User, User.id == SubmissionAuditor.auditor_id)
+        .where(SubmissionAuditor.submission_id.in_(submission_ids))
+        .order_by(User.name, User.id)
+    ).all()
+    for submission_id, user in rows:
+        assigned[submission_id].append({"id": user.id, "name": user.name, "email": user.email})
+    return assigned
+
+
 def _serialize_record(record: SubmissionRecord) -> dict:
     return {
         "submission_id": record.submission_id,
@@ -336,9 +408,12 @@ def project_submission_history(
     except ProjectNotFound as exc:
         raise api_error(status.HTTP_404_NOT_FOUND, "PROJECT_NOT_FOUND", "Project was not found.") from exc
 
-    return {"submissions": [_serialize_record(record) for record in records
-                            if (submission := db.get(Submission, record.submission_id)) is not None
-                            and _monthly_access_allowed(submission, current_user, db)]}
+    visible = [record for record in records
+               if (submission := db.get(Submission, record.submission_id)) is not None
+               and _monthly_access_allowed(submission, current_user, db)]
+    assigned = _auditors_for(db, [record.submission_id for record in visible])
+    return {"submissions": [{**_serialize_record(record),
+                             "auditors": assigned[record.submission_id]} for record in visible]}
 
 
 @router.get("/{submission_id}")

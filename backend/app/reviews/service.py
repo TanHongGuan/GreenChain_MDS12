@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.app.integrity.verification import IntegrityStatus, verify_stored_evidence
 from backend.app.models.review import Review
+from backend.app.models.submission_auditor import SubmissionAuditor
 from backend.app.models.submission import (
     SUBMISSION_STATUS_APPROVED,
     SUBMISSION_STATUS_REJECTED,
@@ -143,24 +145,30 @@ def _to_review_summary(review: Review) -> ReviewSummary:
     )
 
 
-def _require_assignment(submission: Submission, auditor_id: str | None) -> None:
-    """Refuse unless this auditor is the one the company appointed.
+def _assigned_auditor_ids(db: Session, submission_id: int) -> set[str]:
+    return set(db.scalars(
+        select(SubmissionAuditor.auditor_id).where(SubmissionAuditor.submission_id == submission_id)
+    ).all())
 
-    An unassigned building is reviewable by nobody. That is deliberate: the
-    alternative is any auditor being able to approve evidence the owner never
+
+def _require_assignment(db: Session, submission: Submission, auditor_id: str | None) -> None:
+    """Refuse unless this auditor is one of those the company appointed.
+
+    A submission nobody has been appointed to is reviewable by nobody. That is
+    deliberate: the alternative is any auditor approving evidence the owner never
     asked them to look at.
     """
     if auditor_id is None:
         return
-    assigned = submission.project.auditor_id if submission.project is not None else None
-    if assigned is None:
+    assigned = _assigned_auditor_ids(db, submission.id)
+    if not assigned:
         raise ReviewNotAssigned(
-            f"Submission {submission.id} belongs to a building with no auditor appointed. "
-            f"The company that owns it has to appoint one before it can be reviewed."
+            f"Submission {submission.id} has no auditor assigned to it. The company that owns it "
+            f"has to assign one before it can be reviewed."
         )
-    if assigned != auditor_id:
+    if auditor_id not in assigned:
         raise ReviewNotAssigned(
-            f"Submission {submission.id} is assigned to another auditor."
+            f"Submission {submission.id} is assigned to other auditors."
         )
 
 
@@ -172,14 +180,16 @@ def list_pending_reviews(*, db: Session, auditor_id: str | None = None) -> list[
     """
     submissions = list_unreviewed_submissions(db)
     if auditor_id is not None:
-        submissions = [item for item in submissions
-                       if item.project is not None and item.project.auditor_id == auditor_id]
+        mine = set(db.scalars(
+            select(SubmissionAuditor.submission_id).where(SubmissionAuditor.auditor_id == auditor_id)
+        ).all())
+        submissions = [item for item in submissions if item.id in mine]
     return [_to_pending_summary(submission) for submission in submissions]
 
 
 def get_review_detail(submission_id: int, *, db: Session, auditor_id: str | None = None) -> ReviewDetail:
     submission = _require_submission(db, submission_id)
-    _require_assignment(submission, auditor_id)
+    _require_assignment(db, submission, auditor_id)
     metrics = get_metrics_for_submission(db, submission_id)
     review = get_review_for_submission(db, submission_id)
 
@@ -215,7 +225,7 @@ def decide_submission(
     submission = _require_submission(db, submission_id)
     # Checked here rather than only at the API edge, so the rule holds for any
     # caller of this function.
-    _require_assignment(submission, reviewer_id)
+    _require_assignment(db, submission, reviewer_id)
 
     try:
         updated = update_submission_status_if_unreviewed(db, submission.id, decision)

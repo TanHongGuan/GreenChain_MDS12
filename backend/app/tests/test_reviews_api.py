@@ -15,6 +15,9 @@ from backend.app.models.submission import (
     Submission,
 )
 from backend.app.repositories.metrics import bulk_create_metrics
+from sqlalchemy import select
+
+from backend.app.models.submission_auditor import SubmissionAuditor
 from backend.app.repositories.projects import get_or_create_project
 from backend.app.repositories.submissions import create_submission
 from backend.app.repositories.users import SQLAlchemyUserRepository, get_user_repository
@@ -83,10 +86,8 @@ def seed_submission(
         original = storage.store_original(BytesIO(original_bytes), "report.csv", "text/csv")
         processed = storage.store_processed(BytesIO(original_bytes), "report.csv", "text/csv")
         project = get_or_create_project(db, "Green Tower", "Acme Corp")
-        # A building has to have an appointed auditor before anyone can review it.
         auditor = SQLAlchemyUserRepository(db).get_user_by_email("auditor@greenchain.test")
         assert auditor is not None
-        project.auditor_id = auditor.id
         submission = create_submission(
             db,
             project_id=project.id,
@@ -98,6 +99,9 @@ def seed_submission(
             original_sha256=sha256 or calculate_sha256(BytesIO(original_bytes)),
         )
         submission.status = status
+        db.flush()
+        # A submission has to have an auditor assigned before anyone can review it.
+        db.add(SubmissionAuditor(submission_id=submission.id, auditor_id=auditor.id))
         bulk_create_metrics(db, submission.id, [])
         db.add(Metric(submission_id=submission.id, metric_name="Electricity", value=120.5, unit="kWh", category="Energy"))
         db.commit()
@@ -237,26 +241,26 @@ def _auditor_id(session_factory, email: str = "auditor@greenchain.test") -> str:
         return user.id
 
 
-def _set_project_auditor(session_factory, submission_id: int, auditor_id: str | None) -> None:
-    from backend.app.models.project import Project
-    from backend.app.models.submission import Submission
-
+def _set_submission_auditors(session_factory, submission_id: int, auditor_ids: list[str]) -> None:
     with session_factory() as db:
-        submission = db.get(Submission, submission_id)
-        db.get(Project, submission.project_id).auditor_id = auditor_id
+        for row in db.scalars(select(SubmissionAuditor)
+                              .where(SubmissionAuditor.submission_id == submission_id)).all():
+            db.delete(row)
+        for auditor_id in auditor_ids:
+            db.add(SubmissionAuditor(submission_id=submission_id, auditor_id=auditor_id))
         db.commit()
 
 
-def test_an_unassigned_building_appears_in_no_queue_and_cannot_be_reviewed(
+def test_an_unassigned_submission_appears_in_no_queue_and_cannot_be_reviewed(
     client: TestClient, session_factory, storage
 ) -> None:
-    """Nobody reviews a building until its owner appoints someone.
+    """Nobody reviews a submission until its owner assigns someone.
 
     The alternative is any auditor approving evidence the owner never asked them
     to look at, which is the thing the appointment exists to prevent.
     """
     submission_id = seed_submission(session_factory, storage)
-    _set_project_auditor(session_factory, submission_id, None)
+    _set_submission_auditors(session_factory, submission_id, [])
     login(client, "auditor@greenchain.test")
 
     queue = client.get("/reviews/submissions/pending").json()["submissions"]
@@ -277,11 +281,11 @@ def test_an_unassigned_building_appears_in_no_queue_and_cannot_be_reviewed(
         assert db.get(Submission, submission_id).status == SUBMISSION_STATUS_UNREVIEWED
 
 
-def test_an_auditor_cannot_review_a_building_assigned_to_someone_else(
+def test_an_auditor_cannot_review_a_submission_assigned_to_someone_else(
     client: TestClient, session_factory, storage
 ) -> None:
     submission_id = seed_submission(session_factory, storage)
-    _set_project_auditor(session_factory, submission_id, "someone-else-entirely")
+    _set_submission_auditors(session_factory, submission_id, ["someone-else-entirely"])
     login(client, "auditor@greenchain.test")
 
     assert client.get("/reviews/submissions/pending").json()["submissions"] == []
@@ -297,7 +301,7 @@ def test_the_assigned_auditor_sees_the_submission_and_can_decide(
     client: TestClient, session_factory, storage
 ) -> None:
     submission_id = seed_submission(session_factory, storage)
-    _set_project_auditor(session_factory, submission_id, _auditor_id(session_factory))
+    _set_submission_auditors(session_factory, submission_id, [_auditor_id(session_factory)])
     login(client, "auditor@greenchain.test")
 
     queue = client.get("/reviews/submissions/pending").json()["submissions"]

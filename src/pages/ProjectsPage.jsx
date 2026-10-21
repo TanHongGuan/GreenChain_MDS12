@@ -248,7 +248,7 @@ export function ProjectsPage() {
       {status === "success" && projects.length === 0 && <p>No projects match the selected filters.</p>}
       {status === "success" && projects.length > 0 && (
         <div className="project-list">
-          <div className="project-list-head" aria-hidden="true"><span>Project / organisation</span><span>Location</span><span>Latest submitted period</span><span>Latest decision</span><span>Updated</span><span></span></div>
+          <div className="project-list-head" aria-hidden="true"><span>Project</span><span>Location</span><span title="Latest submitted period">Latest period</span><span>Decision</span><span>Updated</span><span></span></div>
           {projects.map((project) => (
             <Link
               key={project.project_id}

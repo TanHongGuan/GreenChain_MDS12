@@ -2652,14 +2652,36 @@ nav a[aria-current="page"]::after {
   gap: 12px;
 }
 
+/* Header band: one line per heading, vertically centred, same column tracks as
+   the rows below. Period, decision and updated are centred in both header and
+   rows so short values sit under their heading rather than off to one side. */
 .project-catalogue .project-list-head {
-  padding: 12px 24px;
+  align-items: center;
+  min-height: 52px;
+  padding: 0 24px;
   background: var(--leaf-50);
   border: 1px solid var(--leaf-100);
   border-radius: 10px;
-  align-items: end;
-  color: var(--ink-muted);
-  font-size: 0.82rem;
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.project-catalogue .project-list-head > span {
+  white-space: nowrap;
+}
+
+.project-catalogue .project-list-head > :nth-child(3),
+.project-catalogue .project-list-head > :nth-child(4),
+.project-catalogue .project-list-head > :nth-child(5),
+.project-catalogue .project-list-item > :nth-child(3),
+.project-catalogue .project-list-item > :nth-child(5) {
+  text-align: center;
+}
+
+.project-catalogue .project-list-item > .status-pill {
+  justify-self: center;
 }
 
 .project-catalogue .project-list-item {
